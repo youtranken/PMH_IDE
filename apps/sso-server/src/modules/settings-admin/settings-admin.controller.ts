@@ -30,6 +30,7 @@ const ALLOWED: Record<string, { type: "int" | "string"; min?: number }> = {
   temp_password_ttl_hours: { type: "int", min: 1 },
   client_secret_grace_hours: { type: "int", min: 0 },
   bruteforce_account_threshold: { type: "int", min: 1 },
+  bruteforce_ip_threshold: { type: "int", min: 1 },
   bruteforce_backoff_seconds: { type: "int", min: 1 },
   expiry_warning_days: { type: "int", min: 0 },
   smtp_host: { type: "string" },

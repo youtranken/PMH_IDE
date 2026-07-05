@@ -93,6 +93,12 @@ export class InteractionController {
     const clientId = d.params.client_id as string;
     const ip = req.ip ?? null;
 
+    // Lớp IP (AD-9) — chặn password-spraying 1 IP nhiều account.
+    const ipWait = await this.rateLimit.retryAfterSecondsByIp(ip);
+    if (ipWait > 0) {
+      res.status(429);
+      return { error: "rate_limited", retryAfter: ipWait };
+    }
     // Backoff theo account (AD-9) — chặn dò, không lockout cứng
     const wait = await this.rateLimit.retryAfterSeconds(body.email);
     if (wait > 0) {

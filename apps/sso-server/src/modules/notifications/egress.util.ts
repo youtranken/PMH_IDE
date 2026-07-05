@@ -55,11 +55,22 @@ function isBlocked(ip: string, family: number, allowlist: string[]): boolean {
   return false;
 }
 
-/** Ném lỗi nếu URL webhook không an toàn để gửi. */
+export interface PinnedTarget {
+  hostname: string;
+  address: string; // IP đã validate — PIN kết nối vào đúng IP này
+  family: number;
+}
+
+/**
+ * Ném lỗi nếu URL webhook không an toàn; trả về IP đã validate để PIN (E7-S3
+ * anti-DNS-rebinding): mọi IP resolve phải qua allow/block, và ta trả IP ĐẦU để
+ * worker kết nối THẲNG vào đó (không resolve lại lúc gửi → kẻ không đổi DNS sang
+ * IP nội bộ giữa validate và gửi được).
+ */
 export async function assertEgressAllowed(
   url: string,
   allowlistCidr: string,
-): Promise<void> {
+): Promise<PinnedTarget> {
   let u: URL;
   try {
     u = new URL(url);
@@ -78,4 +89,5 @@ export async function assertEgressAllowed(
       throw new Error(`đích ${address} bị chặn (dải nội bộ, không trong allowlist)`);
     }
   }
+  return { hostname: u.hostname, address: ips[0].address, family: ips[0].family };
 }

@@ -1,11 +1,48 @@
 import { createHmac } from "node:crypto";
+import { request as httpsRequest } from "node:https";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Interval } from "@nestjs/schedule";
 import { Pool } from "pg";
 import { KekService } from "../../common/kek.service";
 import { SettingsService } from "../../config/settings.service";
 import { PG_POOL } from "../../database/database.module";
-import { assertEgressAllowed } from "./egress.util";
+import { assertEgressAllowed, type PinnedTarget } from "./egress.util";
+
+/**
+ * POST https PIN vào IP đã validate (anti-DNS-rebinding): `lookup` ép socket nối
+ * đúng `pin.address`, còn Host/SNI giữ hostname gốc (TLS + routing vẫn đúng).
+ */
+function postPinned(
+  url: string,
+  pin: PinnedTarget,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = httpsRequest(
+      {
+        hostname: u.hostname,
+        servername: u.hostname, // SNI
+        port: u.port || 443,
+        path: u.pathname + u.search,
+        method: "POST",
+        headers: { ...headers, "Content-Length": Buffer.byteLength(body) },
+        lookup: (_h, _o, cb) => cb(null, pin.address, pin.family),
+        timeout: timeoutMs,
+      },
+      (res) => {
+        res.resume(); // drain
+        resolve(res.statusCode ?? 0);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
 
 interface Delivery {
   id: string;
@@ -80,8 +117,9 @@ export class WebhookWorker {
       const enc = rows[0]?.webhook_secret_enc;
       if (!enc) return this.fail(job.id, "client tắt/không có webhook secret", true);
       const allowlist = (await this.settings.get("webhook_allowlist_cidr", "")) ?? "";
+      let pin: PinnedTarget;
       try {
-        await assertEgressAllowed(job.target_url, allowlist);
+        pin = await assertEgressAllowed(job.target_url, allowlist);
       } catch (e) {
         return this.fail(job.id, `egress chặn: ${(e as Error).message}`, true);
       }
@@ -89,26 +127,18 @@ export class WebhookWorker {
       const secret = this.kek.decrypt(enc);
       const body = JSON.stringify(job.payload);
       const sig = createHmac("sha256", secret).update(body).digest("hex");
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), WebhookWorker.TIMEOUT_MS);
-      let ok = false;
-      let status = 0;
-      try {
-        const r = await fetch(job.target_url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-PMH-Event": job.event,
-            "X-PMH-Signature": `sha256=${sig}`,
-          },
-          body,
-          signal: ctrl.signal,
-        });
-        status = r.status;
-        ok = r.ok;
-      } finally {
-        clearTimeout(timer);
-      }
+      const status = await postPinned(
+        job.target_url,
+        pin,
+        {
+          "Content-Type": "application/json",
+          "X-PMH-Event": job.event,
+          "X-PMH-Signature": `sha256=${sig}`,
+        },
+        body,
+        WebhookWorker.TIMEOUT_MS,
+      );
+      const ok = status >= 200 && status < 300;
 
       if (ok) {
         await this.pool.query(

@@ -3,7 +3,9 @@ import { assertEgressAllowed } from "../src/modules/notifications/egress.util";
 // dns.lookup trên IP literal trả lại chính IP đó (không truy vấn mạng) → hermetic.
 describe("egress SSRF guard", () => {
   const ok = (url: string, allow = "") =>
-    expect(assertEgressAllowed(url, allow)).resolves.toBeUndefined();
+    expect(assertEgressAllowed(url, allow)).resolves.toMatchObject({
+      address: expect.any(String),
+    });
   const blocked = (url: string, allow = "") =>
     expect(assertEgressAllowed(url, allow)).rejects.toThrow();
 
@@ -27,4 +29,10 @@ describe("egress SSRF guard", () => {
   it("allowlist KHÔNG mở dải ngoài nó", () => blocked("https://10.1.2.3/x", "192.168.0.0/16"));
 
   it("URL sai định dạng → chặn", () => blocked("không-phải-url"));
+
+  it("trả IP đã PIN để chống rebinding", async () => {
+    const pin = await assertEgressAllowed("https://93.184.216.34/x", "");
+    expect(pin.address).toBe("93.184.216.34");
+    expect(pin.family).toBe(4);
+  });
 });

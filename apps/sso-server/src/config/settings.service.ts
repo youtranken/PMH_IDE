@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Interval } from "@nestjs/schedule";
 import { Pool } from "pg";
 import { PG_POOL } from "../database/database.module";
 
@@ -74,6 +75,24 @@ export class SettingsService {
   invalidate(): void {
     this.loaded = false;
     this.cache.clear();
+  }
+
+  /**
+   * Nạp lại cache định kỳ (HA multi-instance): SSA đổi setting ở node khác →
+   * node này thấy sau ≤30s. Thay nguyên map (assignment atomic trong JS) nên
+   * getIntSync luôn đọc được giá trị nhất quán, không có khoảng cache rỗng.
+   */
+  @Interval(30_000)
+  async reload(): Promise<void> {
+    if (!this.loaded) return;
+    try {
+      const { rows } = await this.pool.query<{ key: string; value: string }>(
+        "SELECT key, value FROM settings",
+      );
+      this.cache = new Map(rows.map((r) => [r.key, r.value]));
+    } catch (e) {
+      this.logger.error(`reload settings lỗi: ${String(e)}`);
+    }
   }
 
   /** Liệt kê toàn bộ tham số (Settings page — E6-S5). */
