@@ -1,0 +1,20 @@
+# PROD OVERRIDE — dùng CHUNG với compose gốc. Trên máy prod, `.env` chứa GIÁ TRỊ PROD.
+#
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+#
+# ĐỌC docs/ops/prod-checklist.md TRƯỚC KHI CHẠY (secrets, cert, domain, migrate, SSA đầu tiên).
+name: pmh-id
+
+services:
+  # FE: phục vụ bản build TĨNH qua Nginx (không phải Vite dev server).
+  portal-fe:
+    build:
+      target: prod
+
+  # Prod KHÔNG dùng mailpit — cấu hình SMTP thật qua .env (SMTP_HOST/PORT/USER/PASSWORD/FROM).
+  mailpit:
+    profiles: ["disabled"]
+
+  # LƯU Ý: postgres không nên mở cổng ra host ở prod. Compose không xoá được `ports`
+  # qua override → xoá TAY dòng `ports:` của postgres trong docker-compose.yml (đã ghi
+  # chú "chỉ dev; prod bỏ dòng này"). Xem checklist mục 4.
