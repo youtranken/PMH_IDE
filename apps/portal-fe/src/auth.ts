@@ -146,6 +146,22 @@ export class ApiError extends Error {
   }
 }
 
+/** GET trả text thô (vd CSV export) có Bearer + tự refresh. */
+export async function apiText(path: string): Promise<string> {
+  const at = await accessToken();
+  const r = await fetch(path, {
+    headers: { Authorization: `Bearer ${at}` },
+    credentials: "same-origin",
+  });
+  if (r.status === 401) {
+    clear();
+    await login();
+    throw new Error("redirecting");
+  }
+  if (!r.ok) throw new ApiError(r.status, await r.json().catch(() => ({})));
+  return r.text();
+}
+
 /** Gọi API có Bearer + tự refresh; ném ApiError khi lỗi. */
 export async function api<T = unknown>(
   path: string,

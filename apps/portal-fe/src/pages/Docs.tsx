@@ -1,4 +1,4 @@
-import { Alert, Spin, Typography } from "antd";
+import { Alert, Skeleton, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../auth";
 import { BRAND } from "../ui";
@@ -32,7 +32,21 @@ export default function Docs() {
       />
     );
   }
-  if (md === null) return <Spin />;
+  if (md === null)
+    return (
+      <div style={{ maxWidth: 820, margin: "0 auto" }}>
+        <Skeleton active paragraph={{ rows: 10 }} title={{ width: "40%" }} />
+      </div>
+    );
+  if (md === "")
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="Không tải được tài liệu"
+        description="Có lỗi khi tải nội dung. Thử tải lại trang, hoặc liên hệ quản trị nếu vẫn lỗi."
+      />
+    );
 
   const { nodes, toc } = renderMarkdown(md);
 

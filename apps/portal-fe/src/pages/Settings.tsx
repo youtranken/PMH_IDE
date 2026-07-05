@@ -8,7 +8,7 @@ import {
   SafetyOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
-import { App as AntApp, Button, Card, Input, Typography } from "antd";
+import { App as AntApp, Button, Card, Input, Skeleton, Typography } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../auth";
 import { BRAND } from "../ui";
@@ -79,12 +79,15 @@ export default function Settings() {
   const [rows, setRows] = useState<Setting[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = () =>
-    api<Setting[]>("/api/admin/settings").then((r) => {
-      setRows(r);
-      setDraft(Object.fromEntries(r.map((s) => [s.key, s.value])));
-    });
+    api<Setting[]>("/api/admin/settings")
+      .then((r) => {
+        setRows(r);
+        setDraft(Object.fromEntries(r.map((s) => [s.key, s.value])));
+      })
+      .finally(() => setLoading(false));
   useEffect(() => {
     load();
   }, []);
@@ -154,8 +157,17 @@ export default function Settings() {
         Tham số vận hành áp dụng ngay (không cần khởi động lại). Bí mật SMTP nằm ở .env.
       </Text>
 
+      {loading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {[0, 1, 2].map((i) => (
+            <Card key={i}>
+              <Skeleton active paragraph={{ rows: 3 }} title={{ width: "30%" }} />
+            </Card>
+          ))}
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {groups.map((g) => (
+        {!loading && groups.map((g) => (
           <Card
             key={g.title}
             styles={{ body: { padding: "8px 20px 12px" } }}

@@ -1,5 +1,5 @@
 import { ArrowRightOutlined } from "@ant-design/icons";
-import { Avatar, Card, Col, Empty, Row, Spin, Tag, Typography } from "antd";
+import { Avatar, Card, Col, Empty, Row, Skeleton, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api } from "../auth";
 import { BRAND, initials } from "../ui";
@@ -50,7 +50,15 @@ export default function Launcher({ greeting }: { greeting?: string }) {
       </Text>
 
       {apps === null ? (
-        <Spin />
+        <Row gutter={[16, 16]}>
+          {[0, 1, 2].map((i) => (
+            <Col key={i} xs={24} sm={12} lg={8}>
+              <Card styles={{ body: { padding: 18 } }}>
+                <Skeleton active avatar={{ shape: "square", size: 46 }} paragraph={{ rows: 1 }} title={{ width: "60%" }} />
+              </Card>
+            </Col>
+          ))}
+        </Row>
       ) : apps.length === 0 ? (
         <Empty
           description={
@@ -69,8 +77,17 @@ export default function Launcher({ greeting }: { greeting?: string }) {
               <Card
                 hoverable
                 className="pmh-app-card"
+                role="button"
+                tabIndex={0}
+                aria-label={`Mở ${a.name}`}
                 styles={{ body: { padding: 18 } }}
                 onClick={() => window.open(a.app_url, "_blank", "noopener")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    window.open(a.app_url, "_blank", "noopener");
+                  }
+                }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <Avatar

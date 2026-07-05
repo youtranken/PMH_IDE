@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Card, Input, Select, Space, Table, Tag, Typography } from "antd";
+import { App as AntApp, Button, Card, Empty, Input, Select, Space, Table, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api } from "../auth";
 
@@ -105,6 +105,7 @@ export default function Audit({ isSsa }: { isSsa: boolean }) {
           size="small"
           pagination={{ pageSize: 20 }}
           scroll={{ x: 720 }}
+          locale={{ emptyText: <Empty description="Chưa có nhật ký phù hợp" /> }}
         />
       </Card>
     </Space>
