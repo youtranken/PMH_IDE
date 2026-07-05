@@ -1,0 +1,116 @@
+# PMH ID — hạ tầng dev. `docker compose -f deploy/docker-compose.yml up --build`
+# Cổng host lấy từ ../.env (né project khác đang chiếm 8080/8443).
+name: pmh-id
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${HOST_PG_PORT:-5433}:5432" # chỉ dev; prod bỏ dòng này
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "${HOST_MAILPIT_UI_PORT:-8026}:8025" # UI xem mail dev
+      - "${HOST_MAILPIT_SMTP_PORT:-1026}:1025" # SMTP app gửi vào
+
+  sso-server:
+    build:
+      context: ..
+      dockerfile: apps/sso-server/Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      PORT: "3000"
+      # host DB trong network compose là tên service `postgres`
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - signing_keys:/run/secrets/signing-keys
+      - audit_archive:/archive
+      # KHÔNG mount backups vào sso-server: RCE app không được chạm kho backup
+      # (chỉ service `backup` có quyền ghi/đọc).
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      # /api/health trả 503 khi DB down → liveness thật cho lõi auth (AD-16).
+      # Dùng node có sẵn (alpine không có curl); exit!=0 khi status!=200.
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 40s
+
+  portal-fe:
+    build:
+      context: ..
+      dockerfile: apps/portal-fe/Dockerfile
+    restart: unless-stopped
+    environment:
+      VITE_PUBLIC_HTTPS_PORT: ${HOST_HTTPS_PORT:-9443}
+    expose:
+      - "5173"
+
+  # Backup trọn bộ (E3-S1) — KHÔNG chạy thường; gọi qua:
+  #   docker compose --profile backup run --rm backup
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    profiles: ["backup"]
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SIGNING_KEYS_DIR: /run/secrets/signing-keys
+      ENV_FILE: /secrets/.env
+      BACKUP_OUT: /backups
+    volumes:
+      - ../.env:/secrets/.env:ro
+      - signing_keys:/run/secrets/signing-keys:ro
+      - backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    environment:
+      # nginx envsubst thay vào default.conf.template lúc khởi động
+      HTTPS_REDIRECT_PORT: ${HOST_HTTPS_PORT:-9443}
+    ports:
+      - "${HOST_HTTP_PORT:-9080}:80"
+      - "${HOST_HTTPS_PORT:-9443}:443"
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      sso-server:
+        condition: service_healthy # chờ lõi auth nghe cổng, tránh 502 lúc khởi động
+      portal-fe:
+        condition: service_started
+
+volumes:
+  pg_data:
+  signing_keys:
+  audit_archive:
+  backups:

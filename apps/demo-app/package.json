@@ -1,0 +1,22 @@
+{
+  "name": "@pmh/demo-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "App demo tích hợp PMH ID: OIDC login + verify JWT offline (Directory API + webhook đến ở Epic 8)",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@pmh/shared": "workspace:*",
+    "express": "^4.21.1",
+    "jose": "^6.2.3",
+    "openid-client": "^6.8.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.7.5",
+    "typescript": "^5.6.3"
+  }
+}

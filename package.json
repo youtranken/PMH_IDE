@@ -1,0 +1,21 @@
+{
+  "name": "pmh-id",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PMH ID — SSO/IdP nội bộ (monorepo)",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "docker compose --env-file .env -f deploy/docker-compose.yml up --build",
+    "dev:fast": "docker compose --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml up -d",
+    "down": "docker compose --env-file .env -f deploy/docker-compose.yml down",
+    "logs": "docker compose --env-file .env -f deploy/docker-compose.yml logs -f",
+    "migrate:up": "pnpm --filter @pmh/sso-server migrate:up",
+    "migrate:down": "pnpm --filter @pmh/sso-server migrate:down",
+    "certs": "bash deploy/gen-certs.sh"
+  },
+  "packageManager": "pnpm@9.15.9"
+}

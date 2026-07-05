@@ -1,0 +1,55 @@
+# PMH ID — điểm vào duy nhất (AD-4). TLS termination + route + sanitize
+# X-Forwarded-*. Image nginx envsubst thay ${HTTPS_REDIRECT_PORT} lúc khởi
+# động; các biến nginx ($host, $request_uri...) được giữ nguyên.
+
+upstream sso_server { server sso-server:3000; }
+upstream portal_fe  { server portal-fe:5173; }
+
+# Websocket upgrade có điều kiện (Vite HMR): chỉ set Connection: upgrade khi có
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ''      close;
+}
+
+# ---- HTTP :80 → ép lên HTTPS (cổng host công khai) ----
+server {
+  listen 80;
+  server_name _;
+  return 301 https://$host:${HTTPS_REDIRECT_PORT}$request_uri;
+}
+
+# ---- HTTPS :443 ----
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name _;
+
+  ssl_certificate     /etc/nginx/certs/dev.crt;
+  ssl_certificate_key /etc/nginx/certs/dev.key;
+
+  # Đặt ở SERVER level => mọi location kế thừa (nginx chỉ kế thừa proxy_set_header
+  # nếu location KHÔNG tự khai báo cái nào). SANITIZE X-Forwarded-* (AD-4).
+  proxy_http_version 1.1;
+  # $http_host giữ nguyên port (dev :9443); $host thì cắt port → URL OIDC sai
+  proxy_set_header Host              $http_host;
+  proxy_set_header X-Real-IP         $remote_addr;
+  proxy_set_header X-Forwarded-For   $remote_addr;
+  proxy_set_header X-Forwarded-Proto https;
+  proxy_set_header X-Forwarded-Host  $http_host;
+  proxy_set_header Upgrade           $http_upgrade;
+  proxy_set_header Connection        $connection_upgrade;
+
+  # ---- BE: OIDC provider + API + docs → sso-server ----
+  location /oidc/        { proxy_pass http://sso_server; }
+  location /api/         { proxy_pass http://sso_server; }
+  location = /docs       { proxy_pass http://sso_server; }
+
+  # ---- /interaction/:uid → SPA render trang login (AD-3);
+  #      SPA gọi /api/interaction/* để lấy chi tiết + submit ----
+  location /interaction/ { proxy_pass http://portal_fe; }
+
+  # ---- FE: mọi thứ còn lại → portal SPA (Vite dev server) ----
+  location / {
+    proxy_pass http://portal_fe;
+  }
+}

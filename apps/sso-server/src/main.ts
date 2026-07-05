@@ -1,0 +1,154 @@
+import "reflect-metadata";
+import { Logger, ValidationPipe } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import * as argon2 from "argon2";
+import cookieParser from "cookie-parser";
+import type { NextFunction, Request, Response } from "express";
+import { Pool } from "pg";
+import { KekService } from "./common/kek.service";
+import { PG_POOL } from "./database/database.module";
+import { AppModule } from "./app.module";
+import { RateLimitService } from "./modules/auth-oidc/rate-limit.service";
+import { OIDC_PROVIDER } from "./oidc/oidc.module";
+import type { OidcProviderInstance } from "./oidc/provider.factory";
+
+/** Tách (client_id, secret) từ header Basic (RFC6749 §2.3.1: form-urlencoded). */
+function parseBasic(
+  auth: string | undefined,
+): { clientId: string; secret: string } | null {
+  if (!auth?.startsWith("Basic ")) return null;
+  try {
+    const decoded = Buffer.from(auth.slice(6), "base64").toString("utf8");
+    const sep = decoded.indexOf(":");
+    if (sep < 0) return null;
+    return {
+      clientId: decodeURIComponent(decoded.slice(0, sep)),
+      secret: decodeURIComponent(decoded.slice(sep + 1)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Lấy client_id từ header Basic (client_secret_basic) để rate-limit /oidc/token. */
+function basicClientId(auth: string | undefined): string | null {
+  if (!auth?.startsWith("Basic ")) return null;
+  try {
+    const decoded = Buffer.from(auth.slice(6), "base64").toString("utf8");
+    const id = decoded.split(":")[0];
+    return id ? decodeURIComponent(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function bootstrap() {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Sau Nginx (TLS termination + sanitize X-Forwarded-*, AD-4). Tin đúng 1 hop.
+  // Prod: siết về IP/subnet Nginx thay vì true.
+  app.set("trust proxy", 1);
+
+  // Parse cookie cho các route /api (vé giai đoạn đăng nhập — StageService).
+  // oidc-provider tự quản cookie riêng nên không bị ảnh hưởng.
+  app.use(cookieParser());
+
+  // Import CSV (E4-S3) gửi cả file dạng text trong JSON → nới giới hạn body.
+  // Route quản trị đã sau AdminGuard nên rủi ro DoS thấp; 5mb đủ ~1000 user.
+  app.useBodyParser("json", { limit: "5mb" });
+
+  // Chống dò client_secret trên /oidc/token (AD-9/E2-S3): backoff theo
+  // client_id, ghi login_attempts. Đặt TRƯỚC mount provider.
+  const rateLimit = app.get(RateLimitService);
+  app.use(
+    "/oidc/token",
+    (req: Request, res: Response, next: NextFunction): void => {
+      if (req.method !== "POST") return next();
+      const ip = req.ip ?? "unknown";
+      const clientId = basicClientId(req.headers.authorization) ?? "unknown";
+      // Khóa theo (client_id, IP) — client_id là công khai, không được để một
+      // mình nó gây backoff cho RP thật; nhánh unknown cô lập theo IP (AD-9).
+      const key = `client:${clientId}:${ip}`;
+      rateLimit
+        .retryAfterSeconds(key)
+        .then((wait) => {
+          if (wait > 0) {
+            res.set("Retry-After", String(wait));
+            res.status(429).json({ error: "rate_limited", retryAfter: wait });
+            return;
+          }
+          res.on("finish", () => {
+            // .catch BẮT BUỘC: record() reject (DB blip) mà không bắt =
+            // unhandled rejection = Node giết cả process.
+            rateLimit
+              .record(key, clientId, ip === "unknown" ? null : ip, res.statusCode < 400)
+              .catch(() => {});
+          });
+          next();
+        })
+        .catch(() => next()); // lỗi rate-limit không được chặn đăng nhập
+    },
+  );
+
+  // Xác thực client_secret cho DB client (E5-S5/S6, Path A). oidc-provider chỉ
+  // so 1 secret plaintext; secret dev lại lưu HASH + nhiều bản (active/retiring).
+  // Middleware này tự verify secret dev với hash, hợp lệ thì THAY bằng internal
+  // secret (KEK-derived) mà adapter Client.find trả cho provider. Client TĨNH
+  // (demo-app) và client public (portal, không Basic) đi thẳng. Đặt TRƯỚC mount.
+  const pool = app.get<Pool>(PG_POOL);
+  const kek = app.get(KekService);
+  app.use(
+    "/oidc/token",
+    (req: Request, _res: Response, next: NextFunction): void => {
+      if (req.method !== "POST") return next();
+      const creds = parseBasic(req.headers.authorization);
+      if (!creds) return next(); // public/PKCE hoặc không Basic → provider lo
+      void (async () => {
+        const { rows: cli } = await pool.query<{ id: string }>(
+          `SELECT id FROM clients WHERE client_id = $1 AND disabled = false`,
+          [creds.clientId],
+        );
+        if (cli.length === 0) return; // client tĩnh hoặc không tồn tại → provider lo
+        const { rows: secrets } = await pool.query<{ secret_hash: string }>(
+          `SELECT secret_hash FROM client_secrets
+           WHERE client_id = $1
+             AND (status = 'active'
+                  OR (status = 'retiring' AND expires_at > now()))`,
+          [cli[0].id],
+        );
+        for (const s of secrets) {
+          if (await argon2.verify(s.secret_hash, creds.secret).catch(() => false)) {
+            const internal = kek.deriveClientProviderSecret(creds.clientId);
+            req.headers.authorization =
+              "Basic " +
+              Buffer.from(
+                `${encodeURIComponent(creds.clientId)}:${internal}`,
+              ).toString("base64");
+            return; // khớp → đã thay internal secret; secret sai thì để provider từ chối
+          }
+        }
+      })()
+        .catch(() => {}) // lỗi validate không được chặn; provider sẽ từ chối
+        .finally(() => next());
+    },
+  );
+
+  // Mount oidc-provider tại /oidc TRƯỚC listen => đứng trước router Nest
+  // trong stack express (body-parser của Nest không đụng request OIDC).
+  // Issuer có path /oidc nên URL sinh ra khớp mount này (AD-5).
+  const oidcProvider = app.get<OidcProviderInstance>(OIDC_PROVIDER);
+  app.use("/oidc", oidcProvider.callback());
+
+  // /api/* → Nginx route vào đây.
+  app.setGlobalPrefix("api");
+  app.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, transform: true }),
+  );
+
+  const port = Number.parseInt(process.env.PORT ?? "3000", 10);
+  await app.listen(port, "0.0.0.0");
+  new Logger("bootstrap").log(`sso-server nghe cổng ${port} (sau Nginx)`);
+}
+
+void bootstrap();

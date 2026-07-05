@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/build
+**/*.tsbuildinfo
+.git
+.env
+*.env.local
+deploy/nginx/certs
+docs
+*.md

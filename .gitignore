@@ -1,0 +1,24 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+*.tsbuildinfo
+
+# env & secrets — NEVER commit (AD-15)
+.env
+*.env.local
+deploy/nginx/certs/*.pem
+deploy/nginx/certs/*.key
+deploy/nginx/certs/*.crt
+
+# signing keys / KEK (AD-6/AD-8/AD-15) — kept on mounted volume, out of git
+secrets/
+keys/
+
+# logs / misc
+*.log
+.DS_Store
+Thumbs.db

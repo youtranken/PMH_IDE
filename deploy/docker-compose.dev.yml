@@ -1,0 +1,34 @@
+# DEV OVERRIDE — mount source vào container + watch mode: sửa code tự reload
+# trong vài giây, KHÔNG rebuild image. Image chỉ cần rebuild khi package.json
+# đổi (thêm/bớt dependency).
+#
+#   pnpm dev:fast   (= docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d)
+#
+# CHOKIDAR/vite polling: bind mount từ Windows không bắn file-event vào
+# container → phải bật polling để watcher thấy thay đổi.
+
+services:
+  sso-server:
+    # MỘT chủ sở hữu dist duy nhất = tsc -w (không nest build/deleteOutDir để
+    # tránh tranh xóa). node --watch chờ tới khi có dist/main.js rồi chạy,
+    # tự restart mỗi lần tsc emit. Sửa src → vài giây reload, KHÔNG rebuild image.
+    command: >
+      sh -c "pnpm migrate:up &&
+             (pnpm exec tsc -w -p tsconfig.json --preserveWatchOutput &
+              (until [ -f dist/main.js ]; do sleep 1; done; exec node --watch dist/main.js))"
+    environment:
+      TSC_WATCHFILE: DynamicPriorityPolling
+    volumes:
+      - ../apps/sso-server/src:/repo/apps/sso-server/src
+      - ../apps/sso-server/migrations:/repo/apps/sso-server/migrations
+      - ../apps/sso-server/scripts:/repo/apps/sso-server/scripts
+      - ../packages/shared:/repo/packages/shared
+
+  portal-fe:
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ../apps/portal-fe/src:/repo/apps/portal-fe/src
+      - ../apps/portal-fe/index.html:/repo/apps/portal-fe/index.html
+      - ../apps/portal-fe/vite.config.ts:/repo/apps/portal-fe/vite.config.ts
+      - ../packages/shared:/repo/packages/shared

@@ -1,0 +1,46 @@
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { Pool } from "pg";
+import { PG_POOL } from "../../database/database.module";
+
+/**
+ * Dọn bảng nóng (AD-13): oidc_payloads hết hạn (adapter chỉ LỌC khi đọc, không
+ * xóa → phình vô hạn nếu không dọn) + login_attempts cũ. Chạy mỗi giờ.
+ */
+@Injectable()
+export class CleanupService {
+  private readonly logger = new Logger(CleanupService.name);
+  private static readonly LOGIN_ATTEMPTS_KEEP_DAYS = 30;
+
+  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async cleanup(): Promise<void> {
+    try {
+      const oidc = await this.pool.query(
+        `DELETE FROM oidc_payloads WHERE expires_at IS NOT NULL AND expires_at < now()`,
+      );
+      const attempts = await this.pool.query(
+        `DELETE FROM login_attempts
+         WHERE created_at < now() - make_interval(days => $1)`,
+        [CleanupService.LOGIN_ATTEMPTS_KEEP_DAYS],
+      );
+      // Secret rotate hết ân hạn → revoked (E5-S6, AD-12). Middleware đã bỏ qua
+      // secret retiring quá hạn; đây chỉ dọn trạng thái cho gọn + giữ dấu vết.
+      const secrets = await this.pool.query(
+        `UPDATE client_secrets SET status = 'revoked', revoked_at = now()
+         WHERE status = 'retiring' AND expires_at < now()`,
+      );
+      const nOidc = oidc.rowCount ?? 0;
+      const nAtt = attempts.rowCount ?? 0;
+      const nSec = secrets.rowCount ?? 0;
+      if (nOidc + nAtt + nSec > 0) {
+        this.logger.log(
+          `dọn: ${nOidc} oidc_payloads hết hạn, ${nAtt} login_attempts cũ, ${nSec} client_secret hết ân hạn`,
+        );
+      }
+    } catch (e) {
+      this.logger.error(`cleanup lỗi: ${String(e)}`);
+    }
+  }
+}
