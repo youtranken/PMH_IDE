@@ -1,27 +1,30 @@
-import { CheckCircleTwoTone, CloseCircleTwoTone } from "@ant-design/icons";
+import {
+  CheckCircleFilled,
+  DesktopOutlined,
+  LockOutlined,
+  MinusCircleOutlined,
+  MobileOutlined,
+  QrcodeOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
   App as AntApp,
+  Avatar,
   Button,
-  Card,
-  Descriptions,
-  Form,
   Input,
-  List,
   Popconfirm,
-  Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   checkPassword,
   PASSWORD_RULE_LABELS,
   type PasswordChecks,
 } from "@pmh/shared";
 import { api, logout } from "../auth";
-import { deviceName, relativeTime } from "../ui";
+import { BRAND, deviceName, initials, relativeTime } from "../ui";
 import type { Profile } from "../App";
 
 const { Title, Text } = Typography;
@@ -35,7 +38,97 @@ interface Session {
   is_current: boolean;
 }
 
-/** Self-service (E6-S2, FR-10/05): thông tin + group, quản phiên, đổi mật khẩu. */
+const isMobileUA = (ua: string | null) => /Mobile|Android|iPhone|iPad/i.test(ua ?? "");
+
+/* ---- Khối dựng dùng chung (thay Card mặc định để kiểm soát bố cục) ---- */
+
+function Panel({ children, style }: { children: ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "1px solid #eceeec",
+        borderRadius: 14,
+        boxShadow: "0 1px 2px rgba(16,33,31,.04), 0 8px 24px rgba(16,33,31,.05)",
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: 0.7,
+        textTransform: "uppercase",
+        color: BRAND.muted,
+        margin: "26px 4px 12px",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function IconTile({ children, tone = "green" }: { children: ReactNode; tone?: "green" | "gold" }) {
+  return (
+    <span
+      style={{
+        width: 40,
+        height: 40,
+        flex: "0 0 auto",
+        borderRadius: 11,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 18,
+        background: tone === "gold" ? "#f6efdc" : "#e8f0ed",
+        color: tone === "gold" ? BRAND.gold : BRAND.green,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Hàng bảo mật: icon + tiêu đề/mô tả + phần bên phải, thân bung inline. */
+function SecurityRow({
+  icon,
+  tone,
+  title,
+  desc,
+  right,
+  children,
+}: {
+  icon: ReactNode;
+  tone?: "green" | "gold";
+  title: string;
+  desc: string;
+  right?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <Panel style={{ padding: "18px 20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <IconTile tone={tone}>{icon}</IconTile>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 15, color: BRAND.ink }}>{title}</div>
+          <div style={{ color: BRAND.muted, fontSize: 13, marginTop: 1 }}>{desc}</div>
+        </div>
+        {right && <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{right}</div>}
+      </div>
+      {children && (
+        <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid #f0f2f0" }}>{children}</div>
+      )}
+    </Panel>
+  );
+}
+
 /** Bật/tắt MFA TOTP tự phục vụ (phase sau — mọi user). */
 function MfaCard() {
   const { message } = AntApp.useApp();
@@ -93,70 +186,214 @@ function MfaCard() {
     }
   };
 
-  if (enabled === null) return null;
+  const active = !!setup || disabling || !!recovery;
+  const right =
+    enabled === null ? null : active ? (
+      recovery ? null : (
+        <Button
+          type="text"
+          onClick={() => {
+            setSetup(null);
+            setDisabling(false);
+            setCode("");
+          }}
+        >
+          Hủy
+        </Button>
+      )
+    ) : enabled ? (
+      <>
+        <Tag color="green" style={{ marginInlineEnd: 0 }}>Đang bật</Tag>
+        <Button danger onClick={() => setDisabling(true)}>Tắt</Button>
+      </>
+    ) : (
+      <>
+        <Tag style={{ marginInlineEnd: 0 }}>Chưa bật</Tag>
+        <Button type="primary" loading={busy} onClick={begin}>Bật MFA</Button>
+      </>
+    );
 
   return (
-    <Card title="Xác thực 2 lớp (MFA)">
+    <SecurityRow
+      icon={<SafetyCertificateOutlined />}
+      tone="gold"
+      title="Xác thực 2 lớp (MFA)"
+      desc="Thêm một lớp mã OTP một lần mỗi khi đăng nhập."
+      right={right}
+    >
       {recovery ? (
         <>
           <Alert
             type="success"
             showIcon
             style={{ marginBottom: 12 }}
-            message="Đã bật MFA — LƯU recovery codes ngay (chỉ hiện một lần)"
-            description="Dùng khi mất thiết bị. Mỗi code dùng một lần."
+            message="Đã bật MFA — lưu recovery codes ngay (chỉ hiện một lần)"
+            description="Dùng khi mất thiết bị. Mỗi mã dùng một lần."
           />
-          <List
-            size="small"
-            bordered
-            dataSource={recovery}
-            renderItem={(c) => <List.Item style={{ fontFamily: "monospace" }}>{c}</List.Item>}
-          />
-          <Button style={{ marginTop: 12 }} onClick={() => setRecovery(null)}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+              gap: 8,
+              fontFamily: "ui-monospace, monospace",
+            }}
+          >
+            {recovery.map((c) => (
+              <div
+                key={c}
+                style={{
+                  padding: "8px 12px",
+                  background: BRAND.stone,
+                  borderRadius: 8,
+                  textAlign: "center",
+                  letterSpacing: 1,
+                }}
+              >
+                {c}
+              </div>
+            ))}
+          </div>
+          <Button style={{ marginTop: 14 }} onClick={() => setRecovery(null)}>
             Đã lưu, đóng
           </Button>
         </>
-      ) : enabled ? (
-        disabling ? (
-          <Space direction="vertical" style={{ width: "100%", maxWidth: 320 }}>
-            <span>Nhập mã TOTP (hoặc recovery code) để tắt:</span>
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
-            <Space>
-              <Button danger loading={busy} disabled={!code} onClick={disable}>Tắt MFA</Button>
-              <Button onClick={() => { setDisabling(false); setCode(""); }}>Hủy</Button>
-            </Space>
-          </Space>
-        ) : (
-          <Space>
-            <Tag color="green">Đang bật</Tag>
-            <Button danger onClick={() => setDisabling(true)}>Tắt MFA</Button>
-          </Space>
-        )
       ) : setup ? (
-        <Space direction="vertical" style={{ width: "100%", maxWidth: 340 }}>
-          <span>Quét QR bằng app authenticator rồi nhập mã 6 số:</span>
-          <img src={setup.qr} alt="MFA QR" style={{ width: 200, height: 200 }} />
-          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" autoComplete="one-time-code" />
-          <Button type="primary" loading={busy} disabled={!code} onClick={confirm}>Xác nhận bật MFA</Button>
-        </Space>
-      ) : (
-        <Space direction="vertical">
-          <span>Tăng bảo mật tài khoản bằng mã TOTP một lần (authenticator app).</span>
-          <Button type="primary" loading={busy} onClick={begin}>Bật MFA</Button>
-        </Space>
-      )}
-    </Card>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <img
+            src={setup.qr}
+            alt="Mã QR thiết lập MFA"
+            style={{ width: 176, height: 176, border: "1px solid #eceeec", borderRadius: 12, padding: 6 }}
+          />
+          <div style={{ flex: 1, minWidth: 220, maxWidth: 320 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Quét bằng app authenticator</div>
+            <Text type="secondary" style={{ display: "block", marginBottom: 14 }}>
+              Google Authenticator, Microsoft Authenticator… rồi nhập mã 6 số để xác nhận.
+            </Text>
+            <Input
+              size="large"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="123 456"
+              autoComplete="one-time-code"
+              prefix={<QrcodeOutlined style={{ color: BRAND.muted }} />}
+            />
+            <Button
+              type="primary"
+              block
+              style={{ marginTop: 12 }}
+              loading={busy}
+              disabled={!code}
+              onClick={confirm}
+            >
+              Xác nhận bật MFA
+            </Button>
+          </div>
+        </div>
+      ) : disabling ? (
+        <div style={{ maxWidth: 340 }}>
+          <Text type="secondary" style={{ display: "block", marginBottom: 10 }}>
+            Nhập mã TOTP hiện tại (hoặc một recovery code) để tắt.
+          </Text>
+          <Input
+            size="large"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="123 456"
+          />
+          <Button danger block style={{ marginTop: 12 }} loading={busy} disabled={!code} onClick={disable}>
+            Tắt MFA
+          </Button>
+        </div>
+      ) : null}
+    </SecurityRow>
   );
 }
 
-export default function SelfService({ profile }: { profile: Profile; onProfile: (p: Profile) => void }) {
+function ChangePassword() {
   const { message } = AntApp.useApp();
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [open, setOpen] = useState(false);
   const [curPw, setCurPw] = useState("");
   const [pw, setPw] = useState("");
   const [saving, setSaving] = useState(false);
   const checks = checkPassword(pw);
   const allOk = Object.values(checks).every(Boolean);
+
+  const changePassword = async () => {
+    setSaving(true);
+    try {
+      const r = await api<{ revoked: number }>("/api/me/change-password", {
+        method: "POST",
+        body: { currentPassword: curPw, newPassword: pw },
+      });
+      setPw("");
+      setCurPw("");
+      setOpen(false);
+      message.success(`Đã đổi mật khẩu — hủy ${r.revoked} phiên khác, giữ phiên hiện tại`);
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SecurityRow
+      icon={<LockOutlined />}
+      title="Mật khẩu"
+      desc="Đổi định kỳ để giữ tài khoản an toàn."
+      right={
+        open ? (
+          <Button type="text" onClick={() => setOpen(false)}>Hủy</Button>
+        ) : (
+          <Button onClick={() => setOpen(true)}>Đổi mật khẩu</Button>
+        )
+      }
+    >
+      {open && (
+        <div style={{ maxWidth: 380 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: BRAND.ink }}>Mật khẩu hiện tại</label>
+          <Input.Password
+            size="large"
+            style={{ margin: "6px 0 14px" }}
+            value={curPw}
+            autoComplete="current-password"
+            onChange={(e) => setCurPw(e.target.value)}
+          />
+          <label style={{ fontSize: 13, fontWeight: 600, color: BRAND.ink }}>Mật khẩu mới</label>
+          <Input.Password
+            size="large"
+            style={{ margin: "6px 0 14px" }}
+            value={pw}
+            autoComplete="new-password"
+            onChange={(e) => setPw(e.target.value)}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 18 }}>
+            {(Object.keys(checks) as (keyof PasswordChecks)[]).map((k) => (
+              <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                {checks[k] ? (
+                  <CheckCircleFilled style={{ color: BRAND.green }} />
+                ) : (
+                  <MinusCircleOutlined style={{ color: "#c4ccc9" }} />
+                )}
+                <span style={{ color: checks[k] ? BRAND.ink : BRAND.muted }}>
+                  {PASSWORD_RULE_LABELS[k]}
+                </span>
+              </div>
+            ))}
+          </div>
+          <Button type="primary" disabled={!allOk || !curPw} loading={saving} onClick={changePassword}>
+            Cập nhật mật khẩu
+          </Button>
+        </div>
+      )}
+    </SecurityRow>
+  );
+}
+
+/** Self-service (E6-S2, FR-10/05): thông tin + group, quản phiên, MFA, đổi mật khẩu. */
+export default function SelfService({ profile }: { profile: Profile; onProfile: (p: Profile) => void }) {
+  const { message } = AntApp.useApp();
+  const [sessions, setSessions] = useState<Session[]>([]);
 
   const loadSessions = () =>
     api<Session[]>("/api/me/sessions").then(setSessions).catch(() => {});
@@ -170,132 +407,85 @@ export default function SelfService({ profile }: { profile: Profile; onProfile: 
     loadSessions();
   };
 
-  const changePassword = async () => {
-    setSaving(true);
-    try {
-      const r = await api<{ revoked: number }>("/api/me/change-password", {
-        method: "POST",
-        body: { currentPassword: curPw, newPassword: pw },
-      });
-      setPw("");
-      setCurPw("");
-      message.success(`Đã đổi mật khẩu — hủy ${r.revoked} phiên khác, giữ phiên hiện tại`);
-      loadSessions();
-    } catch (e) {
-      message.error((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Title level={3}>Tài khoản</Title>
+    <div style={{ maxWidth: 780, margin: "0 auto", width: "100%" }}>
+      <Title level={3} style={{ marginBottom: 2 }}>Tài khoản</Title>
+      <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+        Quản lý thông tin cá nhân và bảo mật đăng nhập.
+      </Text>
 
-      <Card>
-        <Descriptions column={1} title="Thông tin">
-          <Descriptions.Item label="Họ tên">{profile.full_name}</Descriptions.Item>
-          <Descriptions.Item label="Email">{profile.email}</Descriptions.Item>
-          <Descriptions.Item label="Mã NV">{profile.employee_code}</Descriptions.Item>
-          <Descriptions.Item label="Nhóm">
-            {profile.groups.length
-              ? profile.groups.map((g) => <Tag key={g}>{g}</Tag>)
-              : "—"}
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
+      {/* Identity hero */}
+      <Panel style={{ padding: 24, display: "flex", alignItems: "center", gap: 18, marginTop: 16 }}>
+        <Avatar size={64} style={{ background: BRAND.green, fontSize: 24, fontWeight: 700, flex: "0 0 auto" }}>
+          {initials(profile.full_name)}
+        </Avatar>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: BRAND.ink }}>{profile.full_name}</div>
+          <div style={{ color: BRAND.muted }}>{profile.email}</div>
+          <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <Tag color="green" style={{ marginInlineEnd: 0 }}>NV: {profile.employee_code}</Tag>
+            {profile.groups.map((g) => (
+              <Tag key={g} style={{ marginInlineEnd: 0 }}>{g}</Tag>
+            ))}
+          </div>
+        </div>
+      </Panel>
 
-      <Card
-        title="Phiên đăng nhập"
-        extra={
-          <Popconfirm
-            title="Đăng xuất khỏi TẤT CẢ thiết bị (kể cả hiện tại)?"
-            onConfirm={async () => {
-              await api("/api/me/logout-all", { method: "POST" });
-              logout();
+      {/* Bảo mật */}
+      <SectionLabel>Bảo mật</SectionLabel>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <MfaCard />
+        <ChangePassword />
+      </div>
+
+      {/* Thiết bị */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <SectionLabel>Thiết bị đăng nhập</SectionLabel>
+        <Popconfirm
+          title="Đăng xuất khỏi TẤT CẢ thiết bị (kể cả hiện tại)?"
+          onConfirm={async () => {
+            await api("/api/me/logout-all", { method: "POST" });
+            logout();
+          }}
+        >
+          <Button size="small" danger type="text">Đăng xuất mọi thiết bị</Button>
+        </Popconfirm>
+      </div>
+      <Panel>
+        {sessions.length === 0 && (
+          <div style={{ padding: 20, color: BRAND.muted }}>Chưa có phiên nào.</div>
+        )}
+        {sessions.map((s, i) => (
+          <div
+            key={s.oidc_session_uid}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              padding: "16px 20px",
+              borderTop: i ? "1px solid #f0f2f0" : "none",
             }}
           >
-            <Button size="small" danger>Đăng xuất mọi thiết bị</Button>
-          </Popconfirm>
-        }
-      >
-        <Table<Session>
-          rowKey="oidc_session_uid"
-          dataSource={sessions}
-          pagination={false}
-          size="small"
-          columns={[
-            {
-              title: "Thiết bị",
-              render: (_, s) => (
-                <span>
-                  {deviceName(s.user_agent)}
-                  {s.is_current && (
-                    <Tag color="blue" style={{ marginLeft: 8 }}>Thiết bị này</Tag>
-                  )}
-                </span>
-              ),
-            },
-            { title: "IP", dataIndex: "ip", render: (v) => v ?? "—", responsive: ["md"] },
-            {
-              title: "Hoạt động",
-              dataIndex: "last_activity",
-              render: (v: string) => relativeTime(v),
-            },
-            {
-              title: "",
-              width: 110,
-              render: (_, s) =>
-                s.is_current ? (
-                  <Text type="secondary" style={{ fontSize: 12 }}>đang dùng</Text>
-                ) : (
-                  <Popconfirm title="Đăng xuất phiên này?" onConfirm={() => revoke(s.oidc_session_uid)}>
-                    <Button size="small" danger>Đăng xuất</Button>
-                  </Popconfirm>
-                ),
-            },
-          ]}
-        />
-      </Card>
-
-      <MfaCard />
-
-      <Card title="Đổi mật khẩu">
-        <Form layout="vertical" style={{ maxWidth: 420 }}>
-          <Form.Item label="Mật khẩu hiện tại">
-            <Input.Password
-              value={curPw}
-              autoComplete="current-password"
-              onChange={(e) => setCurPw(e.target.value)}
-            />
-          </Form.Item>
-          <Form.Item label="Mật khẩu mới">
-            <Input.Password
-              value={pw}
-              autoComplete="new-password"
-              onChange={(e) => setPw(e.target.value)}
-            />
-          </Form.Item>
-          <List
-            size="small"
-            style={{ marginBottom: 16 }}
-            dataSource={Object.keys(checks) as (keyof PasswordChecks)[]}
-            renderItem={(k) => (
-              <List.Item>
-                {checks[k] ? (
-                  <CheckCircleTwoTone twoToneColor="#52c41a" />
-                ) : (
-                  <CloseCircleTwoTone twoToneColor="#ff4d4f" />
-                )}
-                <span style={{ marginLeft: 8 }}>{PASSWORD_RULE_LABELS[k]}</span>
-              </List.Item>
+            <IconTile>{isMobileUA(s.user_agent) ? <MobileOutlined /> : <DesktopOutlined />}</IconTile>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, color: BRAND.ink }}>
+                {deviceName(s.user_agent)}
+                {s.is_current && <Tag color="green" style={{ marginLeft: 8 }}>Thiết bị này</Tag>}
+              </div>
+              <div style={{ color: BRAND.muted, fontSize: 13, marginTop: 1 }}>
+                {(s.ip ?? "—") + " · " + relativeTime(s.last_activity)}
+              </div>
+            </div>
+            {s.is_current ? (
+              <Text type="secondary" style={{ fontSize: 12 }}>đang dùng</Text>
+            ) : (
+              <Popconfirm title="Đăng xuất phiên này?" onConfirm={() => revoke(s.oidc_session_uid)}>
+                <Button size="small" danger>Đăng xuất</Button>
+              </Popconfirm>
             )}
-          />
-          <Button type="primary" disabled={!allOk || !curPw} loading={saving} onClick={changePassword}>
-            Đổi mật khẩu
-          </Button>
-        </Form>
-      </Card>
-    </Space>
+          </div>
+        ))}
+      </Panel>
+    </div>
   );
 }

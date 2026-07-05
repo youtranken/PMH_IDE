@@ -2,7 +2,7 @@ import { App as AntApp, Button, Card, Input, Select, Space, Table, Tag, Typograp
 import { useEffect, useState } from "react";
 import { api } from "../auth";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 interface AuditRow {
   id: number;
@@ -27,7 +27,7 @@ const columns = [
     title: "Hành động",
     dataIndex: "action",
     render: (v: string) => (
-      <Tag color={v.startsWith("login.denied") || v.endsWith(".failed") ? "red" : v.startsWith("login") ? "blue" : "default"}>
+      <Tag color={v.startsWith("login.denied") || v.endsWith(".failed") ? "red" : v.startsWith("login") ? "green" : "default"}>
         {v}
       </Tag>
     ),
@@ -66,7 +66,10 @@ export default function Audit({ isSsa }: { isSsa: boolean }) {
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Title level={3}>Nhật ký hệ thống</Title>
+      <div>
+        <Title level={3} style={{ marginBottom: 2 }}>Nhật ký hệ thống</Title>
+        <Text type="secondary">Đăng nhập và thao tác quản trị, theo phạm vi bạn quản lý.</Text>
+      </div>
       <Card>
         <Space wrap style={{ marginBottom: 16 }}>
           <Input.Search

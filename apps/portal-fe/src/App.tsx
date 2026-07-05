@@ -1,7 +1,7 @@
 import { AppstoreOutlined, AuditOutlined, BookOutlined, MenuOutlined, SettingOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
 import { App as AntApp, Avatar, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Spin } from "antd";
 import { useEffect, useState } from "react";
-import { Brand, initials } from "./ui";
+import { Brand, BRAND, initials } from "./ui";
 import InteractionLogin from "./pages/InteractionLogin";
 import Launcher from "./pages/Launcher";
 import SelfService from "./pages/SelfService";
@@ -41,15 +41,19 @@ export default function App() {
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: "#1560a8",
-          colorLink: "#1560a8",
-          borderRadius: 8,
-          colorBgLayout: "#f5f7fa",
+          colorPrimary: "#0E4D45",
+          colorLink: "#0E4D45",
+          colorInfo: "#0E4D45",
+          borderRadius: 10,
+          colorBgLayout: "#f3f5f3",
+          colorTextHeading: "#16211F",
           fontSize: 14,
         },
         components: {
-          Layout: { headerBg: "#ffffff", headerHeight: 60, siderBg: "#ffffff" },
-          Menu: { itemSelectedBg: "#e8f1fb", itemSelectedColor: "#1560a8", itemHeight: 42 },
+          Layout: { headerBg: "#ffffff", headerHeight: 62, siderBg: "#ffffff" },
+          Menu: { itemSelectedBg: "#e8f0ed", itemSelectedColor: "#0E4D45", itemHeight: 44, itemBorderRadius: 8 },
+          Button: { primaryShadow: "none" },
+          Card: { boxShadowTertiary: "0 1px 2px rgba(16,33,31,0.04), 0 8px 24px rgba(16,33,31,0.05)" },
         },
       }}
     >
@@ -130,7 +134,7 @@ function Root() {
   const logo = (
     <div style={{ height: 60, display: "flex", alignItems: "center", gap: 10, paddingInline: 20 }}>
       <Brand size={26} />
-      <span style={{ fontWeight: 700, fontSize: 17, color: "#0f2c47", letterSpacing: 0.3 }}>PMH ID</span>
+      <span style={{ fontWeight: 700, fontSize: 17, color: BRAND.ink, letterSpacing: 0.3 }}>PMH ID</span>
     </div>
   );
   const menu = (
@@ -161,7 +165,7 @@ function Root() {
               <MenuOutlined style={{ fontSize: 18, cursor: "pointer" }} onClick={() => setDrawer(true)} />
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Brand size={22} />
-                <span style={{ fontWeight: 700, color: "#0f2c47" }}>PMH ID</span>
+                <span style={{ fontWeight: 700, color: BRAND.ink }}>PMH ID</span>
               </div>
             </>
           )}
@@ -178,10 +182,10 @@ function Root() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <Avatar style={{ background: "#1560a8", verticalAlign: "middle" }} size={32}>
+              <Avatar style={{ background: BRAND.green, verticalAlign: "middle" }} size={32}>
                 {initials(profile.full_name)}
               </Avatar>
-              {!mobile && <span style={{ fontWeight: 600, color: "#1f2937" }}>{profile.full_name}</span>}
+              {!mobile && <span style={{ fontWeight: 600, color: BRAND.ink }}>{profile.full_name}</span>}
             </div>
           </Dropdown>
         </Header>

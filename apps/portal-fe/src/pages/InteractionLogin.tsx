@@ -1,16 +1,6 @@
-import {
-  Alert,
-  Button,
-  Card,
-  Checkbox,
-  Form,
-  Input,
-  Layout,
-  List,
-  Typography,
-} from "antd";
-import { CheckCircleTwoTone, CloseCircleTwoTone } from "@ant-design/icons";
-import { Brand } from "../ui";
+import { Alert, Button, Checkbox, Form, Input, List } from "antd";
+import { CheckCircleTwoTone, CloseCircleTwoTone, LockOutlined, UserOutlined } from "@ant-design/icons";
+import { Brand, BRAND, SkylineMotif } from "../ui";
 import { useEffect, useState } from "react";
 import {
   checkPassword,
@@ -18,8 +8,36 @@ import {
   type PasswordChecks,
 } from "@pmh/shared";
 
-const { Content } = Layout;
-const { Title, Text } = Typography;
+/** CSS màn đăng nhập: gradient mesh + glass card + hero + animation vào trang. */
+const authCss = `
+.pmh-auth{position:fixed;inset:0;overflow:auto;background:
+  radial-gradient(52% 46% at 14% 16%, rgba(201,162,75,.24), transparent 60%),
+  radial-gradient(50% 44% at 86% 86%, rgba(31,132,110,.42), transparent 62%),
+  radial-gradient(40% 36% at 78% 8%, rgba(255,255,255,.10), transparent 55%),
+  linear-gradient(155deg,#082b27 0%,#0E4D45 52%,#0a3a34 100%);}
+.pmh-auth__skyline{position:absolute;left:0;right:0;bottom:0;height:48%;opacity:.55;pointer-events:none;}
+.pmh-auth__wrap{position:relative;z-index:2;min-height:100%;box-sizing:border-box;display:flex;
+  align-items:center;justify-content:center;gap:72px;max-width:1080px;margin:0 auto;padding:48px 32px;}
+.pmh-auth__hero{flex:1 1 0;max-width:460px;color:#fff;animation:pmhUp .6s cubic-bezier(.2,.7,.2,1) both;}
+.pmh-auth__brand{display:flex;align-items:center;gap:12px;font-size:22px;font-weight:700;letter-spacing:.4px;}
+.pmh-auth__hero h1{margin:40px 0 0;font-size:clamp(30px,3.4vw,46px);font-weight:800;line-height:1.12;letter-spacing:-1.2px;}
+.pmh-auth__hero p{margin:18px 0 0;max-width:400px;font-size:16px;line-height:1.65;color:rgba(255,255,255,.74);}
+.pmh-auth__rule{margin-top:28px;height:3px;width:64px;border-radius:3px;background:#C9A24B;}
+.pmh-card{position:relative;width:100%;max-width:404px;box-sizing:border-box;padding:36px 32px;border-radius:22px;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+  border:1px solid rgba(255,255,255,.65);box-shadow:0 34px 70px -24px rgba(0,0,0,.55),0 4px 14px rgba(0,0,0,.12);
+  animation:pmhUp .6s cubic-bezier(.2,.7,.2,1) .08s both;}
+.pmh-card__brand{display:none;align-items:center;justify-content:center;gap:10px;margin-bottom:22px;font-size:19px;font-weight:700;color:#16211F;}
+.pmh-card__title{margin:0;font-size:24px;font-weight:700;color:#16211F;letter-spacing:-.3px;}
+.pmh-card__sub{margin:6px 0 22px;color:#5f716c;}
+@media (max-width:820px){
+  .pmh-auth__hero{display:none;}
+  .pmh-card__brand{display:flex;}
+  .pmh-auth__wrap{padding:28px 18px;}
+}
+@keyframes pmhUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+@media (prefers-reduced-motion:reduce){.pmh-auth__hero,.pmh-card{animation:none;}}
+`;
 
 type Step = "login" | "change_password" | "mfa" | "mfa_enroll";
 
@@ -112,53 +130,77 @@ export default function InteractionLogin({ uid }: { uid: string }) {
     }
   }
 
-  return (
-    <Layout style={{ minHeight: "100vh", justifyContent: "center" }}>
-      <Content style={{ maxWidth: 400, width: "100%", margin: "0 auto", padding: 24 }}>
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-            <Brand size={34} />
-            <span style={{ fontSize: 22, fontWeight: 700, color: "#123", letterSpacing: 0.3 }}>
-              PMH ID
-            </span>
-          </div>
-        </div>
-        <Card>
-          <Title level={4} style={{ textAlign: "center", marginTop: 0 }}>
-            Đăng nhập
-          </Title>
-          {clientName && step === "login" && (
-            <Text
-              type="secondary"
-              style={{ display: "block", textAlign: "center", marginBottom: 16 }}
-            >
-              để tiếp tục vào <b style={{ color: "#1560a8" }}>{clientName}</b>
-            </Text>
-          )}
+  const stepTitle =
+    step === "change_password" ? "Đổi mật khẩu"
+    : step === "mfa" ? "Xác thực 2 lớp"
+    : step === "mfa_enroll" ? "Thiết lập bảo mật"
+    : "Đăng nhập";
 
-          {dead ? (
-            <Alert
-              type="warning"
-              message="Phiên đăng nhập đã hết hạn"
-              description="Quay lại ứng dụng và thử đăng nhập lại."
-              showIcon
-            />
-          ) : (
-            <>
-              {error && (
-                <Alert type="error" message={error} style={{ marginBottom: 16 }} showIcon />
-              )}
-              {step === "login" && <LoginForm loading={loading} onFinish={onLogin} />}
-              {step === "change_password" && (
-                <ChangePasswordForm loading={loading} onFinish={onChangePassword} />
-              )}
-              {step === "mfa" && <MfaForm loading={loading} onFinish={onMfa} />}
-              {step === "mfa_enroll" && <MfaEnrollForm uid={uid} />}
-            </>
+  const showSub = !!clientName && step === "login";
+  const form = (
+    <>
+      <h2 className="pmh-card__title" style={{ marginBottom: showSub ? 6 : 22 }}>
+        {stepTitle}
+      </h2>
+      {showSub && (
+        <p className="pmh-card__sub">
+          để tiếp tục vào <b style={{ color: BRAND.green }}>{clientName}</b>
+        </p>
+      )}
+
+      {dead ? (
+        <Alert
+          type="warning"
+          message="Phiên đăng nhập đã hết hạn"
+          description="Quay lại ứng dụng và thử đăng nhập lại."
+          showIcon
+        />
+      ) : (
+        <>
+          {error && (
+            <Alert type="error" message={error} style={{ marginBottom: 16 }} showIcon />
           )}
-        </Card>
-      </Content>
-    </Layout>
+          {step === "login" && <LoginForm loading={loading} onFinish={onLogin} />}
+          {step === "change_password" && (
+            <ChangePasswordForm loading={loading} onFinish={onChangePassword} />
+          )}
+          {step === "mfa" && <MfaForm loading={loading} onFinish={onMfa} />}
+          {step === "mfa_enroll" && <MfaEnrollForm uid={uid} />}
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <div className="pmh-auth">
+      <style>{authCss}</style>
+      <div className="pmh-auth__skyline">
+        <SkylineMotif />
+      </div>
+      <div className="pmh-auth__wrap">
+        <div className="pmh-auth__hero">
+          <div className="pmh-auth__brand">
+            <Brand size={40} on="dark" />
+            <span>PMH ID</span>
+          </div>
+          <h1>
+            Một tài khoản,<br />mọi hệ thống của công ty.
+          </h1>
+          <p>
+            Cổng đăng nhập chung của PMH — an toàn, tập trung. Đăng nhập một lần,
+            dùng khắp các ứng dụng nội bộ.
+          </p>
+          <div className="pmh-auth__rule" />
+        </div>
+        <div className="pmh-card">
+          <div className="pmh-card__brand">
+            <Brand size={28} />
+            <span>PMH ID</span>
+          </div>
+          {form}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -172,16 +214,26 @@ function LoginForm({
   return (
     <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
       <Form.Item label="Email" name="email" rules={[{ required: true, message: "Nhập email" }]}>
-        <Input autoComplete="username" autoFocus />
+        <Input
+          size="large"
+          autoComplete="username"
+          autoFocus
+          prefix={<UserOutlined style={{ color: BRAND.muted }} />}
+          placeholder="ten@pmh.com.vn"
+        />
       </Form.Item>
       <Form.Item
         label="Mật khẩu"
         name="password"
         rules={[{ required: true, message: "Nhập mật khẩu" }]}
       >
-        <Input.Password autoComplete="current-password" />
+        <Input.Password
+          size="large"
+          autoComplete="current-password"
+          prefix={<LockOutlined style={{ color: BRAND.muted }} />}
+        />
       </Form.Item>
-      <Button type="primary" htmlType="submit" block loading={loading}>
+      <Button type="primary" htmlType="submit" size="large" block loading={loading}>
         Đăng nhập
       </Button>
     </Form>
