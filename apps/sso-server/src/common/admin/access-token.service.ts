@@ -59,8 +59,14 @@ export class AccessTokenService {
    */
   verifyM2M(token: string): string {
     const claims = this.verifyCore(token);
-    const clientId = (claims.client_id ?? claims.sub) as string | undefined;
+    const clientId = claims.client_id as string | undefined;
     if (!clientId) throw new UnauthorizedException("token thiếu client_id");
+    // CHỈ client-credentials: token đó có sub === client_id. Token người dùng
+    // (authorization_code) có sub = userId ≠ client_id → chặn, không cho user
+    // mượn access token app để gọi Directory.
+    if (claims.sub !== clientId) {
+      throw new UnauthorizedException("Directory chỉ nhận token client-credentials");
+    }
     return clientId;
   }
 

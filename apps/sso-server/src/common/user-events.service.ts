@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Pool } from "pg";
 import { PG_POOL } from "../database/database.module";
 
@@ -10,9 +10,27 @@ import { PG_POOL } from "../database/database.module";
  */
 @Injectable()
 export class UserEventsService {
+  private readonly logger = new Logger(UserEventsService.name);
+
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
+  /**
+   * Phát event + enqueue webhook. Lỗi KHÔNG được làm gãy thao tác chính (khóa/
+   * đổi group... đã áp dụng xong trước khi gọi) — chỉ log, giống AuditService.
+   */
   async emit(
+    userId: string,
+    eventType: string,
+    detail?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.doEmit(userId, eventType, detail);
+    } catch (e) {
+      this.logger.error(`emit ${eventType} (user ${userId}) lỗi: ${String(e)}`);
+    }
+  }
+
+  private async doEmit(
     userId: string,
     eventType: string,
     detail?: Record<string, unknown>,
