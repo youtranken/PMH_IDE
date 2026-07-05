@@ -14,6 +14,8 @@ import {
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import type { Request, Response } from "express";
 import { AuditService } from "../../common/audit.service";
+import { SessionRevocationService } from "../../common/session-revocation.service";
+import { UserEventsService } from "../../common/user-events.service";
 import { OIDC_PROVIDER } from "../../oidc/oidc.module";
 import type { OidcProviderInstance } from "../../oidc/provider.factory";
 import { LoginService } from "./login.service";
@@ -59,6 +61,8 @@ export class InteractionController {
     private readonly rateLimit: RateLimitService,
     private readonly stage: StageService,
     private readonly audit: AuditService,
+    private readonly revocation: SessionRevocationService,
+    private readonly events: UserEventsService,
   ) {}
 
   @Get(":uid")
@@ -148,6 +152,11 @@ export class InteractionController {
     const userId = this.requireStage(req, uid, "change_password");
     await this.policy.assertValid(body.newPassword);
     await this.login.setPassword(userId, body.newPassword);
+    // Đổi MK bắt buộc (sau reset/temp) → thu hồi MỌI phiên cũ (dùng MK cũ). Đăng
+    // nhập đang diễn ra chưa thành Session (mới là Interaction) nên không bị đụng;
+    // finish() sẽ tạo phiên mới. Phát event cho feed/webhook (FR-27).
+    await this.revocation.revokeAllForUser(userId);
+    await this.events.emit(userId, "user.password_changed", { via: "forced" });
     await this.audit.record({
       actorUserId: userId,
       action: "password.changed",
