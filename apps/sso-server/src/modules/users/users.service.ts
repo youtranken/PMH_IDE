@@ -8,6 +8,7 @@ import { Pool } from "pg";
 import type { AdminContext } from "../../common/admin/admin.types";
 import { AuditService } from "../../common/audit.service";
 import { SessionRevocationService } from "../../common/session-revocation.service";
+import { UserEventsService } from "../../common/user-events.service";
 import { PG_POOL } from "../../database/database.module";
 import { TempPasswordService } from "./temp-password.service";
 
@@ -47,6 +48,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly revocation: SessionRevocationService,
     private readonly tempPassword: TempPasswordService,
+    private readonly events: UserEventsService,
   ) {}
 
   async list(): Promise<UserRow[]> {
@@ -249,6 +251,7 @@ export class UsersService {
     );
     if (rowCount === 0) throw new NotFoundException("user không tồn tại");
     const revoked = locked ? await this.revocation.revokeAllForUser(id) : 0;
+    await this.emitEvent(id, locked ? "user.locked" : "user.unlocked");
     await this.audit.record({
       actorUserId,
       action: locked ? "user.locked" : "user.unlocked",
@@ -291,6 +294,7 @@ export class UsersService {
   ): Promise<{ ok: true; revoked: number }> {
     const email = await this.tempPassword.issue(id);
     if (!email) throw new NotFoundException("user không tồn tại");
+    await this.emitEvent(id, "user.password_changed", { via: "admin_reset" });
     const revoked = admin.isSsa
       ? await this.revocation.revokeAllForUser(id)
       : await this.revocation.revokeForUserInProjects(id, admin.projectIds);
@@ -334,10 +338,12 @@ export class UsersService {
     return rows[0];
   }
 
-  private async emitEvent(userId: string, type: string): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO user_events (user_id, event_type) VALUES ($1, $2)`,
-      [userId, type],
-    );
+  /** Phát event qua UserEventsService (ghi user_events + enqueue webhook E7-S3). */
+  private emitEvent(
+    userId: string,
+    type: string,
+    detail?: Record<string, unknown>,
+  ): Promise<void> {
+    return this.events.emit(userId, type, detail);
   }
 }

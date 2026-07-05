@@ -41,8 +41,31 @@ export class AccessTokenService {
     }
   }
 
-  /** Verify chữ ký + iss + aud + hạn. Trả claims hoặc ném 401. */
+  /** Verify chữ ký + iss + aud=portal + hạn (token người dùng qua portal). */
   verify(token: string): AccessClaims {
+    const claims = this.verifyCore(token);
+    const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+    if (!aud.includes(this.portalClientId)) {
+      throw new UnauthorizedException("token không dành cho portal");
+    }
+    if (!claims.sub) throw new UnauthorizedException("token thiếu sub");
+    return claims;
+  }
+
+  /**
+   * Verify access token M2M (client-credentials, Directory API — E7-S1). Không
+   * đòi aud=portal; định danh = client_id (chữ ký của ta là thẩm quyền). Trả
+   * client_id hoặc ném 401.
+   */
+  verifyM2M(token: string): string {
+    const claims = this.verifyCore(token);
+    const clientId = (claims.client_id ?? claims.sub) as string | undefined;
+    if (!clientId) throw new UnauthorizedException("token thiếu client_id");
+    return clientId;
+  }
+
+  /** Bước chung: chữ ký RS256 + kid + typ=at+jwt + iss + hạn. */
+  private verifyCore(token: string): AccessClaims {
     const parts = token.split(".");
     if (parts.length !== 3) throw new UnauthorizedException("token sai định dạng");
     const [h, p, s] = parts;
@@ -83,11 +106,6 @@ export class AccessTokenService {
     if (claims.iss !== this.issuer) {
       throw new UnauthorizedException("iss không hợp lệ");
     }
-    const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-    if (!aud.includes(this.portalClientId)) {
-      throw new UnauthorizedException("token không dành cho portal");
-    }
-    if (!claims.sub) throw new UnauthorizedException("token thiếu sub");
     return claims;
   }
 }

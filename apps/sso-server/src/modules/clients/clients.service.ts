@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -10,8 +11,10 @@ import * as argon2 from "argon2";
 import { Pool } from "pg";
 import type { AdminContext } from "../../common/admin/admin.types";
 import { AuditService } from "../../common/audit.service";
+import { KekService } from "../../common/kek.service";
 import { SettingsService } from "../../config/settings.service";
 import { PG_POOL } from "../../database/database.module";
+import { assertEgressAllowed } from "../notifications/egress.util";
 
 export interface ClientRow {
   id: string;
@@ -48,7 +51,59 @@ export class ClientsService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly audit: AuditService,
     private readonly settings: SettingsService,
+    private readonly kek: KekService,
   ) {}
+
+  /** Cấu hình webhook (E7-S3): validate egress + sinh secret HMAC (mã hóa KEK). */
+  async setWebhook(
+    id: string,
+    webhookUrl: string,
+    admin: AdminContext,
+    ip: string | null,
+  ): Promise<{ secret: string }> {
+    const c = await this.getScoped(id, admin);
+    const allowlist = (await this.settings.get("webhook_allowlist_cidr", "")) ?? "";
+    try {
+      await assertEgressAllowed(webhookUrl, allowlist);
+    } catch (e) {
+      throw new BadRequestException((e as Error).message);
+    }
+    const secret = randomBytes(32).toString("base64url");
+    await this.pool.query(
+      `UPDATE clients SET webhook_url = $2, webhook_secret_enc = $3 WHERE id = $1`,
+      [id, webhookUrl, this.kek.encrypt(secret)],
+    );
+    await this.audit.record({
+      actorUserId: admin.userId,
+      action: "client.webhook_set",
+      targetType: "client",
+      targetId: id,
+      projectId: c.project_id,
+      ip,
+      detail: { webhook_url: webhookUrl },
+    });
+    return { secret };
+  }
+
+  async removeWebhook(
+    id: string,
+    admin: AdminContext,
+    ip: string | null,
+  ): Promise<void> {
+    const c = await this.getScoped(id, admin);
+    await this.pool.query(
+      `UPDATE clients SET webhook_url = NULL, webhook_secret_enc = NULL WHERE id = $1`,
+      [id],
+    );
+    await this.audit.record({
+      actorUserId: admin.userId,
+      action: "client.webhook_removed",
+      targetType: "client",
+      targetId: id,
+      projectId: c.project_id,
+      ip,
+    });
+  }
 
   private genSecret(): string {
     return randomBytes(32).toString("base64url");

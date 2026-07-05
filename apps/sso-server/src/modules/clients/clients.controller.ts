@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -51,6 +52,10 @@ class GroupDto {
 }
 class AllowAllDto {
   @IsBoolean() allowAll!: boolean;
+}
+class WebhookDto {
+  @IsUrl({ require_tld: false, require_protocol: true, protocols: ["https"] })
+  webhookUrl!: string;
 }
 
 /**
@@ -178,5 +183,24 @@ export class ClientsController {
     @Req() req: Request,
   ) {
     return this.clients.setAllowAll(id, dto.allowAll, admin, req.ip ?? null);
+  }
+
+  @Put(":id/webhook")
+  setWebhook(
+    @Param("id") id: string,
+    @Body() dto: WebhookDto,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.clients.setWebhook(id, dto.webhookUrl, admin, req.ip ?? null);
+  }
+
+  @Delete(":id/webhook")
+  removeWebhook(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.clients.removeWebhook(id, admin, req.ip ?? null);
   }
 }

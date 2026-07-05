@@ -9,6 +9,7 @@ import { Pool } from "pg";
 import type { AdminContext } from "../../common/admin/admin.types";
 import { AuditService } from "../../common/audit.service";
 import { SessionRevocationService } from "../../common/session-revocation.service";
+import { UserEventsService } from "../../common/user-events.service";
 import { PG_POOL } from "../../database/database.module";
 
 export interface GroupRow {
@@ -30,6 +31,7 @@ export class GroupsService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly audit: AuditService,
     private readonly revocation: SessionRevocationService,
+    private readonly events: UserEventsService,
   ) {}
 
   list(): Promise<GroupRow[]> {
@@ -167,6 +169,9 @@ export class GroupsService {
        ON CONFLICT DO NOTHING`,
       [userId, groupId],
     );
+    await this.events.emit(userId, "user.groups_changed", {
+      added: groupId,
+    });
     await this.audit.record({
       actorUserId: admin.userId,
       action: "group.member_added",
@@ -189,6 +194,9 @@ export class GroupsService {
       `DELETE FROM user_groups WHERE user_id = $1 AND group_id = $2`,
       [userId, groupId],
     );
+    await this.events.emit(userId, "user.groups_changed", {
+      removed: groupId,
+    });
     const revoked = admin.isSsa
       ? await this.revocation.revokeAllForUser(userId)
       : await this.revocation.revokeForUserInProjects(userId, admin.projectIds);

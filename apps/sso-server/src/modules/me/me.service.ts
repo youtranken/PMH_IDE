@@ -7,6 +7,7 @@ import {
 import { Pool } from "pg";
 import { AuditService } from "../../common/audit.service";
 import { SessionRevocationService } from "../../common/session-revocation.service";
+import { UserEventsService } from "../../common/user-events.service";
 import { PG_POOL } from "../../database/database.module";
 import { LoginService } from "../auth-oidc/login.service";
 import { PasswordPolicyService } from "../auth-oidc/password-policy.service";
@@ -23,6 +24,7 @@ export class MeService {
     private readonly policy: PasswordPolicyService,
     private readonly revocation: SessionRevocationService,
     private readonly audit: AuditService,
+    private readonly events: UserEventsService,
   ) {}
 
   async profile(userId: string): Promise<{
@@ -131,6 +133,7 @@ export class MeService {
     const revoked = keepSessionUid
       ? await this.revocation.revokeOtherSessions(userId, keepSessionUid)
       : await this.revocation.revokeAllForUser(userId);
+    await this.events.emit(userId, "user.password_changed", { via: "self" });
     await this.audit.record({
       actorUserId: userId,
       action: "password.changed",

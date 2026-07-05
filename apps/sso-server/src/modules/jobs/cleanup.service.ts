@@ -11,6 +11,7 @@ import { PG_POOL } from "../../database/database.module";
 export class CleanupService {
   private readonly logger = new Logger(CleanupService.name);
   private static readonly LOGIN_ATTEMPTS_KEEP_DAYS = 30;
+  private static readonly USER_EVENTS_KEEP_DAYS = 90;
 
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
@@ -31,12 +32,19 @@ export class CleanupService {
         `UPDATE client_secrets SET status = 'revoked', revoked_at = now()
          WHERE status = 'retiring' AND expires_at < now()`,
       );
+      // Events feed giữ 90 ngày (E7-S2, FR-27) — cursor cũ hơn → 410 resync.
+      const events = await this.pool.query(
+        `DELETE FROM user_events
+         WHERE created_at < now() - make_interval(days => $1)`,
+        [CleanupService.USER_EVENTS_KEEP_DAYS],
+      );
       const nOidc = oidc.rowCount ?? 0;
       const nAtt = attempts.rowCount ?? 0;
       const nSec = secrets.rowCount ?? 0;
-      if (nOidc + nAtt + nSec > 0) {
+      const nEv = events.rowCount ?? 0;
+      if (nOidc + nAtt + nSec + nEv > 0) {
         this.logger.log(
-          `dọn: ${nOidc} oidc_payloads hết hạn, ${nAtt} login_attempts cũ, ${nSec} client_secret hết ân hạn`,
+          `dọn: ${nOidc} oidc_payloads, ${nAtt} login_attempts, ${nSec} client_secret, ${nEv} user_events cũ`,
         );
       }
     } catch (e) {

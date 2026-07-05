@@ -2,15 +2,15 @@ import { Module } from "@nestjs/common";
 import { EmailQueueService } from "./email-queue.service";
 import { EmailWorker } from "./email-worker.service";
 import { MailerService } from "./mailer.service";
+import { WebhookWorker } from "./webhook-worker.service";
 
 /**
- * Gửi email ngầm qua hàng đợi Postgres (E4-S7, AD-13): MailerService (SMTP) +
- * EmailQueueService (enqueue) + EmailWorker (poll SKIP LOCKED, retry backoff).
- * Webhook (Epic 7) sẽ thêm ở đây. EmailQueueService export cho các story dùng
- * MK tạm / import CSV / cảnh báo hạn (E4-S3/S5/S6/S8).
+ * Gửi ngầm qua hàng đợi Postgres (AD-13): email (E4-S7) + webhook (E7-S3).
+ * EmailWorker/WebhookWorker poll SKIP LOCKED + retry backoff. EmailQueueService
+ * export cho MK tạm / import CSV / cảnh báo hạn.
  */
 @Module({
-  providers: [MailerService, EmailQueueService, EmailWorker],
+  providers: [MailerService, EmailQueueService, EmailWorker, WebhookWorker],
   exports: [EmailQueueService],
 })
 export class NotificationsModule {}
