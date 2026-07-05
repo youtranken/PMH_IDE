@@ -38,6 +38,10 @@ export class CleanupService {
          WHERE created_at < now() - make_interval(days => $1)`,
         [CleanupService.USER_EVENTS_KEEP_DAYS],
       );
+      // Rate-limit Directory chỉ cần cửa sổ 60s → dọn dòng cũ hơn 5 phút.
+      await this.pool.query(
+        `DELETE FROM directory_hits WHERE at < now() - interval '5 minutes'`,
+      );
       const nOidc = oidc.rowCount ?? 0;
       const nAtt = attempts.rowCount ?? 0;
       const nSec = secrets.rowCount ?? 0;

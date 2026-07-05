@@ -159,6 +159,22 @@ export class MeService {
     return rows;
   }
 
+  /** Đăng xuất MỌI thiết bị (SLO) — thu hồi tất cả phiên kể cả hiện tại. */
+  async logoutAll(
+    userId: string,
+    ip: string | null,
+  ): Promise<{ revoked: number }> {
+    const revoked = await this.revocation.revokeAllForUser(userId);
+    await this.audit.record({
+      actorUserId: userId,
+      action: "self.logout_all",
+      targetType: "user",
+      targetId: userId,
+      ip,
+    });
+    return { revoked };
+  }
+
   async revokeSession(
     userId: string,
     sessionUid: string,

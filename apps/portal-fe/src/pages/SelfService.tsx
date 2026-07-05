@@ -20,7 +20,7 @@ import {
   PASSWORD_RULE_LABELS,
   type PasswordChecks,
 } from "@pmh/shared";
-import { api } from "../auth";
+import { api, logout } from "../auth";
 import type { Profile } from "../App";
 
 const { Title } = Typography;
@@ -202,7 +202,20 @@ export default function SelfService({ profile }: { profile: Profile; onProfile: 
         </Descriptions>
       </Card>
 
-      <Card title="Phiên đăng nhập">
+      <Card
+        title="Phiên đăng nhập"
+        extra={
+          <Popconfirm
+            title="Đăng xuất khỏi TẤT CẢ thiết bị (kể cả hiện tại)?"
+            onConfirm={async () => {
+              await api("/api/me/logout-all", { method: "POST" });
+              logout();
+            }}
+          >
+            <Button size="small" danger>Đăng xuất mọi thiết bị</Button>
+          </Popconfirm>
+        }
+      >
         <Table<Session>
           rowKey="oidc_session_uid"
           dataSource={sessions}

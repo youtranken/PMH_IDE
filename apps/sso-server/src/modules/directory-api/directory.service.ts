@@ -31,27 +31,33 @@ export interface DirUser {
 export class DirectoryService {
   private static readonly MAX_LIMIT = 200;
   private static readonly RATE = 60; // request / cửa sổ
-  private static readonly WINDOW_MS = 60_000;
-  private readonly hits = new Map<string, number[]>();
+  private static readonly WINDOW_SEC = 60;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly audit: AuditService,
   ) {}
 
-  /** Chặn per-client theo cửa sổ trượt (RATE/phút). Ném 403 nếu quá (dùng làm 429 ở controller). */
-  private rateLimit(clientId: string, nowMs: number): void {
-    const arr = (this.hits.get(clientId) ?? []).filter(
-      (t) => nowMs - t < DirectoryService.WINDOW_MS,
+  /**
+   * Chặn per-client theo cửa sổ trượt trên Postgres (multi-instance-safe, thay
+   * in-memory) — RATE request/60s. Đếm rồi ghi; quá → 429. Dòng cũ cron dọn.
+   */
+  private async rateLimit(clientId: string): Promise<void> {
+    const { rows } = await this.pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM directory_hits
+       WHERE client_id = $1 AND at > now() - make_interval(secs => $2)`,
+      [clientId, DirectoryService.WINDOW_SEC],
     );
-    if (arr.length >= DirectoryService.RATE) {
+    if (Number(rows[0].n) >= DirectoryService.RATE) {
       throw new HttpException(
         { error: "rate_limited" },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    arr.push(nowMs);
-    this.hits.set(clientId, arr);
+    await this.pool.query(
+      `INSERT INTO directory_hits (client_id) VALUES ($1)`,
+      [clientId],
+    );
   }
 
   async listUsers(
@@ -59,7 +65,7 @@ export class DirectoryService {
     opts: { includeDeleted: boolean; limit: number; offset: number; nowMs: number },
     ip: string | null,
   ): Promise<DirUser[]> {
-    this.rateLimit(client.clientId, opts.nowMs);
+    await this.rateLimit(client.clientId);
     const limit = Math.min(Math.max(opts.limit, 1), DirectoryService.MAX_LIMIT);
     const delFilter = opts.includeDeleted ? "" : "AND u.deleted_at IS NULL";
     const { rows } = await this.pool.query<DirUser>(
@@ -130,7 +136,8 @@ export class DirectoryService {
     limit: number,
     nowMs: number,
   ): Promise<{ events: unknown[]; cursor: number }> {
-    this.rateLimit(client.clientId, nowMs);
+    void nowMs; // rate-limit chuyển sang Postgres (không dùng nowMs nữa)
+    await this.rateLimit(client.clientId);
     const cap = Math.min(Math.max(limit, 1), DirectoryService.MAX_LIMIT);
     const { rows: b } = await this.pool.query<{
       mn: string | null;

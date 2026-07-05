@@ -25,6 +25,7 @@ const LABELS: Record<string, string> = {
   smtp_port: "SMTP port",
   backup_path: "Đường dẫn backup",
   audit_archive_path: "Đường dẫn lưu trữ audit",
+  require_mfa_roles: "Vai bắt buộc MFA (phẩy, vd ssa,project_admin)",
 };
 
 /** Trang Settings SSA (E6-S5, FR-32): đổi tham số vận hành, áp dụng runtime. */

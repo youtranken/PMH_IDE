@@ -45,6 +45,11 @@ export class MeController {
     return this.me.sessions(userId);
   }
 
+  @Post("logout-all")
+  logoutAll(@CurrentUser() userId: string, @Req() req: Request) {
+    return this.me.logoutAll(userId, req.ip ?? null);
+  }
+
   @Post("sessions/:uid/revoke")
   revokeSession(
     @CurrentUser() userId: string,

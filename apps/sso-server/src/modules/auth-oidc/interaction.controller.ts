@@ -13,10 +13,15 @@ import {
 } from "@nestjs/common";
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from "class-validator";
 import type { Request, Response } from "express";
+import * as QRCode from "qrcode";
+import { Pool } from "pg";
 import { AuditService } from "../../common/audit.service";
 import { SessionRevocationService } from "../../common/session-revocation.service";
 import { UserEventsService } from "../../common/user-events.service";
+import { SettingsService } from "../../config/settings.service";
+import { PG_POOL } from "../../database/database.module";
 import { OIDC_PROVIDER } from "../../oidc/oidc.module";
+import type { MfaStatus } from "./mfa.service";
 import type { OidcProviderInstance } from "../../oidc/provider.factory";
 import { LoginService } from "./login.service";
 import { MfaService } from "./mfa.service";
@@ -37,7 +42,7 @@ class MfaDto {
 }
 
 /** Bước tiếp theo trong luồng đăng nhập nhiều bước. */
-type NextStep = "change_password" | "mfa" | "done";
+type NextStep = "change_password" | "mfa" | "mfa_enroll" | "done";
 
 const STAGE_COOKIE_OPTS = {
   httpOnly: true,
@@ -63,6 +68,8 @@ export class InteractionController {
     private readonly audit: AuditService,
     private readonly revocation: SessionRevocationService,
     private readonly events: UserEventsService,
+    private readonly settings: SettingsService,
+    @Inject(PG_POOL) private readonly pool: Pool,
   ) {}
 
   @Get(":uid")
@@ -137,7 +144,7 @@ export class InteractionController {
       result.userId,
       result.mustChangePassword,
       result.passwordUpdatedAt,
-      mfaStatus.enabled && !mfaStatus.isBreakglass,
+      mfaStatus,
     );
     return this.advance(uid, result.userId, next, req, res);
   }
@@ -166,9 +173,9 @@ export class InteractionController {
       detail: { via: "login-forced-change" },
     });
 
-    // Đổi xong: còn MFA thì đi tiếp, không thì hoàn tất
-    const mfaRequired = await this.mfa.isRequired(userId);
-    return this.advance(uid, userId, mfaRequired ? "mfa" : "done", req, res);
+    // Đổi xong: MFA/ép-enroll/hoàn tất tùy trạng thái.
+    const step = await this.postPasswordStep(userId, await this.mfa.status(userId));
+    return this.advance(uid, userId, step, req, res);
   }
 
   @Post(":uid/mfa")
@@ -216,6 +223,46 @@ export class InteractionController {
     return this.finish(uid, userId, req, res);
   }
 
+  /** Ép enroll MFA (bước mfa_enroll): sinh secret + QR để user quét. */
+  @Post(":uid/mfa-enroll-setup")
+  async mfaEnrollSetup(
+    @Param("uid") uid: string,
+    @Req() req: Request,
+  ): Promise<{ otpauth: string; qr: string }> {
+    const userId = this.requireStage(req, uid, "mfa_enroll");
+    const { rows } = await this.pool.query<{ email: string }>(
+      `SELECT email FROM users WHERE id = $1`,
+      [userId],
+    );
+    const otpauth = await this.mfa.beginEnroll(userId, rows[0]?.email ?? userId);
+    return { otpauth, qr: await QRCode.toDataURL(otpauth) };
+  }
+
+  /** Xác nhận mã enroll → bật MFA + recovery codes → hoàn tất login. */
+  @Post(":uid/mfa-enroll")
+  async mfaEnroll(
+    @Param("uid") uid: string,
+    @Body() body: MfaDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const userId = this.requireStage(req, uid, "mfa_enroll");
+    if (!(await this.mfa.confirmEnroll(userId, body.code.trim()))) {
+      throw new UnauthorizedException("Mã xác thực không đúng");
+    }
+    const recoveryCodes = await this.mfa.generateRecoveryCodes(userId);
+    await this.audit.record({
+      actorUserId: userId,
+      action: "mfa.enabled",
+      targetType: "user",
+      targetId: userId,
+      ip: req.ip ?? null,
+      detail: { via: "forced-enroll" },
+    });
+    const done = await this.finish(uid, userId, req, res);
+    return { ...done, recoveryCodes };
+  }
+
   // ---- helpers ----
 
   /**
@@ -238,13 +285,39 @@ export class InteractionController {
     userId: string,
     mustChange: boolean,
     pwUpdatedAt: Date | null,
-    mfaRequired: boolean,
+    mfaStatus: MfaStatus,
   ): Promise<NextStep> {
     if (mustChange || (await this.policy.isExpired(pwUpdatedAt))) {
       return "change_password";
     }
-    if (mfaRequired) return "mfa";
+    return this.postPasswordStep(userId, mfaStatus);
+  }
+
+  /**
+   * Bước sau khi mật khẩu OK: MFA đã bật → verify (mfa); chưa bật nhưng VAI đòi
+   * MFA (Settings require_mfa_roles) → ÉP enroll (mfa_enroll); break-glass hoặc
+   * không đòi → done. Đây là chỗ bắt buộc MFA cho project_admin.
+   */
+  private async postPasswordStep(
+    userId: string,
+    mfaStatus: MfaStatus,
+  ): Promise<NextStep> {
+    if (mfaStatus.isBreakglass) return "done";
+    if (mfaStatus.enabled) return "mfa";
+    if (await this.roleRequiresMfa(userId)) return "mfa_enroll";
     return "done";
+  }
+
+  /** Vai của user có nằm trong danh sách bắt buộc MFA (Settings)? */
+  private async roleRequiresMfa(userId: string): Promise<boolean> {
+    const setting = (await this.settings.get("require_mfa_roles", "")) ?? "";
+    const required = setting.split(",").map((s) => s.trim()).filter(Boolean);
+    if (required.length === 0) return false;
+    const { rows } = await this.pool.query<{ role: string }>(
+      `SELECT role FROM admin_roles WHERE user_id = $1`,
+      [userId],
+    );
+    return rows.some((r) => required.includes(r.role));
   }
 
   /** Hoàn tất nếu 'done', ngược lại phát vé giai đoạn + báo FE bước kế. */

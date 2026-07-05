@@ -36,6 +36,8 @@ const ALLOWED: Record<string, { type: "int" | "string"; min?: number }> = {
   smtp_port: { type: "int", min: 1 },
   backup_path: { type: "string" },
   audit_archive_path: { type: "string" },
+  // Vai (phẩy) bắt buộc bật MFA — trống = không ép. VD "ssa,project_admin".
+  require_mfa_roles: { type: "string" },
 };
 
 class SetSettingDto {

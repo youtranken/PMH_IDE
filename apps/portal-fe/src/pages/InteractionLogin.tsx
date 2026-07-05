@@ -20,7 +20,7 @@ import {
 const { Content } = Layout;
 const { Title, Text } = Typography;
 
-type Step = "login" | "change_password" | "mfa";
+type Step = "login" | "change_password" | "mfa" | "mfa_enroll";
 
 async function postJson(url: string, body: unknown) {
   const r = await fetch(url, {
@@ -144,6 +144,7 @@ export default function InteractionLogin({ uid }: { uid: string }) {
                 <ChangePasswordForm loading={loading} onFinish={onChangePassword} />
               )}
               {step === "mfa" && <MfaForm loading={loading} onFinish={onMfa} />}
+              {step === "mfa_enroll" && <MfaEnrollForm uid={uid} />}
             </>
           )}
         </Card>
@@ -254,5 +255,95 @@ function MfaForm({
         Xác thực
       </Button>
     </Form>
+  );
+}
+
+/** Ép enroll MFA giữa luồng login (vai bắt buộc MFA mà chưa bật). */
+function MfaEnrollForm({ uid }: { uid: string }) {
+  const [qr, setQr] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [recovery, setRecovery] = useState<string[] | null>(null);
+  const [redirectTo, setRedirectTo] = useState("");
+
+  useEffect(() => {
+    postJson(`/api/interaction/${uid}/mfa-enroll-setup`, {}).then((r) =>
+      setQr(r.data?.qr ?? null),
+    );
+  }, [uid]);
+
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    const r = await postJson(`/api/interaction/${uid}/mfa-enroll`, { code });
+    setBusy(false);
+    if (r.data?.recoveryCodes) {
+      setRecovery(r.data.recoveryCodes);
+      setRedirectTo(r.data.redirectTo);
+    } else {
+      setErr(r.data?.message ?? "Mã xác thực không đúng");
+    }
+  };
+
+  if (recovery) {
+    return (
+      <>
+        <Alert
+          type="success"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="Đã bật MFA — LƯU recovery codes (chỉ hiện một lần)"
+        />
+        <List
+          size="small"
+          bordered
+          dataSource={recovery}
+          renderItem={(c) => (
+            <List.Item style={{ fontFamily: "monospace" }}>{c}</List.Item>
+          )}
+        />
+        <Button
+          type="primary"
+          block
+          style={{ marginTop: 12 }}
+          onClick={() => {
+            window.location.href = redirectTo;
+          }}
+        >
+          Đã lưu — vào ứng dụng
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 12 }}
+        message="Tài khoản của bạn bắt buộc bật MFA"
+        description="Quét QR bằng authenticator app rồi nhập mã 6 số."
+      />
+      {err && <Alert type="error" message={err} style={{ marginBottom: 12 }} showIcon />}
+      {qr && (
+        <img
+          src={qr}
+          alt="MFA QR"
+          style={{ width: 200, height: 200, display: "block", margin: "0 auto 12px" }}
+        />
+      )}
+      <Input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="123456"
+        autoComplete="one-time-code"
+        style={{ marginBottom: 12 }}
+      />
+      <Button type="primary" block loading={busy} disabled={!code} onClick={submit}>
+        Xác nhận bật MFA
+      </Button>
+    </>
   );
 }
