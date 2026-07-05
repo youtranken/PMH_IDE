@@ -1,4 +1,4 @@
-import { AppstoreOutlined, AuditOutlined, SettingOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, AuditOutlined, BookOutlined, SettingOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
 import { App as AntApp, ConfigProvider, Layout, Menu, Spin, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import InteractionLogin from "./pages/InteractionLogin";
@@ -6,6 +6,7 @@ import Launcher from "./pages/Launcher";
 import SelfService from "./pages/SelfService";
 import Settings from "./pages/Settings";
 import Audit from "./pages/Audit";
+import Docs from "./pages/Docs";
 import { api, handleCallback, isAuthed, login, logout } from "./auth";
 
 const { Header, Content, Sider } = Layout;
@@ -99,15 +100,17 @@ function Root() {
   }
 
   const isAdmin = profile.roles.length > 0;
+  const isDev = profile.groups.some((g) => g.toLowerCase() === "developers");
   const items = [
     { key: "/", icon: <AppstoreOutlined />, label: "Ứng dụng" },
     { key: "/account", icon: <UserOutlined />, label: "Tài khoản" },
+    ...(isDev ? [{ key: "/docs", icon: <BookOutlined />, label: "Tài liệu" }] : []),
     ...(isAdmin ? [{ key: "/audit", icon: <AuditOutlined />, label: "Nhật ký" }] : []),
     ...(profile.isSsa ? [{ key: "/settings", icon: <SettingOutlined />, label: "Cấu hình" }] : []),
     { key: "__logout", icon: <LogoutOutlined />, label: "Đăng xuất" },
   ];
 
-  const selected = ["/", "/account", "/audit", "/settings"].includes(path) ? path : "/";
+  const selected = ["/", "/account", "/docs", "/audit", "/settings"].includes(path) ? path : "/";
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
@@ -130,6 +133,7 @@ function Root() {
         <Content style={{ padding: 24, maxWidth: 1100, width: "100%", margin: "0 auto" }}>
           {selected === "/" && <Launcher />}
           {selected === "/account" && <SelfService profile={profile} onProfile={setProfile} />}
+          {selected === "/docs" && <Docs />}
           {selected === "/audit" && <Audit isSsa={profile.isSsa} />}
           {selected === "/settings" && <Settings />}
         </Content>

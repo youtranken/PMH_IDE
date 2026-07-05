@@ -19,6 +19,7 @@ import { JobsModule } from "./modules/jobs/jobs.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { MeModule } from "./modules/me/me.module";
 import { SettingsAdminModule } from "./modules/settings-admin/settings-admin.module";
+import { DocsModule } from "./modules/docs/docs.module";
 
 /**
  * Modular monolith (AD-1): mọi tính năng là module trong 1 process NestJS.
@@ -48,6 +49,7 @@ import { SettingsAdminModule } from "./modules/settings-admin/settings-admin.mod
     NotificationsModule,
     MeModule,
     SettingsAdminModule,
+    DocsModule,
   ],
   controllers: [HealthController],
 })

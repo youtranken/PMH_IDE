@@ -7,7 +7,7 @@
  * Chạy dev:  PMH_ISSUER=https://localhost:9443/oidc node dist/index.js
  * (dev cert self-signed → đặt NODE_TLS_REJECT_UNAUTHORIZED=0; prod KHÔNG)
  */
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import express from "express";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import * as oidc from "openid-client";
@@ -118,6 +118,54 @@ app.get("/auth/callback", async (req, res) => {
     res.status(500).send(`<h1>Lỗi đăng nhập</h1><pre>${esc(String(e))}</pre>`);
   }
 });
+
+// --- 3. Directory API (M2M) — lấy danh bạ user trong group được cấp (E8-S2) ---
+// Base API = issuer bỏ hậu tố /oidc. client-credentials dùng chính client_secret.
+const API_BASE = ISSUER.replace(/\/oidc$/, "");
+app.get("/directory", async (_req, res) => {
+  try {
+    const tokens = await oidc.clientCredentialsGrant(config);
+    const r = await fetch(`${API_BASE}/api/v1/users`, {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    const users = (await r.json()) as unknown;
+    res.send(`<h1>Directory API (client-credentials)</h1>
+      <p>Danh bạ user thuộc group client được cấp (scope client_groups):</p>
+      <pre>${esc(JSON.stringify(users, null, 2))}</pre>
+      <p><a href="/">← về trang chủ</a></p>`);
+  } catch (e) {
+    res.status(500).send(`<pre>${esc(String(e))}</pre>`);
+  }
+});
+
+// --- 4. Nhận webhook — VERIFY HMAC-SHA256 TIMING-SAFE (E8-S2, AD-14) ---
+// Secret lấy khi admin bật webhook cho client (hiện một lần) → PMH_WEBHOOK_SECRET.
+const WEBHOOK_SECRET = process.env.PMH_WEBHOOK_SECRET ?? "";
+app.post(
+  "/webhook",
+  express.raw({ type: () => true }), // cần RAW body để tính HMAC đúng byte
+  (req, res) => {
+    const body = req.body as Buffer;
+    const got = String(req.header("X-PMH-Signature") ?? "");
+    const want =
+      "sha256=" + createHmac("sha256", WEBHOOK_SECRET).update(body).digest("hex");
+    // timingSafeEqual chống dò chữ ký theo thời gian; so độ dài trước (nó ném nếu lệch).
+    const ok =
+      got.length === want.length &&
+      timingSafeEqual(Buffer.from(got), Buffer.from(want));
+    if (!ok) {
+      console.warn("webhook: chữ ký SAI — bỏ");
+      return res.status(401).json({ error: "bad_signature" });
+    }
+    const evt = JSON.parse(body.toString("utf8")) as {
+      event: string;
+      user_id: string;
+    };
+    console.log(`webhook OK: ${evt.event} user=${evt.user_id}`);
+    // App thật: nếu user.deleted/locked → đá session user khỏi app ngay.
+    res.json({ ok: true });
+  },
+);
 
 app.listen(PORT, () => {
   console.log(`demo-app: http://localhost:${PORT} (issuer ${ISSUER})`);

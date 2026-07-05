@@ -23,6 +23,8 @@ services:
       - ../apps/sso-server/migrations:/repo/apps/sso-server/migrations
       - ../apps/sso-server/scripts:/repo/apps/sso-server/scripts
       - ../packages/shared:/repo/packages/shared
+      # Cổng docs (E8-S1) đọc README tích hợp — nguồn duy nhất docs/integration.
+      - ../docs/integration:/repo/apps/sso-server/docs-integration:ro
 
   portal-fe:
     environment:
