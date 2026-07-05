@@ -11,7 +11,11 @@ import { createHmac } from "node:crypto";
  * để giá trị luôn khớp.
  */
 export function deriveProviderSecret(kek: Buffer, clientId: string): string {
-  return createHmac("sha256", kek)
-    .update(`client-provider-secret:${clientId}`)
-    .digest("hex");
+  // Tách khóa: KEK còn dùng cho AES-GCM (TOTP/webhook). Dẫn một sub-key MAC
+  // riêng (domain-separated) rồi mới MAC client_id → không dùng chung byte khóa
+  // giữa hai primitive. Internal secret không lưu đâu nên đổi công thức vô hại.
+  const macKey = createHmac("sha256", kek)
+    .update("pmh:client-secret-mac-key:v1")
+    .digest();
+  return createHmac("sha256", macKey).update(clientId).digest("hex");
 }

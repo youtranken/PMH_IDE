@@ -16,8 +16,17 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
 } from "class-validator";
+
+// redirect_uri phải TUYỆT ĐỐI có http(s):// (require_protocol) — không thì
+// isURL coi "not-a-url" là host hợp lệ. localhost dev không TLD → require_tld:false.
+const URI_OPTS = {
+  require_tld: false,
+  require_protocol: true,
+  protocols: ["http", "https"],
+};
 import type { Request } from "express";
 import { AdminGuard } from "../../common/admin/admin.guard";
 import { CurrentAdmin } from "../../common/admin/current-admin.decorator";
@@ -29,13 +38,13 @@ class CreateClientDto {
   @IsString() @IsNotEmpty() clientId!: string;
   @IsString() @IsNotEmpty() name!: string;
   @IsIn(["dev", "prod"]) env!: string;
-  @IsArray() @IsString({ each: true }) redirectUris: string[] = [];
-  @IsOptional() @IsString() appUrl?: string;
+  @IsArray() @IsUrl(URI_OPTS, { each: true }) redirectUris: string[] = [];
+  @IsOptional() @IsUrl(URI_OPTS) appUrl?: string;
 }
 class UpdateClientDto {
   @IsOptional() @IsString() @IsNotEmpty() name?: string;
-  @IsOptional() @IsArray() @IsString({ each: true }) redirectUris?: string[];
-  @IsOptional() @IsString() appUrl?: string;
+  @IsOptional() @IsArray() @IsUrl(URI_OPTS, { each: true }) redirectUris?: string[];
+  @IsOptional() @IsUrl(URI_OPTS) appUrl?: string;
 }
 class GroupDto {
   @IsUUID() groupId!: string;

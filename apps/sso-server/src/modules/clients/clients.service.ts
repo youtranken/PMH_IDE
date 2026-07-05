@@ -30,6 +30,13 @@ const CLIENT_COLS =
   "id, project_id, client_id, name, env, redirect_uris, app_url, allow_all_groups, disabled, created_at";
 
 /**
+ * client_id dành riêng cho client TĨNH của provider (demo-app, pmh-portal). Tạo
+ * DB client trùng sẽ làm cổng login (isAllowedForClient coi "có trong bảng
+ * clients" = cần group) chặn nhầm portal → khóa admin ngoài. Cấm ở tạo.
+ */
+const RESERVED_CLIENT_IDS = new Set(["pmh-portal", "demo-app"]);
+
+/**
  * Client CRUD + client_secret + client_groups (E5-S5/S6/S3). Secret dev sinh,
  * HIỆN MỘT LẦN, lưu HASH (AD-11). Rotate = thêm active + đặt cũ retiring có hạn
  * (AD-12). oidc-provider dùng internal secret KEK-derived (Path A) — không thấy
@@ -88,6 +95,9 @@ export class ClientsService {
   ): Promise<{ client: ClientRow; secret: string }> {
     if (!admin.isSsa && !admin.projectIds.includes(input.projectId)) {
       throw new ForbiddenException("project ngoài phạm vi của bạn");
+    }
+    if (RESERVED_CLIENT_IDS.has(input.clientId.trim())) {
+      throw new ConflictException("client_id này dành riêng cho hệ thống");
     }
     const secret = this.genSecret();
     const hash = await argon2.hash(secret);
