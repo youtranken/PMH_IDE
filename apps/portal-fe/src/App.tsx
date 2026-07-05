@@ -1,4 +1,4 @@
-import { ApartmentOutlined, AppstoreOutlined, AuditOutlined, BookOutlined, MenuOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
+import { ApartmentOutlined, ApiOutlined, AppstoreOutlined, AuditOutlined, BookOutlined, MenuOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
 import { App as AntApp, Avatar, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Spin } from "antd";
 import { useEffect, useState } from "react";
 import { Brand, BRAND, initials } from "./ui";
@@ -10,7 +10,9 @@ import Audit from "./pages/Audit";
 import Docs from "./pages/Docs";
 import AdminUsers from "./pages/AdminUsers";
 import AdminGroups from "./pages/AdminGroups";
+import AdminClients from "./pages/AdminClients";
 import AdminProjects from "./pages/AdminProjects";
+import viVN from "antd/locale/vi_VN";
 import { api, handleCallback, isAuthed, login, logout } from "./auth";
 
 const { Header, Content, Sider } = Layout;
@@ -42,6 +44,7 @@ function usePath(): [string, (p: string) => void] {
 export default function App() {
   return (
     <ConfigProvider
+      locale={viVN}
       theme={{
         token: {
           colorPrimary: "#0E4D45",
@@ -134,13 +137,14 @@ function Root() {
           { type: "divider" as const },
           { key: "/admin/users", icon: <TeamOutlined />, label: "Người dùng" },
           { key: "/admin/groups", icon: <ApartmentOutlined />, label: "Nhóm" },
-          ...(profile.isSsa ? [{ key: "/admin/projects", icon: <ProjectOutlined />, label: "Dự án & ứng dụng" }] : []),
+          { key: "/admin/clients", icon: <ApiOutlined />, label: "Ứng dụng SSO" },
+          ...(profile.isSsa ? [{ key: "/admin/projects", icon: <ProjectOutlined />, label: "Dự án" }] : []),
           { key: "/audit", icon: <AuditOutlined />, label: "Nhật ký" },
           ...(profile.isSsa ? [{ key: "/settings", icon: <SettingOutlined />, label: "Cấu hình" }] : []),
         ]
       : []),
   ];
-  const selected = ["/", "/account", "/docs", "/audit", "/settings", "/admin/users", "/admin/groups", "/admin/projects"].includes(path) ? path : "/";
+  const selected = ["/", "/account", "/docs", "/audit", "/settings", "/admin/users", "/admin/groups", "/admin/clients", "/admin/projects"].includes(path) ? path : "/";
 
   const logo = (
     <div style={{ height: 60, display: "flex", alignItems: "center", gap: 10, paddingInline: 20 }}>
@@ -206,6 +210,7 @@ function Root() {
           {selected === "/docs" && <Docs />}
           {selected === "/admin/users" && <AdminUsers isSsa={profile.isSsa} />}
           {selected === "/admin/groups" && <AdminGroups isSsa={profile.isSsa} />}
+          {selected === "/admin/clients" && <AdminClients isSsa={profile.isSsa} />}
           {selected === "/admin/projects" && <AdminProjects />}
           {selected === "/audit" && <Audit isSsa={profile.isSsa} />}
           {selected === "/settings" && <Settings />}
