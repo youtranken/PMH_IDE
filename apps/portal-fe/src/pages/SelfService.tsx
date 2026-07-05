@@ -1,5 +1,6 @@
 import { CheckCircleTwoTone, CloseCircleTwoTone } from "@ant-design/icons";
 import {
+  Alert,
   App as AntApp,
   Button,
   Card,
@@ -32,6 +33,119 @@ interface Session {
 }
 
 /** Self-service (E6-S2, FR-10/05): thông tin + group, quản phiên, đổi mật khẩu. */
+/** Bật/tắt MFA TOTP tự phục vụ (phase sau — mọi user). */
+function MfaCard() {
+  const { message } = AntApp.useApp();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [setup, setSetup] = useState<{ qr: string } | null>(null);
+  const [code, setCode] = useState("");
+  const [recovery, setRecovery] = useState<string[] | null>(null);
+  const [disabling, setDisabling] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = () =>
+    api<{ enabled: boolean }>("/api/me/mfa").then((s) => setEnabled(s.enabled));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const begin = async () => {
+    setBusy(true);
+    try {
+      setSetup(await api<{ otpauth: string; qr: string }>("/api/me/mfa/setup", { method: "POST" }));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      const r = await api<{ recoveryCodes: string[] }>("/api/me/mfa/enable", {
+        method: "POST",
+        body: { code },
+      });
+      setRecovery(r.recoveryCodes);
+      setSetup(null);
+      setCode("");
+      setEnabled(true);
+      message.success("Đã bật MFA");
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const disable = async () => {
+    setBusy(true);
+    try {
+      await api("/api/me/mfa/disable", { method: "POST", body: { code } });
+      setEnabled(false);
+      setDisabling(false);
+      setCode("");
+      message.success("Đã tắt MFA");
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (enabled === null) return null;
+
+  return (
+    <Card title="Xác thực 2 lớp (MFA)">
+      {recovery ? (
+        <>
+          <Alert
+            type="success"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="Đã bật MFA — LƯU recovery codes ngay (chỉ hiện một lần)"
+            description="Dùng khi mất thiết bị. Mỗi code dùng một lần."
+          />
+          <List
+            size="small"
+            bordered
+            dataSource={recovery}
+            renderItem={(c) => <List.Item style={{ fontFamily: "monospace" }}>{c}</List.Item>}
+          />
+          <Button style={{ marginTop: 12 }} onClick={() => setRecovery(null)}>
+            Đã lưu, đóng
+          </Button>
+        </>
+      ) : enabled ? (
+        disabling ? (
+          <Space direction="vertical" style={{ width: "100%", maxWidth: 320 }}>
+            <span>Nhập mã TOTP (hoặc recovery code) để tắt:</span>
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
+            <Space>
+              <Button danger loading={busy} disabled={!code} onClick={disable}>Tắt MFA</Button>
+              <Button onClick={() => { setDisabling(false); setCode(""); }}>Hủy</Button>
+            </Space>
+          </Space>
+        ) : (
+          <Space>
+            <Tag color="green">Đang bật</Tag>
+            <Button danger onClick={() => setDisabling(true)}>Tắt MFA</Button>
+          </Space>
+        )
+      ) : setup ? (
+        <Space direction="vertical" style={{ width: "100%", maxWidth: 340 }}>
+          <span>Quét QR bằng app authenticator rồi nhập mã 6 số:</span>
+          <img src={setup.qr} alt="MFA QR" style={{ width: 200, height: 200 }} />
+          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" autoComplete="one-time-code" />
+          <Button type="primary" loading={busy} disabled={!code} onClick={confirm}>Xác nhận bật MFA</Button>
+        </Space>
+      ) : (
+        <Space direction="vertical">
+          <span>Tăng bảo mật tài khoản bằng mã TOTP một lần (authenticator app).</span>
+          <Button type="primary" loading={busy} onClick={begin}>Bật MFA</Button>
+        </Space>
+      )}
+    </Card>
+  );
+}
+
 export default function SelfService({ profile }: { profile: Profile; onProfile: (p: Profile) => void }) {
   const { message } = AntApp.useApp();
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -112,6 +226,8 @@ export default function SelfService({ profile }: { profile: Profile; onProfile: 
           ]}
         />
       </Card>
+
+      <MfaCard />
 
       <Card title="Đổi mật khẩu">
         <Form layout="vertical" style={{ maxWidth: 420 }}>

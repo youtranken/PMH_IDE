@@ -17,6 +17,9 @@ class ChangePasswordDto {
   @IsString() @IsNotEmpty() currentPassword!: string;
   @IsString() @IsNotEmpty() newPassword!: string;
 }
+class MfaCodeDto {
+  @IsString() @IsNotEmpty() code!: string;
+}
 
 /**
  * API tự phục vụ (/api/me, E6-S1/S2). UserGuard: chỉ cần token portal hợp lệ +
@@ -49,6 +52,34 @@ export class MeController {
     @Req() req: Request,
   ) {
     return this.me.revokeSession(userId, uid, req.ip ?? null);
+  }
+
+  @Get("mfa")
+  mfaStatus(@CurrentUser() userId: string) {
+    return this.me.mfaStatus(userId);
+  }
+
+  @Post("mfa/setup")
+  mfaSetup(@CurrentUser() userId: string) {
+    return this.me.mfaSetup(userId);
+  }
+
+  @Post("mfa/enable")
+  mfaEnable(
+    @CurrentUser() userId: string,
+    @Body() dto: MfaCodeDto,
+    @Req() req: Request,
+  ) {
+    return this.me.mfaEnable(userId, dto.code, req.ip ?? null);
+  }
+
+  @Post("mfa/disable")
+  mfaDisable(
+    @CurrentUser() userId: string,
+    @Body() dto: MfaCodeDto,
+    @Req() req: Request,
+  ) {
+    return this.me.mfaDisable(userId, dto.code, req.ip ?? null);
   }
 
   @Post("change-password")

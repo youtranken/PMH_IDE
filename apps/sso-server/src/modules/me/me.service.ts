@@ -1,15 +1,18 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
+import * as QRCode from "qrcode";
 import { Pool } from "pg";
 import { AuditService } from "../../common/audit.service";
 import { SessionRevocationService } from "../../common/session-revocation.service";
 import { UserEventsService } from "../../common/user-events.service";
 import { PG_POOL } from "../../database/database.module";
 import { LoginService } from "../auth-oidc/login.service";
+import { MfaService } from "../auth-oidc/mfa.service";
 import { PasswordPolicyService } from "../auth-oidc/password-policy.service";
 
 /**
@@ -25,7 +28,67 @@ export class MeService {
     private readonly revocation: SessionRevocationService,
     private readonly audit: AuditService,
     private readonly events: UserEventsService,
+    private readonly mfa: MfaService,
   ) {}
+
+  // ---- MFA tự phục vụ (phase sau — mở cho project_admin + user thường) ----
+
+  async mfaStatus(userId: string): Promise<{ enabled: boolean }> {
+    return { enabled: (await this.mfa.status(userId)).enabled };
+  }
+
+  /** Bước 1: sinh secret (chưa bật) + trả QR data URL để quét. */
+  async mfaSetup(userId: string): Promise<{ otpauth: string; qr: string }> {
+    const { rows } = await this.pool.query<{ email: string }>(
+      `SELECT email FROM users WHERE id = $1`,
+      [userId],
+    );
+    const otpauth = await this.mfa.beginEnroll(userId, rows[0]?.email ?? userId);
+    return { otpauth, qr: await QRCode.toDataURL(otpauth) };
+  }
+
+  /** Bước 2: xác nhận mã đúng → bật MFA + trả 10 recovery code (HIỆN MỘT LẦN). */
+  async mfaEnable(
+    userId: string,
+    code: string,
+    ip: string | null,
+  ): Promise<{ recoveryCodes: string[] }> {
+    if (!(await this.mfa.confirmEnroll(userId, code.trim()))) {
+      throw new BadRequestException("Mã xác thực không đúng");
+    }
+    const recoveryCodes = await this.mfa.generateRecoveryCodes(userId);
+    await this.audit.record({
+      actorUserId: userId,
+      action: "mfa.enabled",
+      targetType: "user",
+      targetId: userId,
+      ip,
+      detail: { via: "self-service" },
+    });
+    return { recoveryCodes };
+  }
+
+  /** Tắt MFA — phải nhập mã TOTP hiện tại (chứng minh sở hữu, chống tắt lén). */
+  async mfaDisable(
+    userId: string,
+    code: string,
+    ip: string | null,
+  ): Promise<{ ok: true }> {
+    const ok =
+      (await this.mfa.verifyTotp(userId, code.trim())) ||
+      (await this.mfa.consumeRecoveryCode(userId, code));
+    if (!ok) throw new BadRequestException("Mã xác thực không đúng");
+    await this.pool.query(`DELETE FROM mfa_totp WHERE user_id = $1`, [userId]);
+    await this.pool.query(`DELETE FROM mfa_recovery WHERE user_id = $1`, [userId]);
+    await this.audit.record({
+      actorUserId: userId,
+      action: "mfa.disabled",
+      targetType: "user",
+      targetId: userId,
+      ip,
+    });
+    return { ok: true };
+  }
 
   async profile(userId: string): Promise<{
     id: string;
