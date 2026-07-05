@@ -141,20 +141,57 @@ export class MeService {
     return rows;
   }
 
-  async sessions(userId: string): Promise<
+  /** uid phiên hiện tại (từ cookie _session = Session.id → uid), hoặc null. */
+  private async currentSessionUid(
+    userId: string,
+    cookieSessionId: string | null,
+  ): Promise<string | null> {
+    if (!cookieSessionId) return null;
+    const { rows } = await this.pool.query<{ uid: string }>(
+      `SELECT uid FROM oidc_payloads
+       WHERE type = 'Session' AND id = $1 AND payload->>'accountId' = $2`,
+      [cookieSessionId, userId],
+    );
+    return rows[0]?.uid ?? null;
+  }
+
+  /** Gắn user-agent + IP cho phiên hiện tại (bắt cơ hội mỗi lần mở portal). */
+  async touchSession(
+    userId: string,
+    cookieSessionId: string | null,
+    userAgent: string | null,
+    ip: string | null,
+  ): Promise<void> {
+    const uid = await this.currentSessionUid(userId, cookieSessionId);
+    if (!uid) return;
+    await this.pool.query(
+      `UPDATE sessions SET user_agent = COALESCE($3, user_agent), ip = COALESCE($4::inet, ip)
+       WHERE user_id = $1 AND oidc_session_uid = $2`,
+      [userId, uid, userAgent, ip],
+    );
+  }
+
+  async sessions(
+    userId: string,
+    cookieSessionId: string | null,
+  ): Promise<
     {
       oidc_session_uid: string;
       ip: string | null;
+      user_agent: string | null;
       last_activity: Date;
       created_at: Date;
+      is_current: boolean;
     }[]
   > {
+    const cur = await this.currentSessionUid(userId, cookieSessionId);
     const { rows } = await this.pool.query(
-      `SELECT oidc_session_uid, ip::text AS ip, last_activity, created_at
+      `SELECT oidc_session_uid, ip::text AS ip, user_agent, last_activity, created_at,
+              (oidc_session_uid = $2) AS is_current
        FROM sessions
        WHERE user_id = $1 AND revoked_at IS NULL
-       ORDER BY last_activity DESC`,
-      [userId],
+       ORDER BY (oidc_session_uid = $2) DESC, last_activity DESC`,
+      [userId, cur],
     );
     return rows;
   }

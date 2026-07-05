@@ -21,15 +21,18 @@ import {
   type PasswordChecks,
 } from "@pmh/shared";
 import { api, logout } from "../auth";
+import { deviceName, relativeTime } from "../ui";
 import type { Profile } from "../App";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 interface Session {
   oidc_session_uid: string;
   ip: string | null;
+  user_agent: string | null;
   last_activity: string;
   created_at: string;
+  is_current: boolean;
 }
 
 /** Self-service (E6-S2, FR-10/05): thông tin + group, quản phiên, đổi mật khẩu. */
@@ -222,19 +225,34 @@ export default function SelfService({ profile }: { profile: Profile; onProfile: 
           pagination={false}
           size="small"
           columns={[
-            { title: "IP", dataIndex: "ip", render: (v) => v ?? "—" },
             {
-              title: "Hoạt động gần nhất",
+              title: "Thiết bị",
+              render: (_, s) => (
+                <span>
+                  {deviceName(s.user_agent)}
+                  {s.is_current && (
+                    <Tag color="blue" style={{ marginLeft: 8 }}>Thiết bị này</Tag>
+                  )}
+                </span>
+              ),
+            },
+            { title: "IP", dataIndex: "ip", render: (v) => v ?? "—", responsive: ["md"] },
+            {
+              title: "Hoạt động",
               dataIndex: "last_activity",
-              render: (v: string) => new Date(v).toLocaleString(),
+              render: (v: string) => relativeTime(v),
             },
             {
               title: "",
-              render: (_, s) => (
-                <Popconfirm title="Đăng xuất phiên này?" onConfirm={() => revoke(s.oidc_session_uid)}>
-                  <Button size="small" danger>Đăng xuất</Button>
-                </Popconfirm>
-              ),
+              width: 110,
+              render: (_, s) =>
+                s.is_current ? (
+                  <Text type="secondary" style={{ fontSize: 12 }}>đang dùng</Text>
+                ) : (
+                  <Popconfirm title="Đăng xuất phiên này?" onConfirm={() => revoke(s.oidc_session_uid)}>
+                    <Button size="small" danger>Đăng xuất</Button>
+                  </Popconfirm>
+                ),
             },
           ]}
         />

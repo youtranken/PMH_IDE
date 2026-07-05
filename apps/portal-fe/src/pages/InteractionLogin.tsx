@@ -10,6 +10,7 @@ import {
   Typography,
 } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone } from "@ant-design/icons";
+import { Brand } from "../ui";
 import { useEffect, useState } from "react";
 import {
   checkPassword,
@@ -39,7 +40,7 @@ async function postJson(url: string, body: unknown) {
  */
 export default function InteractionLogin({ uid }: { uid: string }) {
   const [step, setStep] = useState<Step>("login");
-  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dead, setDead] = useState(false);
@@ -47,7 +48,7 @@ export default function InteractionLogin({ uid }: { uid: string }) {
   useEffect(() => {
     fetch(`/api/interaction/${uid}`, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => setClientId(d.clientId))
+      .then((d) => setClientName(d.clientName ?? d.clientId))
       .catch(() => setDead(true));
   }, [uid]);
 
@@ -114,16 +115,24 @@ export default function InteractionLogin({ uid }: { uid: string }) {
   return (
     <Layout style={{ minHeight: "100vh", justifyContent: "center" }}>
       <Content style={{ maxWidth: 400, width: "100%", margin: "0 auto", padding: 24 }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+            <Brand size={34} />
+            <span style={{ fontSize: 22, fontWeight: 700, color: "#123", letterSpacing: 0.3 }}>
+              PMH ID
+            </span>
+          </div>
+        </div>
         <Card>
-          <Title level={3} style={{ textAlign: "center" }}>
-            Đăng nhập PMH ID
+          <Title level={4} style={{ textAlign: "center", marginTop: 0 }}>
+            Đăng nhập
           </Title>
-          {clientId && step === "login" && (
+          {clientName && step === "login" && (
             <Text
               type="secondary"
               style={{ display: "block", textAlign: "center", marginBottom: 16 }}
             >
-              Ứng dụng: {clientId}
+              để tiếp tục vào <b style={{ color: "#1560a8" }}>{clientName}</b>
             </Text>
           )}
 

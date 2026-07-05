@@ -77,7 +77,23 @@ export class InteractionController {
     const d = await this.guardInteraction(() =>
       this.provider.interactionDetails(req, res),
     );
-    return { uid: d.uid, prompt: d.prompt.name, clientId: d.params.client_id };
+    const clientId = d.params.client_id as string;
+    return {
+      uid: d.uid,
+      prompt: d.prompt.name,
+      clientId,
+      clientName: await this.clientDisplayName(clientId),
+    };
+  }
+
+  /** Tên app thân thiện cho trang login (thay client_id thô). */
+  private async clientDisplayName(clientId: string): Promise<string> {
+    if (clientId === "pmh-portal") return "Cổng PMH ID";
+    const { rows } = await this.pool.query<{ name: string }>(
+      `SELECT name FROM clients WHERE client_id = $1`,
+      [clientId],
+    );
+    return rows[0]?.name ?? clientId;
   }
 
   @Post(":uid/login")

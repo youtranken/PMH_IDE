@@ -1,6 +1,7 @@
-import { AppstoreOutlined, AuditOutlined, BookOutlined, SettingOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
-import { App as AntApp, ConfigProvider, Layout, Menu, Spin, Typography } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { AppstoreOutlined, AuditOutlined, BookOutlined, MenuOutlined, SettingOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
+import { App as AntApp, Avatar, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Spin } from "antd";
+import { useEffect, useState } from "react";
+import { Brand, initials } from "./ui";
 import InteractionLogin from "./pages/InteractionLogin";
 import Launcher from "./pages/Launcher";
 import SelfService from "./pages/SelfService";
@@ -10,7 +11,6 @@ import Docs from "./pages/Docs";
 import { api, handleCallback, isAuthed, login, logout } from "./auth";
 
 const { Header, Content, Sider } = Layout;
-const { Text } = Typography;
 
 export interface Profile {
   id: string;
@@ -38,7 +38,21 @@ function usePath(): [string, (p: string) => void] {
 
 export default function App() {
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: "#1d6fb8" } }}>
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: "#1560a8",
+          colorLink: "#1560a8",
+          borderRadius: 8,
+          colorBgLayout: "#f5f7fa",
+          fontSize: 14,
+        },
+        components: {
+          Layout: { headerBg: "#ffffff", headerHeight: 60, siderBg: "#ffffff" },
+          Menu: { itemSelectedBg: "#e8f1fb", itemSelectedColor: "#1560a8", itemHeight: 42 },
+        },
+      }}
+    >
       <AntApp>
         <Root />
       </AntApp>
@@ -70,6 +84,9 @@ function Root() {
   const [path, nav] = usePath();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  const screens = Grid.useBreakpoint();
+  const mobile = !screens.lg;
 
   const interaction = path.match(/^\/interaction\/([^/]+)$/);
 
@@ -107,37 +124,78 @@ function Root() {
     ...(isDev ? [{ key: "/docs", icon: <BookOutlined />, label: "Tài liệu" }] : []),
     ...(isAdmin ? [{ key: "/audit", icon: <AuditOutlined />, label: "Nhật ký" }] : []),
     ...(profile.isSsa ? [{ key: "/settings", icon: <SettingOutlined />, label: "Cấu hình" }] : []),
-    { key: "__logout", icon: <LogoutOutlined />, label: "Đăng xuất" },
   ];
-
   const selected = ["/", "/account", "/docs", "/audit", "/settings"].includes(path) ? path : "/";
+
+  const logo = (
+    <div style={{ height: 60, display: "flex", alignItems: "center", gap: 10, paddingInline: 20 }}>
+      <Brand size={26} />
+      <span style={{ fontWeight: 700, fontSize: 17, color: "#0f2c47", letterSpacing: 0.3 }}>PMH ID</span>
+    </div>
+  );
+  const menu = (
+    <Menu
+      mode="inline"
+      selectedKeys={[selected]}
+      items={items}
+      style={{ borderInlineEnd: 0, paddingInline: 8 }}
+      onClick={({ key }) => {
+        nav(key);
+        setDrawer(false);
+      }}
+    />
+  );
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider breakpoint="lg" collapsedWidth="0" theme="light" style={{ borderRight: "1px solid #eee" }}>
-        <div style={{ height: 56, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 18, color: "#1d6fb8" }}>
-          PMH ID
-        </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[selected]}
-          items={items}
-          onClick={({ key }) => (key === "__logout" ? logout() : nav(key))}
-        />
-      </Sider>
+      {!mobile && (
+        <Sider theme="light" width={224} style={{ borderRight: "1px solid #eef0f2", position: "sticky", top: 0, height: "100vh" }}>
+          {logo}
+          {menu}
+        </Sider>
+      )}
       <Layout>
-        <Header style={{ background: "#fff", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingInline: 24 }}>
-          <Text strong style={{ marginRight: 8 }}>{profile.full_name}</Text>
-          <Text type="secondary">{profile.email}</Text>
+        <Header style={{ borderBottom: "1px solid #eef0f2", display: "flex", alignItems: "center", gap: 12, paddingInline: mobile ? 12 : 24 }}>
+          {mobile && (
+            <>
+              <MenuOutlined style={{ fontSize: 18, cursor: "pointer" }} onClick={() => setDrawer(true)} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Brand size={22} />
+                <span style={{ fontWeight: 700, color: "#0f2c47" }}>PMH ID</span>
+              </div>
+            </>
+          )}
+          <div style={{ flex: 1 }} />
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: [
+                { key: "email", label: profile.email, disabled: true },
+                { type: "divider" },
+                { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true },
+              ],
+              onClick: ({ key }) => key === "logout" && logout(),
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <Avatar style={{ background: "#1560a8", verticalAlign: "middle" }} size={32}>
+                {initials(profile.full_name)}
+              </Avatar>
+              {!mobile && <span style={{ fontWeight: 600, color: "#1f2937" }}>{profile.full_name}</span>}
+            </div>
+          </Dropdown>
         </Header>
-        <Content style={{ padding: 24, maxWidth: 1100, width: "100%", margin: "0 auto" }}>
-          {selected === "/" && <Launcher />}
+        <Content style={{ padding: mobile ? 16 : 28, maxWidth: 1120, width: "100%", margin: "0 auto" }}>
+          {selected === "/" && <Launcher greeting={profile.full_name} />}
           {selected === "/account" && <SelfService profile={profile} onProfile={setProfile} />}
           {selected === "/docs" && <Docs />}
           {selected === "/audit" && <Audit isSsa={profile.isSsa} />}
           {selected === "/settings" && <Settings />}
         </Content>
       </Layout>
+      <Drawer open={drawer} onClose={() => setDrawer(false)} placement="left" width={224} title={logo} styles={{ header: { padding: 0, borderBottom: "1px solid #eef0f2" }, body: { padding: 0 } }}>
+        {menu}
+      </Drawer>
     </Layout>
   );
 }

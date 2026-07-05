@@ -31,7 +31,16 @@ export class MeController {
   constructor(private readonly me: MeService) {}
 
   @Get()
-  profile(@CurrentUser() userId: string) {
+  async profile(@CurrentUser() userId: string, @Req() req: Request) {
+    // Bắt cơ hội gắn thiết bị + IP cho phiên hiện tại (portal gọi /api/me mỗi lần mở).
+    const cookie =
+      (req.cookies as Record<string, string> | undefined)?._session ?? null;
+    await this.me.touchSession(
+      userId,
+      cookie,
+      req.headers["user-agent"] ?? null,
+      req.ip ?? null,
+    );
     return this.me.profile(userId);
   }
 
@@ -41,8 +50,10 @@ export class MeController {
   }
 
   @Get("sessions")
-  sessions(@CurrentUser() userId: string) {
-    return this.me.sessions(userId);
+  sessions(@CurrentUser() userId: string, @Req() req: Request) {
+    const cookie =
+      (req.cookies as Record<string, string> | undefined)?._session ?? null;
+    return this.me.sessions(userId, cookie);
   }
 
   @Post("logout-all")
