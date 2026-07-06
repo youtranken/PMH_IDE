@@ -47,7 +47,12 @@ export class AuditService {
     }
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const { rows } = await this.pool.query(
-      `SELECT a.id, a.actor_user_id, u.email AS actor_email, a.action,
+      // Che định danh actor nếu là break-glass: giữ SỰ KIỆN (vd login.breakglass
+      // vẫn hiện để biết có dùng khẩn cấp) nhưng KHÔNG lộ email/uuid tài khoản.
+      `SELECT a.id,
+              CASE WHEN u.is_breakglass THEN NULL ELSE a.actor_user_id END AS actor_user_id,
+              CASE WHEN u.is_breakglass THEN NULL ELSE u.email END AS actor_email,
+              a.action,
               a.target_type, a.target_id, a.project_id, a.ip::text AS ip,
               a.detail, a.created_at
        FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id

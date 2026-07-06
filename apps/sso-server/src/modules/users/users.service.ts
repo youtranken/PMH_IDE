@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -16,6 +17,10 @@ export interface CreateUserInput {
   email: string;
   employeeCode: string;
   fullName: string;
+  // Tùy chọn: đặt MK thủ công ngay khi tạo (hữu ích khi chưa cấu hình SMTP).
+  // Bỏ trống → user chưa có MK, phải reset/quên-MK để lấy MK tạm.
+  password?: string;
+  mustChangePassword?: boolean;
 }
 export interface UpdateUserInput {
   email?: string;
@@ -54,24 +59,66 @@ export class UsersService {
   ) {}
 
   async list(): Promise<UserRow[]> {
+    // Tài khoản break-glass ẩn HOÀN TOÀN khỏi UI quản trị (bảo vệ lối vào khẩn
+    // cấp — SSA không thấy/không đụng được; quản lý qua script offline).
     const { rows } = await this.pool.query<UserRow>(
       `SELECT ${USER_COLS.split(", ").map((c) => "u." + c).join(", ")},
               EXISTS(SELECT 1 FROM admin_roles r WHERE r.user_id = u.id AND r.role = 'ssa') AS is_ssa,
               COALESCE((SELECT array_agg(p.name ORDER BY p.name)
                         FROM admin_projects ap JOIN projects p ON p.id = ap.project_id
                         WHERE ap.user_id = u.id), '{}') AS admin_projects
-       FROM users u ORDER BY u.created_at DESC LIMIT 500`,
+       FROM users u
+       WHERE u.is_breakglass = false
+       ORDER BY u.created_at DESC LIMIT 500`,
     );
     return rows;
   }
 
+  // get() cũng ẩn break-glass → mọi mutation qua get() (update, revokeSessions,
+  // grantSsa…) tự động không chạm được tài khoản khẩn cấp.
   async get(id: string): Promise<UserRow> {
     const { rows } = await this.pool.query<UserRow>(
-      `SELECT ${USER_COLS} FROM users WHERE id = $1`,
+      `SELECT ${USER_COLS} FROM users WHERE id = $1 AND is_breakglass = false`,
       [id],
     );
     if (rows.length === 0) throw new NotFoundException("user không tồn tại");
     return rows[0];
+  }
+
+  /** Chặn thao tác lên tài khoản break-glass (ẩn = trả 404 giữ tính mờ). Dùng ở
+   * các mutation KHÔNG đi qua get(). */
+  private async assertNotBreakglass(id: string): Promise<void> {
+    const { rows } = await this.pool.query<{ b: boolean }>(
+      `SELECT is_breakglass AS b FROM users WHERE id = $1`,
+      [id],
+    );
+    if (rows.length === 0 || rows[0].b) {
+      throw new NotFoundException("user không tồn tại");
+    }
+  }
+
+  /**
+   * Chặn khóa/xóa/đặt-hạn làm mất SSA VẬN HÀNH cuối cùng (chống bus-factor —
+   * revokeSsa đã gác đường "gỡ vai", đây gác các đường gián tiếp). Không tính
+   * break-glass; nếu target không phải SSA hiển thị thì bỏ qua.
+   */
+  private async assertNotLastOperableSsa(id: string): Promise<void> {
+    const { rows: t } = await this.pool.query<{ b: boolean }>(
+      `SELECT u.is_breakglass AS b FROM admin_roles r JOIN users u ON u.id = r.user_id
+       WHERE r.user_id = $1 AND r.role = 'ssa'`,
+      [id],
+    );
+    if (t.length === 0 || t[0].b) return; // không phải SSA vận hành → không liên quan
+    const { rows } = await this.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM admin_roles r JOIN users u ON u.id = r.user_id
+       WHERE r.role = 'ssa' AND u.is_breakglass = false
+             AND u.deleted_at IS NULL AND u.status = 'active'`,
+    );
+    if (rows[0].n <= 1) {
+      throw new ConflictException(
+        "đây là SSA vận hành cuối cùng — bổ nhiệm SSA khác trước khi khóa/xóa/đặt hạn",
+      );
+    }
   }
 
   async create(
@@ -81,6 +128,9 @@ export class UsersService {
   ): Promise<UserRow> {
     const email = input.email.trim();
     const code = input.employeeCode.trim();
+
+    // Validate MK thủ công TRƯỚC khi tạo user (tránh tạo user rồi mới báo lỗi MK).
+    if (input.password) await this.tempPassword.assertPolicy(input.password);
 
     // Trùng (kể cả deleted) → chặn + gợi ý reactivate/định danh đang dùng.
     const { rows: dup } = await this.pool.query<{
@@ -130,13 +180,25 @@ export class UsersService {
       }
       throw e;
     }
+    // Đặt MK thủ công nếu admin nhập (đã validate ở trên).
+    if (input.password) {
+      await this.tempPassword.setManual(
+        user.id,
+        input.password,
+        input.mustChangePassword ?? true,
+      );
+    }
     await this.audit.record({
       actorUserId,
       action: "user.created",
       targetType: "user",
       targetId: user.id,
       ip,
-      detail: { email, employee_code: code },
+      detail: {
+        email,
+        employee_code: code,
+        password_set: input.password ? "manual" : "none",
+      },
     });
     return user;
   }
@@ -197,9 +259,13 @@ export class UsersService {
     actorUserId: string,
     ip: string | null,
   ): Promise<{ revoked: number }> {
+    if (id === actorUserId) {
+      throw new ForbiddenException("không thể tự xóa tài khoản của chính mình");
+    }
+    await this.assertNotLastOperableSsa(id);
     const { rowCount } = await this.pool.query(
       `UPDATE users SET deleted_at = now(), updated_at = now()
-       WHERE id = $1 AND deleted_at IS NULL`,
+       WHERE id = $1 AND deleted_at IS NULL AND is_breakglass = false`,
       [id],
     );
     if (rowCount === 0) {
@@ -226,7 +292,7 @@ export class UsersService {
   ): Promise<UserRow> {
     const { rows } = await this.pool.query<UserRow>(
       `UPDATE users SET deleted_at = NULL, status = 'active', updated_at = now()
-       WHERE id = $1 AND deleted_at IS NOT NULL
+       WHERE id = $1 AND deleted_at IS NOT NULL AND is_breakglass = false
        RETURNING ${USER_COLS}`,
       [id],
     );
@@ -251,9 +317,13 @@ export class UsersService {
     actorUserId: string,
     ip: string | null,
   ): Promise<{ revoked: number }> {
+    if (locked && id === actorUserId) {
+      throw new ForbiddenException("không thể tự khóa tài khoản của chính mình");
+    }
+    if (locked) await this.assertNotLastOperableSsa(id);
     const { rowCount } = await this.pool.query(
       `UPDATE users SET status = $2, updated_at = now()
-       WHERE id = $1 AND deleted_at IS NULL`,
+       WHERE id = $1 AND deleted_at IS NULL AND is_breakglass = false`,
       [id, locked ? "locked" : "active"],
     );
     if (rowCount === 0) throw new NotFoundException("user không tồn tại");
@@ -268,6 +338,89 @@ export class UsersService {
       detail: { revoked_sessions: revoked },
     });
     return { revoked };
+  }
+
+  /**
+   * Bổ nhiệm SSA (E5-S7, chống bus-factor AD-16). Chỉ SSA gọi (guard ở
+   * controller). User phải còn sống. Vai đọc LIVE trong AdminGuard nên có hiệu
+   * lực ngay.
+   */
+  async grantSsa(
+    id: string,
+    actorUserId: string,
+    ip: string | null,
+  ): Promise<{ ok: true }> {
+    const u = await this.get(id); // get() đã ẩn break-glass → 404 nếu là break-glass
+    if (u.deleted_at) throw new ConflictException("user đã bị xóa");
+    // Trần 2 SSA (không tính break-glass ẩn) — mô hình 2 SSA + 1 break-glass.
+    const { rows: cnt } = await this.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM admin_roles r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.role = 'ssa' AND u.is_breakglass = false`,
+    );
+    if (cnt[0].n >= 2) {
+      throw new ConflictException(
+        "đã đủ 2 SSA (tối đa) — gỡ bớt một SSA trước khi bổ nhiệm người mới",
+      );
+    }
+    await this.pool.query(
+      `INSERT INTO admin_roles (user_id, role) VALUES ($1, 'ssa')
+       ON CONFLICT DO NOTHING`,
+      [id],
+    );
+    await this.audit.record({
+      actorUserId,
+      action: "user.ssa_granted",
+      targetType: "user",
+      targetId: id,
+      ip,
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Gỡ vai SSA. CHẶN gỡ SSA CUỐI CÙNG (chống tự khóa toàn hệ thống). Không đụng
+   * vai project_admin nếu có.
+   */
+  async revokeSsa(
+    id: string,
+    actorUserId: string,
+    ip: string | null,
+  ): Promise<{ ok: true }> {
+    if (id === actorUserId) {
+      throw new ForbiddenException(
+        "không thể tự gỡ vai SSA của chính mình — nhờ một SSA khác thực hiện",
+      );
+    }
+    await this.assertNotBreakglass(id); // không cho gỡ SSA của tài khoản khẩn cấp
+    const { rowCount } = await this.pool.query(
+      `SELECT 1 FROM admin_roles WHERE user_id = $1 AND role = 'ssa'`,
+      [id],
+    );
+    if (rowCount === 0) throw new NotFoundException("user không phải SSA");
+    // Đếm SSA VẬN HÀNH (không tính break-glass ẩn) — nhất quán với cap ở grantSsa.
+    // Nếu tính cả break-glass sẽ cho gỡ đến khi chỉ còn break-glass = liệt UI.
+    const { rows } = await this.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM admin_roles r JOIN users u ON u.id = r.user_id
+       WHERE r.role = 'ssa' AND u.is_breakglass = false`,
+    );
+    if (rows[0].n <= 1) {
+      throw new ConflictException(
+        "không thể gỡ SSA vận hành cuối cùng — hãy bổ nhiệm SSA khác trước",
+      );
+    }
+    await this.pool.query(
+      `DELETE FROM admin_roles WHERE user_id = $1 AND role = 'ssa'`,
+      [id],
+    );
+    await this.audit.record({
+      actorUserId,
+      action: "user.ssa_revoked",
+      targetType: "user",
+      targetId: id,
+      ip,
+    });
+    return { ok: true };
   }
 
   /** Nút "hủy toàn bộ phiên" độc lập (SSA) — không khóa user. */
@@ -290,17 +443,36 @@ export class UsersService {
   }
 
   /**
-   * Admin reset MK (E4-S5, FR-15/16): cấp MK tạm + thu hồi phiên theo THẨM
-   * QUYỀN — SSA hủy toàn cục, project_admin chỉ hủy phiên app trong project
-   * mình (FR-05). Không trả MK trong response (đi qua email).
+   * Admin reset MK (E4-S5, FR-15/16). Hai chế độ:
+   *  - Mặc định: cấp MK TẠM ngẫu nhiên qua email + buộc đổi.
+   *  - `opts.password`: đặt MK THỦ CÔNG do admin nhập (không email — dùng khi
+   *    chưa cấu hình SMTP; giao MK ngoài luồng).
+   * Thu hồi phiên theo THẨM QUYỀN (SSA toàn cục / project_admin theo project).
    */
   async resetPassword(
     id: string,
     admin: AdminContext,
     ip: string | null,
+    opts: { password?: string; mustChangePassword?: boolean } = {},
   ): Promise<{ ok: true; revoked: number }> {
-    const email = await this.tempPassword.issue(id);
-    if (!email) throw new NotFoundException("user không tồn tại");
+    await this.assertNotBreakglass(id);
+    if (opts.password) {
+      // Đặt MK THỦ CÔNG = admin biết MK của target → CHỈ SSA. Nếu để
+      // project_admin làm, họ có thể đặt MK biết trước cho bất kỳ ai (kể cả
+      // SSA) rồi đăng nhập chiếm quyền. project_admin vẫn được reset qua email.
+      if (!admin.isSsa) {
+        throw new ForbiddenException("chỉ SSA được đặt mật khẩu thủ công");
+      }
+      await this.get(id); // 404 nếu không có (get() đã ẩn break-glass)
+      await this.tempPassword.setManual(
+        id,
+        opts.password,
+        opts.mustChangePassword ?? true,
+      );
+    } else {
+      const email = await this.tempPassword.issue(id);
+      if (!email) throw new NotFoundException("user không tồn tại");
+    }
     await this.emitEvent(id, "user.password_changed", { via: "admin_reset" });
     const revoked = admin.isSsa
       ? await this.revocation.revokeAllForUser(id)
@@ -311,7 +483,11 @@ export class UsersService {
       targetType: "user",
       targetId: id,
       ip,
-      detail: { scope: admin.isSsa ? "global" : "project", revoked },
+      detail: {
+        scope: admin.isSsa ? "global" : "project",
+        mode: opts.password ? "manual" : "temp_email",
+        revoked,
+      },
     });
     return { ok: true, revoked };
   }
@@ -326,10 +502,17 @@ export class UsersService {
     actorUserId: string,
     ip: string | null,
   ): Promise<UserRow> {
+    // Đặt hạn = tự động khóa khi tới hạn → cùng rủi ro lockout như khóa/xóa.
+    if (expiresAt !== null) {
+      if (id === actorUserId) {
+        throw new ForbiddenException("không thể tự đặt hạn tài khoản của chính mình");
+      }
+      await this.assertNotLastOperableSsa(id);
+    }
     const { rows } = await this.pool.query<UserRow>(
       `UPDATE users
        SET expires_at = $2, expiry_warning_sent_at = NULL, updated_at = now()
-       WHERE id = $1 AND deleted_at IS NULL
+       WHERE id = $1 AND deleted_at IS NULL AND is_breakglass = false
        RETURNING ${USER_COLS}`,
       [id, expiresAt],
     );

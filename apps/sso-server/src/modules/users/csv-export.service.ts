@@ -29,7 +29,9 @@ export class CsvExportService {
     filter: ExportFilter,
     admin: AdminContext,
   ): Promise<string> {
-    const where: string[] = ["u.deleted_at IS NULL"];
+    // Ẩn break-glass khỏi export (như list()/get()) — nếu không, SSA bấm "Xuất
+    // CSV" là lộ email/mã NV tài khoản khẩn cấp.
+    const where: string[] = ["u.deleted_at IS NULL", "u.is_breakglass = false"];
     const params: unknown[] = [];
     let p = 0;
 

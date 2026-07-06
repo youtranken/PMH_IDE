@@ -67,12 +67,21 @@ async function main() {
   await addToGroup(pool, anId, "Developers");
   await addToGroup(pool, anId, "Kế toán");
 
-  // SSA break-glass (dev: đăng nhập password-only để test API quản trị)
-  const ssaId = await upsertUser(pool, hash, {
+  // SSA break-glass (ẩn khỏi UI — lối vào khẩn cấp, password-only bỏ MFA).
+  // KHÔNG hiện ở màn Người dùng; quản lý qua script offline.
+  const bgId = await upsertUser(pool, hash, {
     email: "sysadmin@pmh.com.vn",
     code: "NV000",
-    name: "Quản trị hệ thống",
+    name: "Quản trị hệ thống (break-glass)",
     breakglass: true,
+  });
+  await grantRole(pool, bgId, "ssa");
+
+  // SSA HIỂN THỊ cho vận hành hằng ngày (mô hình: tối đa 2 SSA + 1 break-glass ẩn).
+  const ssaId = await upsertUser(pool, hash, {
+    email: "ssa@pmh.com.vn",
+    code: "NV010",
+    name: "Super Admin",
   });
   await grantRole(pool, ssaId, "ssa");
 
@@ -114,8 +123,9 @@ async function main() {
   }
 
   console.log("Seed OK:");
-  console.log(`  user  an.nguyen@pmh.com.vn / Passw0rd!  (${anId})`);
-  console.log(`  SSA   sysadmin@pmh.com.vn  / Passw0rd!  (${ssaId})`);
+  console.log(`  user      an.nguyen@pmh.com.vn / Passw0rd!  (${anId})`);
+  console.log(`  SSA(hiện) ssa@pmh.com.vn       / Passw0rd!  (${ssaId})`);
+  console.log(`  break-glass sysadmin@pmh.com.vn / Passw0rd! (${bgId}) — ẩn khỏi UI`);
   console.log(`  padmin padmin@pmh.com.vn   / Passw0rd!  (${padminId}) → Demo Project ${projectId}`);
   await pool.end();
 }

@@ -211,6 +211,8 @@ function LoginForm({
   loading: boolean;
   onFinish: (v: { email: string; password: string }) => void;
 }) {
+  const [forgot, setForgot] = useState(false);
+  if (forgot) return <ForgotForm onBack={() => setForgot(false)} />;
   return (
     <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
       <Form.Item label="Email" name="email" rules={[{ required: true, message: "Nhập email" }]}>
@@ -226,6 +228,7 @@ function LoginForm({
         label="Mật khẩu"
         name="password"
         rules={[{ required: true, message: "Nhập mật khẩu" }]}
+        style={{ marginBottom: 8 }}
       >
         <Input.Password
           size="large"
@@ -233,8 +236,71 @@ function LoginForm({
           prefix={<LockOutlined style={{ color: BRAND.muted }} />}
         />
       </Form.Item>
+      <div style={{ textAlign: "right", marginBottom: 14 }}>
+        <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={() => setForgot(true)}>
+          Quên mật khẩu?
+        </Button>
+      </div>
       <Button type="primary" htmlType="submit" size="large" block loading={loading}>
         Đăng nhập
+      </Button>
+    </Form>
+  );
+}
+
+/** Quên mật khẩu (FR-11): gửi MK tạm qua email; phản hồi ĐỒNG NHẤT (không lộ email tồn tại). */
+function ForgotForm({ onBack }: { onBack: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async (v: { email: string }) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await postJson("/api/auth/forgot-password", { email: v.email });
+      if (res.status === 429) {
+        setErr("Bạn thao tác quá nhanh — thử lại sau ít phút.");
+        return;
+      }
+      setSent(true);
+    } catch {
+      // postJson chỉ reject khi lỗi mạng → hiện lỗi, không kẹt spinner.
+      setErr("Không kết nối được máy chủ — thử lại sau.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <div>
+        <Alert
+          type="success"
+          showIcon
+          message="Đã gửi yêu cầu"
+          description="Nếu email khớp một tài khoản đang hoạt động, mật khẩu tạm đã được gửi vào hộp thư. Hãy đăng nhập bằng mật khẩu tạm rồi đổi mật khẩu mới."
+        />
+        <Button type="link" style={{ padding: 0, marginTop: 14 }} onClick={onBack}>
+          ← Quay lại đăng nhập
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Form layout="vertical" onFinish={submit} requiredMark={false}>
+      <div style={{ color: BRAND.muted, fontSize: 13, marginBottom: 14 }}>
+        Nhập email tài khoản — hệ thống gửi mật khẩu tạm để bạn đăng nhập lại.
+      </div>
+      {err && <Alert type="warning" showIcon message={err} style={{ marginBottom: 12 }} />}
+      <Form.Item label="Email" name="email" rules={[{ required: true, type: "email", message: "Email không hợp lệ" }]}>
+        <Input size="large" autoFocus prefix={<UserOutlined style={{ color: BRAND.muted }} />} placeholder="ten@pmh.com.vn" />
+      </Form.Item>
+      <Button type="primary" htmlType="submit" size="large" block loading={busy}>
+        Gửi mật khẩu tạm
+      </Button>
+      <Button type="link" block style={{ marginTop: 8 }} onClick={onBack}>
+        ← Quay lại đăng nhập
       </Button>
     </Form>
   );

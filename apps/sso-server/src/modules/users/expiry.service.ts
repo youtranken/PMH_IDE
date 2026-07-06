@@ -77,7 +77,11 @@ export class ExpiryService {
       [days],
     );
     for (const u of rows) {
-      const dateStr = u.expires_at.toISOString().slice(0, 10);
+      // Định dạng ngày theo giờ VN (không dùng UTC — tránh lệch 1 ngày ở khung
+      // giờ tối). 'sv-SE' cho ra YYYY-MM-DD.
+      const dateStr = u.expires_at.toLocaleDateString("sv-SE", {
+        timeZone: "Asia/Bangkok",
+      });
       await this.emails.enqueue(
         u.email,
         "Tài khoản PMH ID sắp hết hạn",

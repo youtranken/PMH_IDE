@@ -87,6 +87,11 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
   const [expiryFor, setExpiryFor] = useState<UserRow | null>(null);
   const [expiryVal, setExpiryVal] = useState("");
 
+  const [resetFor, setResetFor] = useState<UserRow | null>(null);
+  const [resetPw, setResetPw] = useState("");
+  const [resetMustChange, setResetMustChange] = useState(true);
+  const [resetting, setResetting] = useState(false);
+
   const [importOpen, setImportOpen] = useState(false);
 
   const load = () => {
@@ -119,10 +124,13 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
     setSaving(true);
     try {
       if (editing) {
-        await api(`/api/admin/users/${editing.id}`, { method: "PATCH", body: v });
+        const { password, mustChangePassword, ...edit } = v;
+        await api(`/api/admin/users/${editing.id}`, { method: "PATCH", body: edit });
         message.success("Đã cập nhật");
       } else {
-        await api("/api/admin/users", { method: "POST", body: v });
+        const body: Record<string, unknown> = { email: v.email, employeeCode: v.employeeCode, fullName: v.fullName };
+        if (v.password) { body.password = v.password; body.mustChangePassword = v.mustChangePassword ?? true; }
+        await api("/api/admin/users", { method: "POST", body });
         message.success("Đã tạo user");
       }
       setFormOpen(false);
@@ -164,14 +172,47 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
     } else run();
   };
 
-  const resetPassword = (u: UserRow) =>
+  const resetPassword = (u: UserRow) => {
+    setResetFor(u);
+    setResetPw("");
+    setResetMustChange(true);
+  };
+  const submitReset = async () => {
+    setResetting(true);
+    try {
+      const body = resetPw
+        ? { password: resetPw, mustChangePassword: resetMustChange }
+        : {};
+      const r = await api<{ revoked: number }>(`/api/admin/users/${resetFor!.id}/reset-password`, { method: "POST", body });
+      message.success(
+        resetPw
+          ? `Đã đặt mật khẩu thủ công — thu hồi ${r.revoked} phiên`
+          : `Đã gửi mật khẩu tạm qua email — thu hồi ${r.revoked} phiên`,
+      );
+      setResetFor(null);
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const toggleSsa = (u: UserRow, grant: boolean) =>
     modal.confirm({
-      title: "Reset mật khẩu?",
-      content: `Cấp mật khẩu tạm cho ${u.full_name} (gửi qua email, hạn theo cấu hình). ${isSsa ? "Thu hồi mọi phiên của user." : "Thu hồi phiên trong phạm vi dự án của bạn."}`,
-      okText: "Reset mật khẩu",
+      title: grant ? `Bổ nhiệm ${u.full_name} làm SSA?` : `Gỡ quyền SSA của ${u.full_name}?`,
+      content: grant
+        ? "SSA có TOÀN QUYỀN quản trị hệ thống (khóa/xóa user, cấu hình, mọi dự án, bổ nhiệm SSA khác). Nên duy trì ≥2 SSA để không phụ thuộc một người."
+        : "Gỡ toàn bộ quyền quản trị hệ thống của người này (giữ vai quản trị dự án nếu có). Không thể gỡ SSA cuối cùng.",
+      okText: grant ? "Bổ nhiệm SSA" : "Gỡ quyền SSA",
+      okButtonProps: { danger: !grant },
       onOk: async () => {
-        const r = await api<{ revoked: number }>(`/api/admin/users/${u.id}/reset-password`, { method: "POST" });
-        message.success(`Đã reset — thu hồi ${r.revoked} phiên`);
+        try {
+          await api(`/api/admin/users/${u.id}/ssa`, { method: grant ? "POST" : "DELETE" });
+          message.success(grant ? "Đã bổ nhiệm SSA" : "Đã gỡ quyền SSA");
+          load();
+        } catch (e) {
+          message.error((e as Error).message);
+        }
       },
     });
 
@@ -192,19 +233,24 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
   const menuFor = (u: UserRow) => {
     const items: { key: string; label: string; danger?: boolean; onClick: () => void }[] = [
       { key: "edit", label: "Sửa thông tin", onClick: () => openEdit(u) },
-      { key: "expiry", label: "Đặt hạn tài khoản", onClick: () => { setExpiryFor(u); setExpiryVal(u.expires_at ? u.expires_at.slice(0, 10) : ""); } },
       { key: "reset", label: "Reset mật khẩu", onClick: () => resetPassword(u) },
     ];
     if (isSsa) {
       if (u.deleted_at) {
         items.push({ key: "reactivate", label: "Khôi phục user", onClick: () => act(u, "reactivate", "Đã khôi phục") });
       } else {
+        items.push({ key: "expiry", label: "Đặt hạn tài khoản", onClick: () => { setExpiryFor(u); setExpiryVal(u.expires_at ? u.expires_at.slice(0, 10) : ""); } });
         items.push(
           u.status === "locked"
             ? { key: "unlock", label: "Mở khóa", onClick: () => act(u, "unlock", "Đã mở khóa") }
             : { key: "lock", label: "Khóa tài khoản", danger: true, onClick: () => act(u, "lock", "Đã khóa", true) },
         );
         items.push({ key: "revoke", label: "Hủy mọi phiên", onClick: () => act(u, "revoke-sessions", "Đã hủy phiên") });
+        items.push(
+          u.is_ssa
+            ? { key: "ssa-revoke", label: "Gỡ quyền SSA", danger: true, onClick: () => toggleSsa(u, false) }
+            : { key: "ssa-grant", label: "Bổ nhiệm SSA", onClick: () => toggleSsa(u, true) },
+        );
         items.push({ key: "delete", label: "Xóa user", danger: true, onClick: () => act(u, "delete", "Đã xóa user", true) });
       }
     }
@@ -297,6 +343,20 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
           <Form.Item name="employeeCode" label="Mã nhân viên" rules={[{ required: true, message: "Nhập mã NV" }]}>
             <Input placeholder="NV123" />
           </Form.Item>
+          {!editing && (
+            <>
+              <Form.Item
+                name="password"
+                label="Mật khẩu (tùy chọn)"
+                extra="Bỏ trống → user chưa có MK, phải dùng 'Reset mật khẩu' hoặc 'Quên mật khẩu' để lấy MK tạm. Đặt tại đây khi chưa cấu hình email. Tối thiểu 8 ký tự đủ 4 loại."
+              >
+                <Input.Password placeholder="Để trống nếu gửi MK tạm sau" autoComplete="new-password" />
+              </Form.Item>
+              <Form.Item name="mustChangePassword" valuePropName="checked" initialValue={true} style={{ marginBottom: 0 }}>
+                <Checkbox>Bắt người dùng đổi mật khẩu ở lần đăng nhập đầu (khuyến nghị)</Checkbox>
+              </Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
 
@@ -312,6 +372,43 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
       >
         <Text type="secondary">Sau ngày này tài khoản sẽ tự khóa. Để trống rồi bấm "Gỡ hạn" để bỏ.</Text>
         <Input type="date" style={{ marginTop: 12 }} value={expiryVal} onChange={(e) => setExpiryVal(e.target.value)} />
+      </Modal>
+
+      {/* Reset mật khẩu — 2 chế độ: MK tạm qua email HOẶC đặt thủ công */}
+      <Modal
+        open={!!resetFor}
+        title={resetFor ? `Reset mật khẩu · ${resetFor.full_name}` : ""}
+        onCancel={() => setResetFor(null)}
+        onOk={submitReset}
+        okText={isSsa && resetPw ? "Đặt mật khẩu" : "Gửi MK tạm qua email"}
+        confirmLoading={resetting}
+        destroyOnHidden
+      >
+        <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+          {isSsa ? (
+            <>
+              Để trống → gửi <b>mật khẩu tạm qua email</b> (buộc đổi khi đăng nhập). Nhập MK để{" "}
+              <b>đặt thủ công</b> (dùng khi chưa cấu hình email). Thu hồi mọi phiên của user.
+            </>
+          ) : (
+            <>Gửi <b>mật khẩu tạm qua email</b> (buộc đổi khi đăng nhập). Thu hồi phiên trong phạm vi dự án của bạn.</>
+          )}
+        </Text>
+        {isSsa && (
+          <>
+            <Input.Password
+              placeholder="Để trống nếu gửi MK tạm qua email"
+              value={resetPw}
+              autoComplete="new-password"
+              onChange={(e) => setResetPw(e.target.value)}
+            />
+            {resetPw && (
+              <Checkbox checked={resetMustChange} onChange={(e) => setResetMustChange(e.target.checked)} style={{ marginTop: 12 }}>
+                Bắt người dùng đổi mật khẩu ở lần đăng nhập đầu (khuyến nghị)
+              </Checkbox>
+            )}
+          </>
+        )}
       </Modal>
 
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); load(); }} />

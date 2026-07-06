@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -31,6 +32,13 @@ class CreateUserDto {
   @IsEmail() email!: string;
   @IsString() @IsNotEmpty() employeeCode!: string;
   @IsString() @IsNotEmpty() fullName!: string;
+  // Tùy chọn: đặt MK thủ công ngay khi tạo. Policy kiểm ở service.
+  @IsOptional() @IsString() @IsNotEmpty() password?: string;
+  @IsOptional() @IsBoolean() mustChangePassword?: boolean;
+}
+class ResetPasswordDto {
+  @IsOptional() @IsString() @IsNotEmpty() password?: string;
+  @IsOptional() @IsBoolean() mustChangePassword?: boolean;
 }
 class UpdateUserDto {
   @IsOptional() @IsEmail() email?: string;
@@ -101,7 +109,17 @@ export class UsersController {
     @CurrentAdmin() admin: AdminContext,
     @Req() req: Request,
   ) {
-    return this.users.create(dto, admin.userId, req.ip ?? null);
+    return this.users.create(
+      {
+        email: dto.email,
+        employeeCode: dto.employeeCode,
+        fullName: dto.fullName,
+        password: dto.password,
+        mustChangePassword: dto.mustChangePassword,
+      },
+      admin.userId,
+      req.ip ?? null,
+    );
   }
 
   @Patch(":id")
@@ -155,6 +173,7 @@ export class UsersController {
   }
 
   @Post(":id/set-expiry")
+  @Roles("ssa")
   setExpiry(
     @Param("id") id: string,
     @Body() dto: SetExpiryDto,
@@ -172,10 +191,34 @@ export class UsersController {
   @Post(":id/reset-password")
   resetPassword(
     @Param("id") id: string,
+    @Body() dto: ResetPasswordDto,
     @CurrentAdmin() admin: AdminContext,
     @Req() req: Request,
   ) {
-    return this.users.resetPassword(id, admin, req.ip ?? null);
+    return this.users.resetPassword(id, admin, req.ip ?? null, {
+      password: dto.password,
+      mustChangePassword: dto.mustChangePassword,
+    });
+  }
+
+  @Post(":id/ssa")
+  @Roles("ssa")
+  grantSsa(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.users.grantSsa(id, admin.userId, req.ip ?? null);
+  }
+
+  @Delete(":id/ssa")
+  @Roles("ssa")
+  revokeSsa(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.users.revokeSsa(id, admin.userId, req.ip ?? null);
   }
 
   @Post(":id/revoke-sessions")

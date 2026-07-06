@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { passwordValid } from "@pmh/shared";
 import * as argon2 from "argon2";
 import { Pool } from "pg";
 import { SettingsService } from "../../config/settings.service";
@@ -46,6 +47,40 @@ export class TempPasswordService {
       [chars[i], chars[j]] = [chars[j], chars[i]];
     }
     return chars.join("");
+  }
+
+  /** Ném BadRequest nếu MK không đạt policy (dùng chung luật @pmh/shared). */
+  async assertPolicy(pw: string): Promise<void> {
+    const min = await this.settings.getInt("password_min_length", 8);
+    if (!passwordValid(pw, min)) {
+      throw new BadRequestException(
+        `Mật khẩu chưa đạt: tối thiểu ${min} ký tự và đủ 4 loại (hoa/thường/số/ký tự đặc biệt).`,
+      );
+    }
+  }
+
+  /**
+   * Đặt MK THỦ CÔNG do admin nhập (thay cho MK tạm qua email — hữu ích khi chưa
+   * cấu hình SMTP). Validate policy. `mustChange=true` → buộc đổi ở lần đăng nhập
+   * đầu (như MK tạm nhưng admin tự chọn giá trị & giao ngoài luồng).
+   */
+  async setManual(
+    userId: string,
+    plainPassword: string,
+    mustChange: boolean,
+  ): Promise<void> {
+    await this.assertPolicy(plainPassword);
+    const hash = await argon2.hash(plainPassword);
+    await this.pool.query(
+      `UPDATE users
+       SET password_hash = $2,
+           must_change_password = $3,
+           temp_password_expires_at = NULL,
+           password_updated_at = now(),
+           updated_at = now()
+       WHERE id = $1`,
+      [userId, hash, mustChange],
+    );
   }
 
   /**

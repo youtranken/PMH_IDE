@@ -67,7 +67,11 @@ export class DirectoryService {
   ): Promise<DirUser[]> {
     await this.rateLimit(client.clientId);
     const limit = Math.min(Math.max(opts.limit, 1), DirectoryService.MAX_LIMIT);
-    const delFilter = opts.includeDeleted ? "" : "AND u.deleted_at IS NULL";
+    // Luôn loại break-glass (phòng thủ — nó không có group nên hiện đã ẩn, nhưng
+    // nếu lỡ gán group thì KHÔNG được lộ qua Directory API cho app ngoài).
+    const delFilter =
+      (opts.includeDeleted ? "" : "AND u.deleted_at IS NULL") +
+      " AND u.is_breakglass = false";
     const { rows } = await this.pool.query<DirUser>(
       `SELECT u.id, u.employee_code, u.email, u.full_name, u.status,
               array_agg(DISTINCT g.name) AS groups
@@ -97,7 +101,9 @@ export class DirectoryService {
     includeDeleted: boolean,
     ip: string | null,
   ): Promise<DirUser> {
-    const delFilter = includeDeleted ? "" : "AND u.deleted_at IS NULL";
+    const delFilter =
+      (includeDeleted ? "" : "AND u.deleted_at IS NULL") +
+      " AND u.is_breakglass = false";
     const { rows } = await this.pool.query<DirUser>(
       `SELECT u.id, u.employee_code, u.email, u.full_name, u.status,
               array_agg(DISTINCT g.name) AS groups
@@ -155,8 +161,16 @@ export class DirectoryService {
       });
     }
     const { rows } = await this.pool.query(
-      `SELECT seq, user_id, event_type, detail, created_at
-       FROM user_events WHERE seq > $1 ORDER BY seq LIMIT $2`,
+      // Ẩn break-glass khỏi MỌI đường directory (đồng bộ với list/getUser):
+      // nếu tài khoản break-glass lỡ phát sự kiện, không lộ user_id ra ngoài.
+      `SELECT ue.seq, ue.user_id, ue.event_type, ue.detail, ue.created_at
+       FROM user_events ue
+       WHERE ue.seq > $1
+         AND NOT EXISTS (
+           SELECT 1 FROM users u
+           WHERE u.id = ue.user_id AND u.is_breakglass = true
+         )
+       ORDER BY ue.seq LIMIT $2`,
       [since, cap],
     );
     const cursor = rows.length ? Number(rows[rows.length - 1].seq) : since;
