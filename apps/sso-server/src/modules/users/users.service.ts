@@ -31,6 +31,8 @@ export interface UserRow {
   deleted_at: Date | null;
   expires_at: Date | null;
   created_at: Date;
+  is_ssa?: boolean;
+  admin_projects?: string[]; // tên dự án user là project_admin
 }
 
 const USER_COLS =
@@ -53,7 +55,12 @@ export class UsersService {
 
   async list(): Promise<UserRow[]> {
     const { rows } = await this.pool.query<UserRow>(
-      `SELECT ${USER_COLS} FROM users ORDER BY created_at DESC LIMIT 500`,
+      `SELECT ${USER_COLS.split(", ").map((c) => "u." + c).join(", ")},
+              EXISTS(SELECT 1 FROM admin_roles r WHERE r.user_id = u.id AND r.role = 'ssa') AS is_ssa,
+              COALESCE((SELECT array_agg(p.name ORDER BY p.name)
+                        FROM admin_projects ap JOIN projects p ON p.id = ap.project_id
+                        WHERE ap.user_id = u.id), '{}') AS admin_projects
+       FROM users u ORDER BY u.created_at DESC LIMIT 500`,
     );
     return rows;
   }

@@ -34,6 +34,17 @@ interface UserRow {
   deleted_at: string | null;
   expires_at: string | null;
   created_at: string;
+  is_ssa?: boolean;
+  admin_projects?: string[];
+}
+
+function roleTags(u: UserRow) {
+  const tags = [];
+  if (u.is_ssa) tags.push(<Tag key="ssa" color="gold">SSA</Tag>);
+  for (const name of u.admin_projects ?? []) {
+    tags.push(<Tag key={name} color="green">QTDA: {name}</Tag>);
+  }
+  return tags.length ? <span>{tags}</span> : <span style={{ color: "#c0c9c5" }}>Nhân viên</span>;
 }
 
 interface RowResult {
@@ -250,7 +261,8 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
               </div>
             ),
           },
-          { title: "Mã NV", dataIndex: "employee_code", responsive: ["md"] },
+          { title: "Mã NV", dataIndex: "employee_code", responsive: ["lg"] },
+          { title: "Vai trò", render: (_, u) => roleTags(u), responsive: ["md"] },
           { title: "Trạng thái", render: (_, u) => statusTag(u), width: 120 },
           { title: "Hạn", render: (_, u) => fmtDate(u.expires_at), responsive: ["lg"], width: 120 },
           {
