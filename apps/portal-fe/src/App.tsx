@@ -1,5 +1,5 @@
-import { ApartmentOutlined, ApiOutlined, AppstoreOutlined, AuditOutlined, BookOutlined, MenuOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
-import { App as AntApp, Avatar, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Spin } from "antd";
+import { ApartmentOutlined, AppstoreOutlined, AuditOutlined, BookOutlined, MenuOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
+import { App as AntApp, Avatar, Button, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Result, Spin } from "antd";
 import { useEffect, useState } from "react";
 import { Brand, BRAND, initials } from "./ui";
 import InteractionLogin from "./pages/InteractionLogin";
@@ -10,8 +10,7 @@ import Audit from "./pages/Audit";
 import Docs from "./pages/Docs";
 import AdminUsers from "./pages/AdminUsers";
 import AdminGroups from "./pages/AdminGroups";
-import AdminClients from "./pages/AdminClients";
-import AdminProjects from "./pages/AdminProjects";
+import AdminWorkspace from "./pages/AdminWorkspace";
 import viVN from "antd/locale/vi_VN";
 import { api, handleCallback, isAuthed, login, logout } from "./auth";
 
@@ -74,6 +73,8 @@ export default function App() {
 // nếu mỗi lần tự quyết handleCallback/login sẽ đua nhau (mount 2 check isAuthed
 // trước khi mount 1 kịp lưu token → login() thừa → vòng lặp điều hướng). Dùng
 // CHUNG một promise → toàn bộ trình tự chạy đúng MỘT lần.
+export class LoginLoopError extends Error {}
+
 let bootPromise: Promise<Profile | null> | null = null;
 function boot(): Promise<Profile | null> {
   if (bootPromise) return bootPromise;
@@ -82,9 +83,21 @@ function boot(): Promise<Profile | null> {
       await handleCallback(); // xong sẽ replaceState về "/"
     }
     if (!isAuthed()) {
+      // Vòng-lặp-breaker: nếu VỪA auto-login xong đã quay lại đây mà vẫn chưa
+      // đăng nhập được → phiên lỗi DAI DẲNG (cookie bị chặn, hoặc cap phiên bị
+      // cấu hình ~0). renderError của IdP trả 303 về "/" nên nếu cứ auto-login
+      // sẽ thành vòng lặp điều hướng vô hạn. Dừng lại, để user tự thử lại.
+      const now = Date.now();
+      const last = Number(sessionStorage.getItem("pmh_login_ts") || 0);
+      if (last && now - last < 8000) {
+        sessionStorage.removeItem("pmh_login_ts");
+        throw new LoginLoopError();
+      }
+      sessionStorage.setItem("pmh_login_ts", String(now));
       await login();
       return null; // đang điều hướng
     }
+    sessionStorage.removeItem("pmh_login_ts"); // đã auth → reset đếm
     return api<Profile>("/api/me");
   })();
   return bootPromise;
@@ -94,6 +107,7 @@ function Root() {
   const [path, nav] = usePath();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
+  const [loopErr, setLoopErr] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const screens = Grid.useBreakpoint();
   const mobile = !screens.lg;
@@ -109,12 +123,31 @@ function Root() {
           if (window.location.pathname !== "/") nav("/");
         }
       })
+      .catch((e) => {
+        if (e instanceof LoginLoopError) setLoopErr(true);
+      })
       .finally(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (interaction) {
     return <InteractionLogin uid={interaction[1]} />;
+  }
+  if (loopErr) {
+    return (
+      <Layout style={{ minHeight: "100vh", alignItems: "center", justifyContent: "center" }}>
+        <Result
+          status="warning"
+          title="Không thiết lập được phiên đăng nhập"
+          subTitle="Trình duyệt có thể đang chặn cookie, hoặc phiên hết hạn ngay lập tức. Kiểm tra cài đặt cookie rồi thử lại."
+          extra={
+            <Button type="primary" onClick={() => { sessionStorage.removeItem("pmh_login_ts"); window.location.href = "/"; }}>
+              Thử đăng nhập lại
+            </Button>
+          }
+        />
+      </Layout>
+    );
   }
   if (!ready || !profile) {
     return (
@@ -137,14 +170,13 @@ function Root() {
           { type: "divider" as const },
           { key: "/admin/users", icon: <TeamOutlined />, label: "Người dùng" },
           { key: "/admin/groups", icon: <ApartmentOutlined />, label: "Nhóm" },
-          { key: "/admin/clients", icon: <ApiOutlined />, label: "Ứng dụng SSO" },
-          ...(profile.isSsa ? [{ key: "/admin/projects", icon: <ProjectOutlined />, label: "Dự án" }] : []),
+          { key: "/admin/workspace", icon: <ProjectOutlined />, label: "Dự án & Ứng dụng" },
           { key: "/audit", icon: <AuditOutlined />, label: "Nhật ký" },
           ...(profile.isSsa ? [{ key: "/settings", icon: <SettingOutlined />, label: "Cấu hình" }] : []),
         ]
       : []),
   ];
-  const selected = ["/", "/account", "/docs", "/audit", "/settings", "/admin/users", "/admin/groups", "/admin/clients", "/admin/projects"].includes(path) ? path : "/";
+  const selected = ["/", "/account", "/docs", "/audit", "/settings", "/admin/users", "/admin/groups", "/admin/workspace"].includes(path) ? path : "/";
 
   const logo = (
     <div style={{ height: 60, display: "flex", alignItems: "center", gap: 10, paddingInline: 20 }}>
@@ -210,8 +242,7 @@ function Root() {
           {selected === "/docs" && <Docs />}
           {selected === "/admin/users" && <AdminUsers isSsa={profile.isSsa} />}
           {selected === "/admin/groups" && <AdminGroups isSsa={profile.isSsa} />}
-          {selected === "/admin/clients" && <AdminClients isSsa={profile.isSsa} />}
-          {selected === "/admin/projects" && <AdminProjects />}
+          {selected === "/admin/workspace" && <AdminWorkspace isSsa={profile.isSsa} />}
           {selected === "/audit" && <Audit isSsa={profile.isSsa} />}
           {selected === "/settings" && <Settings />}
         </Content>

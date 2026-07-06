@@ -4,11 +4,12 @@ import {
   DatabaseOutlined,
   LockOutlined,
   MailOutlined,
+  QuestionCircleOutlined,
   SafetyCertificateOutlined,
   SafetyOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
-import { App as AntApp, Button, Card, Input, Skeleton, Typography } from "antd";
+import { App as AntApp, Button, Card, Input, Skeleton, Tooltip, Typography } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../auth";
 import { BRAND } from "../ui";
@@ -38,6 +39,29 @@ const LABELS: Record<string, string> = {
   backup_path: "Đường dẫn backup",
   audit_archive_path: "Đường dẫn lưu trữ audit",
   require_mfa_roles: "Vai bắt buộc MFA (phẩy, vd ssa,project_admin)",
+};
+
+/** Giải thích tính năng (hiện khi hover ?) — để SSA hiểu tham số làm gì trước khi đổi. */
+const HELP: Record<string, string> = {
+  access_token_ttl_seconds:
+    "Access token (JWT) sống bao lâu trước khi hết hạn. Khi còn thao tác, ứng dụng tự xin token mới bằng refresh token — người dùng KHÔNG bị đá ra. Ngắn = an toàn hơn (token lộ mau hết hiệu lực); dài = ít gọi lại /token. Mặc định 300s (5 phút).",
+  session_idle_seconds:
+    "Phiên đăng nhập chung (SSO) tự hết sau ngần này nếu người dùng không đăng nhập lại. Hết phiên → lần gia hạn token kế thất bại → phải đăng nhập lại. Đây là 'tự logout khi rảnh'. Mặc định 900s (15 phút).",
+  session_absolute_cap_seconds:
+    "Trần cứng của một phiên tính từ lúc đăng nhập. Đến hạn là buộc đăng nhập lại DÙ đang thao tác — chặn phiên sống vô hạn. Mặc định 43200s (12 giờ).",
+  password_min_length: "Số ký tự tối thiểu của mật khẩu người dùng (chính sách còn yêu cầu đủ loại chữ/số/ký hiệu).",
+  password_max_age_days: "Sau bao nhiêu ngày thì buộc người dùng đổi mật khẩu.",
+  temp_password_ttl_hours: "Mật khẩu tạm (admin cấp khi reset) hết hiệu lực sau bao nhiêu giờ nếu chưa dùng để đổi.",
+  client_secret_grace_hours: "Khi xoay (rotate) client_secret, secret CŨ vẫn dùng được thêm ngần này để ứng dụng kịp cập nhật, không gián đoạn đăng nhập.",
+  bruteforce_account_threshold: "Số lần đăng nhập sai liên tiếp trên MỘT tài khoản trước khi hệ thống bắt đầu làm chậm (backoff).",
+  bruteforce_ip_threshold: "Số lần sai liên tiếp từ MỘT địa chỉ IP (gồm cả gọi /token) trước khi bị làm chậm.",
+  bruteforce_backoff_seconds: "Thời gian chờ tối đa bị áp khi vượt ngưỡng dò mật khẩu.",
+  expiry_warning_days: "Gửi email nhắc trước khi tài khoản hết hạn bao nhiêu ngày.",
+  smtp_host: "Máy chủ gửi email (SMTP). Tài khoản/mật khẩu SMTP đặt ở .env, không ở đây.",
+  smtp_port: "Cổng máy chủ SMTP (vd 587, 465, 1025 cho Mailpit dev).",
+  backup_path: "Thư mục lưu bản sao lưu đã mã hóa (pg_dump + .env + khóa ký).",
+  audit_archive_path: "Thư mục lưu nhật ký audit đã nén theo tháng để đối soát lâu dài.",
+  require_mfa_roles: "Vai trò bắt buộc bật xác thực 2 lớp (TOTP), phân tách bằng dấu phẩy — vd: ssa hoặc ssa,project_admin.",
 };
 
 /** Gom tham số thành nhóm có nghĩa thay vì một bảng phẳng. */
@@ -129,7 +153,14 @@ export default function Settings() {
         }}
       >
         <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-          <div style={{ fontWeight: 500, color: BRAND.ink }}>{LABELS[key] ?? key}</div>
+          <div style={{ fontWeight: 500, color: BRAND.ink }}>
+            {LABELS[key] ?? key}
+            {HELP[key] && (
+              <Tooltip title={HELP[key]}>
+                <QuestionCircleOutlined style={{ marginLeft: 6, color: BRAND.muted, fontSize: 13, cursor: "help" }} />
+              </Tooltip>
+            )}
+          </div>
           <code style={{ fontSize: 12, color: BRAND.muted }}>{key}</code>
         </div>
         <Input
