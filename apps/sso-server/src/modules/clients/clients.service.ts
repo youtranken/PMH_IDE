@@ -136,6 +136,30 @@ export class ClientsService {
     return c;
   }
 
+  /**
+   * Xóa hẳn ứng dụng (E5-S5). Cascade DB gỡ secrets/groups/webhook_deliveries.
+   * Token đã cấp mồ côi client → không refresh được, tự hết hạn. project_admin
+   * chỉ xóa client trong phạm vi (getScoped gác).
+   */
+  async delete(
+    id: string,
+    admin: AdminContext,
+    ip: string | null,
+  ): Promise<{ ok: true }> {
+    const c = await this.getScoped(id, admin);
+    await this.pool.query(`DELETE FROM clients WHERE id = $1`, [id]);
+    await this.audit.record({
+      actorUserId: admin.userId,
+      action: "client.deleted",
+      targetType: "client",
+      targetId: id,
+      projectId: c.project_id,
+      ip,
+      detail: { client_id: c.client_id, name: c.name },
+    });
+    return { ok: true };
+  }
+
   async create(
     input: {
       projectId: string;

@@ -44,6 +44,15 @@ export class ProjectsController {
     return this.projects.list();
   }
 
+  // Dự án trong PHẠM VI của admin hiện tại — SSA thấy tất cả, project_admin chỉ
+  // thấy dự án mình được gán. Cho mọi admin (ghi đè @Roles("ssa") cấp class) để
+  // màn "Dự án & Ứng dụng" gộp dùng chung. PHẢI đứng trước @Get(":id").
+  @Get("mine")
+  @Roles("ssa", "project_admin")
+  listMine(@CurrentAdmin() admin: AdminContext) {
+    return this.projects.listForAdmin(admin);
+  }
+
   @Get(":id")
   get(@Param("id") id: string) {
     return this.projects.get(id);
@@ -71,6 +80,15 @@ export class ProjectsController {
     @Req() req: Request,
   ) {
     return this.projects.update(id, dto, admin.userId, req.ip ?? null);
+  }
+
+  @Delete(":id")
+  remove(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.projects.remove(id, admin.userId, req.ip ?? null);
   }
 
   @Get(":id/admins")

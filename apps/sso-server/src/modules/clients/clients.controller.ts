@@ -108,6 +108,15 @@ export class ClientsController {
     return this.clients.update(id, dto, admin, req.ip ?? null);
   }
 
+  @Delete(":id")
+  remove(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.clients.delete(id, admin, req.ip ?? null);
+  }
+
   @Post(":id/disable")
   disable(
     @Param("id") id: string,

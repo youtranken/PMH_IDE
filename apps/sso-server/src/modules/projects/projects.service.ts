@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Pool } from "pg";
+import type { AdminContext } from "../../common/admin/admin.types";
 import { AuditService } from "../../common/audit.service";
 import { PG_POOL } from "../../database/database.module";
 
@@ -31,6 +32,19 @@ export class ProjectsService {
     return this.pool
       .query<ProjectRow>(
         `SELECT id, name, description, created_at FROM projects ORDER BY name`,
+      )
+      .then((r) => r.rows);
+  }
+
+  /** Dự án theo phạm vi admin: SSA → tất cả; project_admin → chỉ dự án được gán. */
+  listForAdmin(admin: AdminContext): Promise<ProjectRow[]> {
+    if (admin.isSsa) return this.list();
+    if (admin.projectIds.length === 0) return Promise.resolve([]);
+    return this.pool
+      .query<ProjectRow>(
+        `SELECT id, name, description, created_at FROM projects
+         WHERE id = ANY($1) ORDER BY name`,
+        [admin.projectIds],
       )
       .then((r) => r.rows);
   }
@@ -117,6 +131,56 @@ export class ProjectsService {
     }
   }
 
+  /**
+   * Xóa dự án (SSA). CHẶN nếu còn ứng dụng — tránh xóa nhầm hàng loạt qua cascade
+   * (clients ON DELETE CASCADE). Cascade tự gỡ admin_projects; sau đó dọn vai
+   * project_admin cho ai không còn dự án nào. Audit không gắn projectId (dự án đã
+   * biến mất → tránh vi phạm FK, giữ tên trong detail).
+   */
+  async remove(
+    id: string,
+    actorUserId: string,
+    ip: string | null,
+  ): Promise<{ ok: true }> {
+    const project = await this.get(id); // 404 nếu không có
+    const { rows: cnt } = await this.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM clients WHERE project_id = $1`,
+      [id],
+    );
+    if (cnt[0].n > 0) {
+      throw new ConflictException(
+        "dự án còn ứng dụng — xóa hết ứng dụng trước khi xóa dự án",
+      );
+    }
+    const { rows: admins } = await this.pool.query<{ user_id: string }>(
+      `SELECT user_id FROM admin_projects WHERE project_id = $1`,
+      [id],
+    );
+    await this.pool.query(`DELETE FROM projects WHERE id = $1`, [id]);
+    // Dọn vai project_admin mồ côi (mất dự án cuối cùng) — như removeAdmin.
+    for (const a of admins) {
+      const { rowCount } = await this.pool.query(
+        `SELECT 1 FROM admin_projects WHERE user_id = $1`,
+        [a.user_id],
+      );
+      if (rowCount === 0) {
+        await this.pool.query(
+          `DELETE FROM admin_roles WHERE user_id = $1 AND role = 'project_admin'`,
+          [a.user_id],
+        );
+      }
+    }
+    await this.audit.record({
+      actorUserId,
+      action: "project.deleted",
+      targetType: "project",
+      targetId: id,
+      ip,
+      detail: { name: project.name },
+    });
+    return { ok: true };
+  }
+
   async listAdmins(
     projectId: string,
   ): Promise<{ user_id: string; email: string; full_name: string }[]> {
@@ -128,7 +192,7 @@ export class ProjectsService {
     }>(
       `SELECT u.id AS user_id, u.email, u.full_name
        FROM admin_projects ap JOIN users u ON u.id = ap.user_id
-       WHERE ap.project_id = $1 AND u.deleted_at IS NULL
+       WHERE ap.project_id = $1 AND u.deleted_at IS NULL AND u.is_breakglass = false
        ORDER BY u.full_name`,
       [projectId],
     );
@@ -144,7 +208,9 @@ export class ProjectsService {
   ): Promise<void> {
     await this.get(projectId);
     const { rowCount } = await this.pool.query(
-      `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      // is_breakglass = false: không cho bổ nhiệm tài khoản khẩn cấp làm QTDA
+      // (vừa lộ nó qua listAdmins, vừa gán vai đứng-tên ngoài ý muốn).
+      `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL AND is_breakglass = false`,
       [userId],
     );
     if (rowCount === 0) throw new NotFoundException("user không tồn tại");
