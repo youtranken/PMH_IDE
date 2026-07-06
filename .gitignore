@@ -13,6 +13,10 @@ build/
 deploy/nginx/certs/*.pem
 deploy/nginx/certs/*.key
 deploy/nginx/certs/*.crt
+# nguồn cert/PFX gốc (private key + mật khẩu PFX) — tuyệt đối không commit
+pmh.com.vn/
+*.pfx
+*.key
 
 # signing keys / KEK (AD-6/AD-8/AD-15) — kept on mounted volume, out of git
 secrets/
