@@ -52,13 +52,17 @@ export function isAuthed(): boolean {
   return !!sessionStorage.getItem(K.at);
 }
 
-/** Chuyển hướng sang trang đăng nhập PMH ID (PKCE). */
-export async function login(): Promise<void> {
+/**
+ * Chuyển hướng sang trang đăng nhập PMH ID (PKCE).
+ * `prompt="login"` ép hiện lại form (dùng khi Đăng xuất để đổi được user) —
+ * boot bình thường KHÔNG truyền prompt để giữ SSO (không bắt nhập lại mỗi lần).
+ */
+export async function login(prompt?: string): Promise<void> {
   const verifier = randStr();
   const state = randStr(16);
   sessionStorage.setItem(K.pkce, verifier);
   sessionStorage.setItem(K.state, state);
-  const p = new URLSearchParams({
+  const params: Record<string, string> = {
     client_id: CLIENT_ID,
     response_type: "code",
     redirect_uri: REDIRECT,
@@ -66,8 +70,9 @@ export async function login(): Promise<void> {
     code_challenge: await challenge(verifier),
     code_challenge_method: "S256",
     state,
-  });
-  location.href = `/oidc/authorize?${p.toString()}`;
+  };
+  if (prompt) params.prompt = prompt;
+  location.href = `/oidc/authorize?${new URLSearchParams(params).toString()}`;
 }
 
 /** Xử lý /auth/callback: đổi code lấy token rồi về trang chủ. */
@@ -132,16 +137,11 @@ async function accessToken(): Promise<string> {
   return sessionStorage.getItem(K.at) as string;
 }
 
-export async function logout(): Promise<void> {
-  // Kết thúc phiên SSO ở server (xóa cookie _session) TRƯỚC khi xóa token local —
-  // nếu không, /authorize sẽ tự đăng nhập lại đúng user cũ (không đổi được user).
-  try {
-    await api("/api/me/logout", { method: "POST" });
-  } catch {
-    /* best-effort: vẫn xóa local + về trang đăng nhập */
-  }
+export function logout(): void {
+  // prompt=login ép hiện lại form đăng nhập kể cả khi phiên SSO còn sống → đổi
+  // được sang user khác (không tự đăng nhập lại user cũ).
   clear();
-  await login();
+  login("login");
 }
 
 export class ApiError extends Error {
