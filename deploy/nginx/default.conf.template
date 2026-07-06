@@ -24,8 +24,11 @@ server {
   http2 on;
   server_name _;
 
-  ssl_certificate     /etc/nginx/certs/dev.crt;
-  ssl_certificate_key /etc/nginx/certs/dev.key;
+  # Cert thật wildcard *.pmh.com.vn (Entrust) — phủ id.pmh.com.vn, trình duyệt
+  # tin thật cả ở dev (khi hosts trỏ id.pmh.com.vn→127.0.0.1) lẫn prod.
+  # Fallback dev self-signed: deploy/gen-certs.sh sinh dev.crt/dev.key.
+  ssl_certificate     /etc/nginx/certs/fullchain.pem;
+  ssl_certificate_key /etc/nginx/certs/privkey.pem;
 
   # Đặt ở SERVER level => mọi location kế thừa (nginx chỉ kế thừa proxy_set_header
   # nếu location KHÔNG tự khai báo cái nào). SANITIZE X-Forwarded-* (AD-4).

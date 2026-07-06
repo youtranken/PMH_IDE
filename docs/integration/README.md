@@ -44,6 +44,8 @@ Bạn chỉ cần lo **kịch bản B** (thư viện OIDC lo hết phần redire
 | Directory API | `https://id.pmh.com.vn/api/v1/...` |
 
 > **Luôn dùng Discovery URL** thay vì hardcode từng endpoint — thư viện OIDC tự đọc cấu hình từ đó, và nếu endpoint đổi thì bạn không phải sửa code.
+>
+> **Prod vs môi trường local:** bảng trên là **prod** (`https://id.pmh.com.vn`, cổng 443 mặc định). Khi test trên máy dev, domain giữ nguyên nhưng có **cổng `:9443`** — ví dụ Issuer `https://id.pmh.com.vn:9443/oidc`, Discovery `https://id.pmh.com.vn:9443/oidc/.well-known/openid-configuration` (cần dòng hosts `127.0.0.1 id.pmh.com.vn`). Vẫn chỉ nên trỏ thư viện vào Discovery URL rồi để nó tự suy ra phần còn lại.
 
 **Bạn cần khai với admin khi xin client:**
 - `redirect_uris`: URL callback của app, ví dụ `https://pmh.com.vn/projectA/auth/callback`.
