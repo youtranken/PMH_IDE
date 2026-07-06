@@ -132,9 +132,16 @@ async function accessToken(): Promise<string> {
   return sessionStorage.getItem(K.at) as string;
 }
 
-export function logout(): void {
+export async function logout(): Promise<void> {
+  // Kết thúc phiên SSO ở server (xóa cookie _session) TRƯỚC khi xóa token local —
+  // nếu không, /authorize sẽ tự đăng nhập lại đúng user cũ (không đổi được user).
+  try {
+    await api("/api/me/logout", { method: "POST" });
+  } catch {
+    /* best-effort: vẫn xóa local + về trang đăng nhập */
+  }
   clear();
-  login();
+  await login();
 }
 
 export class ApiError extends Error {

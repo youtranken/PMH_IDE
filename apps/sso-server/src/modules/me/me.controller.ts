@@ -5,10 +5,11 @@ import {
   Param,
   Post,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
 import { IsNotEmpty, IsString } from "class-validator";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import { CurrentUser } from "../../common/auth/current-user.decorator";
 import { UserGuard } from "../../common/auth/user.guard";
 import { MeService } from "./me.service";
@@ -59,6 +60,22 @@ export class MeController {
   @Post("logout-all")
   logoutAll(@CurrentUser() userId: string, @Req() req: Request) {
     return this.me.logoutAll(userId, req.ip ?? null);
+  }
+
+  /** Đăng xuất phiên hiện tại + xóa cookie phiên SSO (đổi user được). */
+  @Post("logout")
+  async logout(
+    @CurrentUser() userId: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const cookie =
+      (req.cookies as Record<string, string> | undefined)?._session ?? null;
+    await this.me.logoutCurrent(userId, cookie, req.ip ?? null);
+    for (const name of ["_session", "_session.sig", "_session.legacy", "_session.legacy.sig"]) {
+      res.clearCookie(name, { path: "/" });
+    }
+    return { ok: true };
   }
 
   @Post("sessions/:uid/revoke")

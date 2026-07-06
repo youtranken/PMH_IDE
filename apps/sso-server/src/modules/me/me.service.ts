@@ -229,6 +229,35 @@ export class MeService {
   }
 
   /**
+   * Đăng xuất phiên HIỆN TẠI: thu hồi phiên + XÓA oidc Session để /authorize
+   * không còn thấy phiên (nhờ vậy đổi user được, không tự đăng nhập lại). Cookie
+   * `_session` do controller xóa. Thiếu cookie → chỉ ghi audit (fail-safe).
+   */
+  async logoutCurrent(
+    userId: string,
+    cookieSessionId: string | null,
+    ip: string | null,
+  ): Promise<{ ok: true }> {
+    const uid = await this.currentSessionUid(userId, cookieSessionId);
+    if (uid) await this.revocation.revokeSession(userId, uid);
+    if (cookieSessionId) {
+      await this.pool.query(
+        `DELETE FROM oidc_payloads
+         WHERE type = 'Session' AND id = $1 AND payload->>'accountId' = $2`,
+        [cookieSessionId, userId],
+      );
+    }
+    await this.audit.record({
+      actorUserId: userId,
+      action: "self.logout",
+      targetType: "user",
+      targetId: userId,
+      ip,
+    });
+    return { ok: true };
+  }
+
+  /**
    * User tự đổi mật khẩu (FR-10/05): kiểm policy → đặt MK → thu hồi các phiên
    * KHÁC, GIỮ phiên hiện tại (keepSessionUid từ cookie _session). Thiếu cookie →
    * thu hồi tất (fail-safe, user đăng nhập lại).
