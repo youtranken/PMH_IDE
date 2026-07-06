@@ -22,6 +22,8 @@ import { deriveProviderSecret } from "./client-secret.util";
 
 let pool: Pool | undefined;
 let adapterKek: Buffer | undefined;
+let idleSecondsFn: (() => number) | undefined;
+let capSecondsFn: (() => number) | undefined;
 const logger = new Logger("PgAdapter");
 
 /** Gọi một lần ở provider factory trước khi provider dùng adapter. */
@@ -32,6 +34,19 @@ export function setAdapterPool(p: Pool): void {
 /** KEK để dẫn xuất internal secret của DB client (Path A, E5-S5). */
 export function setAdapterKek(kek: Buffer): void {
   adapterKek = kek;
+}
+
+/**
+ * Tham số idle/cap (giây) đọc LIVE từ Settings — để adapter gia hạn phiên theo
+ * hoạt động (idle trượt, AD-7). Truyền hàm (không phải giá trị) để SSA đổi runtime
+ * có hiệu lực ngay.
+ */
+export function setAdapterSessionTtls(
+  idle: () => number,
+  cap: () => number,
+): void {
+  idleSecondsFn = idle;
+  capSecondsFn = cap;
 }
 
 /**
@@ -142,6 +157,40 @@ export class PgAdapter {
         [payload.accountId, payload.uid, payload.loginTs ?? 0],
       );
     }
+
+    // IDLE TRƯỢT (AD-7): token bound theo phiên được cấp/xoay (login hoặc mỗi lần
+    // refresh khi user còn thao tác) = CÓ hoạt động → gia hạn phiên tới now()+idle,
+    // chặn trần loginTs+cap. Chỉ NỚI phiên còn sống (không hồi sinh phiên đã hết);
+    // đồng bộ cả cột expires_at LẪN payload.exp để provider không coi là hết hạn.
+    if (
+      this.name === "RefreshToken" &&
+      typeof payload.sessionUid === "string" &&
+      idleSecondsFn &&
+      capSecondsFn
+    ) {
+      const idle = idleSecondsFn();
+      const cap = capSecondsFn();
+      await db().query(
+        // COALESCE(loginTs,0): thiếu loginTs → trần = 1970 → LEAST cắt phiên về
+        // quá khứ (fail-CLOSED, khớp ttl.Session), không bỏ trần (fail-open).
+        `UPDATE oidc_payloads
+           SET expires_at = LEAST(
+                 now() + make_interval(secs => $2::int),
+                 to_timestamp(COALESCE((payload->>'loginTs')::bigint, 0)) + make_interval(secs => $3::int)),
+               payload = jsonb_set(payload, '{exp}', to_jsonb(
+                 floor(extract(epoch FROM LEAST(
+                   now() + make_interval(secs => $2::int),
+                   to_timestamp(COALESCE((payload->>'loginTs')::bigint, 0)) + make_interval(secs => $3::int)
+                 )))::bigint))
+         WHERE type = 'Session' AND uid = $1 AND expires_at > now()`,
+        [payload.sessionUid, idle, cap],
+      );
+      await db().query(
+        `UPDATE sessions SET last_activity = now()
+         WHERE oidc_session_uid = $1 AND revoked_at IS NULL`,
+        [payload.sessionUid],
+      );
+    }
   }
 
   async find(id: string): Promise<OidcPayload | undefined> {
@@ -213,8 +262,9 @@ export class PgAdapter {
         // Replay: khóa dòng để đọc grant nhất quán rồi xóa cả cụm trong txn
         const { rows: existing } = await client.query<{
           grant_id: string | null;
+          acct: string | null;
         }>(
-          `SELECT grant_id FROM oidc_payloads
+          `SELECT grant_id, payload->>'accountId' AS acct FROM oidc_payloads
            WHERE type = $1 AND id = $2 FOR UPDATE`,
           [this.name, id],
         );
@@ -223,9 +273,31 @@ export class PgAdapter {
           logger.warn(
             `consume() race trên ${this.name}:${id} — thu hồi grant ${grantId}`,
           );
+          // Thu hồi grant là VIỆC CHÍNH — phải luôn thắng.
           await client.query(`DELETE FROM oidc_payloads WHERE grant_id = $1`, [
             grantId,
           ]);
+          // Sự kiện BẢO MẬT: sau khi FE gộp refresh (single-flight), double-use
+          // lành tính đã hết → replay còn lại là BẤT THƯỜNG (nghi trộm refresh
+          // token). Ghi audit để không "nuốt im" tín hiệu (review Medium).
+          // Best-effort: bọc SAVEPOINT để lỗi audit (vd accountId đã bị hard-
+          // delete → vi phạm FK actor_user_id) KHÔNG rollback việc thu hồi.
+          try {
+            await client.query("SAVEPOINT audit_replay");
+            await client.query(
+              `INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, detail)
+               VALUES ($1::uuid, 'security.refresh_replay', 'grant', $2, $3::jsonb)`,
+              [
+                existing[0]?.acct ?? null,
+                grantId,
+                JSON.stringify({ token_type: this.name, token_id: id }),
+              ],
+            );
+            await client.query("RELEASE SAVEPOINT audit_replay");
+          } catch (auditErr) {
+            await client.query("ROLLBACK TO SAVEPOINT audit_replay");
+            logger.error(`ghi audit refresh_replay thất bại: ${String(auditErr)}`);
+          }
         }
       }
       void rows;

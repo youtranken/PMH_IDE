@@ -9,7 +9,12 @@ import { Pool } from "pg";
 import { SettingsService } from "../config/settings.service";
 import { importEsm } from "./esm";
 import { KeysService } from "./keys.service";
-import { PgAdapter, setAdapterKek, setAdapterPool } from "./pg-adapter";
+import {
+  PgAdapter,
+  setAdapterKek,
+  setAdapterPool,
+  setAdapterSessionTtls,
+} from "./pg-adapter";
 
 /**
  * Type hẹp cho instance oidc-provider ta dùng (types gói ESM không resolve
@@ -106,6 +111,8 @@ export async function createOidcProvider(
   const accessTtl = () => settings.getIntSync("access_token_ttl_seconds", 300);
   const idleTtl = () => settings.getIntSync("session_idle_seconds", 900);
   const capTtl = () => settings.getIntSync("session_absolute_cap_seconds", 43200);
+  // Adapter gia hạn phiên theo hoạt động (idle trượt) dùng chính 2 tham số này.
+  setAdapterSessionTtls(idleTtl, capTtl);
   logger.log(
     `TTL(boot): access ${accessTtl()}s, idle ${idleTtl()}s, cap ${capTtl()}s (đọc live)`,
   );
@@ -133,13 +140,51 @@ export async function createOidcProvider(
       short: { path: "/" },
     },
 
+    /**
+     * Trang lỗi thô của oidc-provider (vd "interaction session not found" khi
+     * logout đổi user, form mở quá lâu, tab cũ, phiên xoay) rất khó hiểu với user.
+     * Với các lỗi PHỤC HỒI ĐƯỢC → đưa thẳng về portal `/` để bắt đầu đăng nhập
+     * lại (SPA tự gọi login()); còn lại hiện trang tối giản không lộ chi tiết.
+     */
+    renderError: async (
+      ctx: {
+        status: number;
+        type: string;
+        body: unknown;
+        set: (k: string, v: string) => void;
+      },
+      _out: unknown,
+      error: { name?: string; error?: string; error_description?: string },
+    ) => {
+      // CHỈ phục hồi lỗi liên quan interaction/phiên/cookie — KHÔNG nuốt lỗi
+      // tích hợp thật của client dev (vd sai redirect_uri/scope) để họ còn debug.
+      const recoverable =
+        error?.name === "SessionNotFound" ||
+        /interaction|session (not found|expired)|cookie/i.test(
+          error?.error_description ?? "",
+        );
+      if (recoverable) {
+        ctx.status = 303;
+        ctx.set("Location", "/");
+        ctx.body = "";
+        return;
+      }
+      ctx.type = "html";
+      ctx.body =
+        '<!doctype html><meta charset="utf-8"><title>PMH ID</title>' +
+        '<body style="font-family:system-ui;text-align:center;padding:48px;color:#16211F">' +
+        "<h3>Có lỗi xảy ra</h3><p>Vui lòng <a href=\"/\">đăng nhập lại</a>.</p></body>";
+    },
+
     findAccount,
 
     /**
-     * Phiên idle + cap (AD-7, FR-04): ttl.Session tính lại MỖI lần session
-     * được lưu (= user thật sự quay lại IdP qua /authorize). Refresh ngầm ở
-     * /token KHÔNG đụng session → không reset idle.
-     * Thiếu loginTs → fail-closed (coi như hết hạn ngay).
+     * Phiên idle + cap (AD-7, FR-04): ttl.Session = min(idle, còn-lại-tới-cap),
+     * tính lại mỗi lần session được lưu (khi user quay lại IdP qua /authorize).
+     * Idle TRƯỢT theo HOẠT ĐỘNG: mỗi refresh ngầm ở /token cũng đẩy
+     * expires_at của Session +idle (xem pg-adapter, bump trên RefreshToken),
+     * nên chỉ KHÔNG-thao-tác đủ lâu mới hết idle — đúng ý "có thao tác = còn sống".
+     * Cap 12h là trần cứng, refresh không vượt được. Thiếu loginTs → fail-closed.
      */
     ttl: {
       Session: (
@@ -249,7 +294,13 @@ export async function createOidcProvider(
     }) {
       const { session, client, params, provider: prov } = ctx.oidc;
       const grantId = session?.grantIdFor(client.clientId);
-      if (grantId) return prov.Grant.find(grantId);
+      if (grantId) {
+        const existing = await prov.Grant.find(grantId);
+        if (existing) return existing;
+        // Grant đã bị THU HỒI (vd phát hiện replay refresh) nhưng session vẫn nhớ
+        // grantId cũ → KHÔNG trả undefined (sẽ khiến provider vòng lặp interaction,
+        // khóa luôn login) mà rơi xuống dưới tạo grant mới thay thế.
+      }
       if (!session?.accountId) return undefined;
       const grant = new prov.Grant({
         clientId: client.clientId,
@@ -285,10 +336,14 @@ export async function createOidcProvider(
           {
             client_id: config.get("PORTAL_CLIENT_ID") ?? "pmh-portal",
             token_endpoint_auth_method: "none",
-            redirect_uris: [
-              config.get("PORTAL_REDIRECT_URI") ??
-                "https://localhost:9443/auth/callback",
-            ],
+            // SPA dùng location.origin → đăng ký mọi host dev truy cập được.
+            // id.pmh.com.vn = domain chính thức; localhost giữ cho test/tương thích.
+            redirect_uris: config.get("PORTAL_REDIRECT_URI")
+              ? config.get<string>("PORTAL_REDIRECT_URI")!.split(",").map((s) => s.trim())
+              : [
+                  "https://id.pmh.com.vn:9443/auth/callback",
+                  "https://localhost:9443/auth/callback",
+                ],
             response_types: ["code"],
             grant_types: ["authorization_code", "refresh_token"],
           },

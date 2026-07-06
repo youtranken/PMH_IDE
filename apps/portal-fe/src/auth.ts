@@ -57,22 +57,36 @@ export function isAuthed(): boolean {
  * `prompt="login"` ép hiện lại form (dùng khi Đăng xuất để đổi được user) —
  * boot bình thường KHÔNG truyền prompt để giữ SSO (không bắt nhập lại mỗi lần).
  */
+// Chặn "login() storm": nhiều request 401 đồng thời (vd sau khi user bị vô hiệu
+// hóa) mỗi cái gọi login() → ghi đè pkce/state của nhau → thừa một vòng đăng nhập
+// tự sửa. Chỉ cho MỘT điều hướng login diễn ra (trang sẽ rời đi, không cần reset).
+let loginInFlight = false;
+
 export async function login(prompt?: string): Promise<void> {
-  const verifier = randStr();
-  const state = randStr(16);
-  sessionStorage.setItem(K.pkce, verifier);
-  sessionStorage.setItem(K.state, state);
-  const params: Record<string, string> = {
-    client_id: CLIENT_ID,
-    response_type: "code",
-    redirect_uri: REDIRECT,
-    scope: "openid",
-    code_challenge: await challenge(verifier),
-    code_challenge_method: "S256",
-    state,
-  };
-  if (prompt) params.prompt = prompt;
-  location.href = `/oidc/authorize?${new URLSearchParams(params).toString()}`;
+  if (loginInFlight) return;
+  loginInFlight = true;
+  try {
+    const verifier = randStr();
+    const state = randStr(16);
+    sessionStorage.setItem(K.pkce, verifier);
+    sessionStorage.setItem(K.state, state);
+    const params: Record<string, string> = {
+      client_id: CLIENT_ID,
+      response_type: "code",
+      redirect_uri: REDIRECT,
+      scope: "openid",
+      code_challenge: await challenge(verifier),
+      code_challenge_method: "S256",
+      state,
+    };
+    if (prompt) params.prompt = prompt;
+    location.href = `/oidc/authorize?${new URLSearchParams(params).toString()}`;
+  } catch (e) {
+    // challenge()/crypto.subtle có thể ném (context không bảo mật) TRƯỚC khi rời
+    // trang → phải gỡ cờ, nếu không login() kẹt vĩnh viễn.
+    loginInFlight = false;
+    throw e;
+  }
 }
 
 /** Xử lý /auth/callback: đổi code lấy token rồi về trang chủ. */
@@ -107,13 +121,28 @@ export async function handleCallback(): Promise<void> {
   store(await r.json());
   sessionStorage.removeItem(K.pkce);
   sessionStorage.removeItem(K.state);
+  sessionStorage.removeItem(K.usedCode); // dọn cờ chống double-mount sau khi xong
   history.replaceState({}, "", "/");
 }
+
+// Gộp refresh ĐỒNG THỜI vào MỘT lần (single-flight): nhiều api() chạy song song
+// (vd trang gọi Promise.all) khi token vừa hết hạn sẽ cùng chờ chung một refresh,
+// thay vì mỗi cái tự POST /token bằng cùng refresh_token → lần thứ hai là REPLAY
+// của token đã xoay (rotateRefreshToken) → 400 + provider thu hồi grant → kẹt login.
+let refreshInFlight: Promise<string> | null = null;
 
 async function accessToken(): Promise<string> {
   const exp = Number(sessionStorage.getItem(K.exp) ?? 0);
   const at = sessionStorage.getItem(K.at);
   if (at && Date.now() < exp - 5000) return at;
+  if (refreshInFlight) return refreshInFlight; // đã có refresh đang chạy → dùng chung
+  refreshInFlight = doRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function doRefresh(): Promise<string> {
   const rt = sessionStorage.getItem(K.rt);
   if (!rt) {
     await login();
