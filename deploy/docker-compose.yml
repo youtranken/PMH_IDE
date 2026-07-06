@@ -6,10 +6,14 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 768m # trần RAM (tổng stack ~2.5G, dưới ngân sách 3G máy dev)
+    mem_reservation: 256m
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      TZ: Asia/Bangkok # giờ VN (UTC+7) — đồng bộ log/hiển thị; timestamptz vẫn lưu UTC
+      PGTZ: Asia/Bangkok
     ports:
       - "${HOST_PG_PORT:-5433}:5432" # chỉ dev; prod bỏ dòng này
     volumes:
@@ -23,6 +27,9 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      TZ: Asia/Bangkok
     ports:
       - "${HOST_MAILPIT_UI_PORT:-8026}:8025" # UI xem mail dev
       - "${HOST_MAILPIT_SMTP_PORT:-1026}:1025" # SMTP app gửi vào
@@ -32,9 +39,13 @@ services:
       context: ..
       dockerfile: apps/sso-server/Dockerfile
     restart: unless-stopped
+    mem_limit: 1024m # Node + oidc-provider (khoản lớn nhất của stack)
+    mem_reservation: 384m
     env_file: ../.env
     environment:
       PORT: "3000"
+      TZ: Asia/Bangkok # Node Date/log theo giờ VN
+      PGTZ: Asia/Bangkok
       # host DB trong network compose là tên service `postgres`
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
@@ -65,8 +76,11 @@ services:
       context: ..
       dockerfile: apps/portal-fe/Dockerfile
     restart: unless-stopped
+    mem_limit: 512m # Vite dev server (prod tĩnh nginx dùng ít hơn nhiều)
+    mem_reservation: 128m
     environment:
       VITE_PUBLIC_HTTPS_PORT: ${HOST_HTTPS_PORT:-9443}
+      TZ: Asia/Bangkok
     expose:
       - "5173"
 
@@ -79,6 +93,8 @@ services:
     profiles: ["backup"]
     env_file: ../.env
     environment:
+      TZ: Asia/Bangkok
+      PGTZ: Asia/Bangkok
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SIGNING_KEYS_DIR: /run/secrets/signing-keys
       ENV_FILE: /secrets/.env
@@ -94,9 +110,11 @@ services:
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
+    mem_limit: 128m
     environment:
       # nginx envsubst thay vào default.conf.template lúc khởi động
       HTTPS_REDIRECT_PORT: ${HOST_HTTPS_PORT:-9443}
+      TZ: Asia/Bangkok
     ports:
       - "${HOST_HTTP_PORT:-9080}:80"
       - "${HOST_HTTPS_PORT:-9443}:443"
