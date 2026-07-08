@@ -44,6 +44,12 @@ export class GroupsController {
     return this.groups.list();
   }
 
+  // Map nhóm → app mở quyền (màn Tạo user). PHẢI đứng trước @Get(":id").
+  @Get("access-map")
+  accessMap() {
+    return this.groups.accessMap();
+  }
+
   @Get(":id")
   get(@Param("id") id: string) {
     return this.groups.get(id);

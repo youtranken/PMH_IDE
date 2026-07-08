@@ -38,6 +38,7 @@ export interface UserRow {
   created_at: Date;
   is_ssa?: boolean;
   admin_projects?: string[]; // tên dự án user là project_admin
+  groups?: string[]; // tên các nhóm user thuộc về
 }
 
 const USER_COLS =
@@ -66,7 +67,10 @@ export class UsersService {
               EXISTS(SELECT 1 FROM admin_roles r WHERE r.user_id = u.id AND r.role = 'ssa') AS is_ssa,
               COALESCE((SELECT array_agg(p.name ORDER BY p.name)
                         FROM admin_projects ap JOIN projects p ON p.id = ap.project_id
-                        WHERE ap.user_id = u.id), '{}') AS admin_projects
+                        WHERE ap.user_id = u.id), '{}') AS admin_projects,
+              COALESCE((SELECT array_agg(g.name ORDER BY g.name)
+                        FROM user_groups ug JOIN groups g ON g.id = ug.group_id
+                        WHERE ug.user_id = u.id), '{}') AS groups
        FROM users u
        WHERE u.is_breakglass = false
        ORDER BY u.created_at DESC LIMIT 500`,

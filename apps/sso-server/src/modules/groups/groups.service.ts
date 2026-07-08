@@ -42,6 +42,22 @@ export class GroupsService {
       .then((r) => r.rows);
   }
 
+  /**
+   * Map group_id → tên các ứng dụng mà nhóm đó MỞ QUYỀN vào (qua client_groups,
+   * client còn bật). Dùng ở màn Tạo user: chọn nhóm là thấy ngay "vào được app nào".
+   */
+  async accessMap(): Promise<Record<string, string[]>> {
+    const { rows } = await this.pool.query<{ group_id: string; app_name: string }>(
+      `SELECT cg.group_id, c.name AS app_name
+       FROM client_groups cg JOIN clients c ON c.id = cg.client_id
+       WHERE c.disabled = false
+       ORDER BY c.name`,
+    );
+    const map: Record<string, string[]> = {};
+    for (const r of rows) (map[r.group_id] ??= []).push(r.app_name);
+    return map;
+  }
+
   async get(id: string): Promise<GroupRow> {
     const { rows } = await this.pool.query<GroupRow>(
       `SELECT id, name, description, created_at FROM groups WHERE id = $1`,

@@ -58,6 +58,75 @@ export class ProjectsService {
     return rows[0];
   }
 
+  /**
+   * Tổng hợp cho màn "Dự án & Ứng dụng" (cây xổ): mỗi dự án kèm ứng dụng, nhóm
+   * được vào của từng app, và danh sách QTDA — để nhìn lướt là biết ngay, không
+   * phải mở modal từng cái. Theo phạm vi admin (SSA tất cả, project_admin dự án mình).
+   */
+  async overview(admin: AdminContext): Promise<
+    (ProjectRow & {
+      admins: { user_id: string; full_name: string }[];
+      apps: {
+        id: string; client_id: string; name: string; env: string;
+        disabled: boolean; allow_all_groups: boolean; app_url: string | null;
+        groups: { id: string; name: string }[];
+      }[];
+    })[]
+  > {
+    const projects = await this.listForAdmin(admin);
+    if (projects.length === 0) return [];
+    const ids = projects.map((p) => p.id);
+
+    const { rows: clients } = await this.pool.query<{
+      id: string; project_id: string; client_id: string; name: string;
+      env: string; disabled: boolean; allow_all_groups: boolean; app_url: string | null;
+    }>(
+      `SELECT id, project_id, client_id, name, env, disabled, allow_all_groups, app_url
+       FROM clients WHERE project_id = ANY($1) ORDER BY name`,
+      [ids],
+    );
+    const clientPks = clients.map((c) => c.id);
+
+    const cgroups = clientPks.length
+      ? (
+          await this.pool.query<{ client_id: string; group_id: string; name: string }>(
+            `SELECT cg.client_id, g.id AS group_id, g.name
+             FROM client_groups cg JOIN groups g ON g.id = cg.group_id
+             WHERE cg.client_id = ANY($1) ORDER BY g.name`,
+            [clientPks],
+          )
+        ).rows
+      : [];
+
+    const { rows: admins } = await this.pool.query<{
+      project_id: string; user_id: string; full_name: string;
+    }>(
+      `SELECT ap.project_id, u.id AS user_id, u.full_name
+       FROM admin_projects ap JOIN users u ON u.id = ap.user_id
+       WHERE ap.project_id = ANY($1) AND u.deleted_at IS NULL AND u.is_breakglass = false
+       ORDER BY u.full_name`,
+      [ids],
+    );
+
+    const groupsByClient: Record<string, { id: string; name: string }[]> = {};
+    for (const g of cgroups)
+      (groupsByClient[g.client_id] ??= []).push({ id: g.group_id, name: g.name });
+    const adminsByProject: Record<string, { user_id: string; full_name: string }[]> = {};
+    for (const a of admins)
+      (adminsByProject[a.project_id] ??= []).push({ user_id: a.user_id, full_name: a.full_name });
+    const appsByProject: Record<string, typeof clients> = {};
+    for (const c of clients) (appsByProject[c.project_id] ??= []).push(c);
+
+    return projects.map((p) => ({
+      ...p,
+      admins: adminsByProject[p.id] ?? [],
+      apps: (appsByProject[p.id] ?? []).map((c) => ({
+        ...c,
+        groups: groupsByClient[c.id] ?? [],
+      })),
+    }));
+  }
+
   async create(
     name: string,
     description: string | null,

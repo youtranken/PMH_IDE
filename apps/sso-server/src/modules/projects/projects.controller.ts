@@ -53,6 +53,14 @@ export class ProjectsController {
     return this.projects.listForAdmin(admin);
   }
 
+  // Cây "Dự án & Ứng dụng" gộp app + nhóm + QTDA trong một lần gọi (tránh N+1).
+  // Cho cả project_admin. PHẢI đứng trước @Get(":id").
+  @Get("overview")
+  @Roles("ssa", "project_admin")
+  overview(@CurrentAdmin() admin: AdminContext) {
+    return this.projects.overview(admin);
+  }
+
   @Get(":id")
   get(@Param("id") id: string) {
     return this.projects.get(id);
