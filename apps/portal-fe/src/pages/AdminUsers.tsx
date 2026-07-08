@@ -5,6 +5,7 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import {
+  Alert,
   App as AntApp,
   Button,
   Checkbox,
@@ -12,6 +13,7 @@ import {
   Form,
   Input,
   Modal,
+  Select,
   Space,
   Table,
   Tag,
@@ -36,6 +38,7 @@ interface UserRow {
   created_at: string;
   is_ssa?: boolean;
   admin_projects?: string[];
+  groups?: string[];
 }
 
 function roleTags(u: UserRow) {
@@ -80,6 +83,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
   const [q, setQ] = useState("");
 
   const [form] = Form.useForm();
+  const pickedGroups = (Form.useWatch("groupIds", form) as string[] | undefined) ?? [];
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -94,19 +98,62 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
 
   const [importOpen, setImportOpen] = useState(false);
 
+  // Nhóm + map nhóm→app (để gán nhóm ngay khi tạo user và hiện "vào được app nào").
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+  const [accessMap, setAccessMap] = useState<Record<string, string[]>>({});
+
+  // Bộ lọc + chọn nhiều để gán nhóm hàng loạt.
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [groupFilter, setGroupFilter] = useState<string>("all");
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkGroups, setBulkGroups] = useState<string[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
   const load = () => {
     setLoading(true);
     api<UserRow[]>("/api/admin/users").then(setRows).finally(() => setLoading(false));
   };
   useEffect(load, []);
+  useEffect(() => {
+    api<{ id: string; name: string }[]>("/api/admin/groups").then(setGroups).catch(() => {});
+    api<Record<string, string[]>>("/api/admin/groups/access-map").then(setAccessMap).catch(() => {});
+  }, []);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter((u) =>
-      [u.full_name, u.email, u.employee_code].some((v) => v.toLowerCase().includes(s)),
-    );
-  }, [rows, q]);
+    return rows.filter((u) => {
+      if (s && ![u.full_name, u.email, u.employee_code].some((v) => v.toLowerCase().includes(s))) return false;
+      if (statusFilter === "active" && (u.deleted_at || u.status !== "active")) return false;
+      if (statusFilter === "locked" && (u.deleted_at || u.status !== "locked")) return false;
+      if (statusFilter === "deleted" && !u.deleted_at) return false;
+      if (groupFilter !== "all" && !(u.groups ?? []).includes(groupFilter)) return false;
+      return true; // "all" = mọi trạng thái, kể cả đã xóa
+    });
+  }, [rows, q, statusFilter, groupFilter]);
+
+  // Gán NHIỀU user đã chọn vào NHIỀU nhóm cùng lúc (bỏ qua ai đã ở nhóm đó).
+  const bulkAssign = async () => {
+    setBulkBusy(true);
+    let ok = 0, fail = 0;
+    for (const gid of bulkGroups) {
+      const gname = groups.find((g) => g.id === gid)?.name;
+      for (const uid of selectedKeys) {
+        const u = rows.find((r) => r.id === uid);
+        if (gname && (u?.groups ?? []).includes(gname)) continue; // đã thuộc → bỏ qua
+        try {
+          await api(`/api/admin/groups/${gid}/members`, { method: "POST", body: { userId: uid } });
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+    }
+    setBulkBusy(false);
+    if (fail) message.warning(`Đã gán ${ok} lượt, lỗi ${fail}`);
+    else message.success(`Đã gán ${ok} lượt vào nhóm`);
+    setBulkOpen(false); setBulkGroups([]); setSelectedKeys([]); load();
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -130,8 +177,19 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
       } else {
         const body: Record<string, unknown> = { email: v.email, employeeCode: v.employeeCode, fullName: v.fullName };
         if (v.password) { body.password = v.password; body.mustChangePassword = v.mustChangePassword ?? true; }
-        await api("/api/admin/users", { method: "POST", body });
-        message.success("Đã tạo user");
+        const created = await api<{ id: string }>("/api/admin/users", { method: "POST", body });
+        // Gán nhóm đã chọn (nếu có) — mỗi nhóm một lời gọi thêm-thành-viên.
+        const groupIds: string[] = v.groupIds ?? [];
+        const failed: string[] = [];
+        for (const gid of groupIds) {
+          try {
+            await api(`/api/admin/groups/${gid}/members`, { method: "POST", body: { userId: created.id } });
+          } catch {
+            failed.push(groups.find((g) => g.id === gid)?.name ?? gid);
+          }
+        }
+        if (failed.length) message.warning(`Đã tạo user, nhưng chưa gán được nhóm: ${failed.join(", ")}`);
+        else message.success(groupIds.length ? `Đã tạo user & gán ${groupIds.length} nhóm` : "Đã tạo user");
       }
       setFormOpen(false);
       load();
@@ -157,7 +215,9 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
     }
   };
 
-  const act = async (u: UserRow, path: string, ok: string, danger = false) => {
+  // `ok` = thông báo thành công (thì quá khứ). `confirmTitle` (nếu có) = câu hỏi
+  // xác nhận mệnh lệnh — KHÔNG tái dùng `ok` làm tiêu đề (thành "Đã khóa?" tối nghĩa).
+  const act = async (u: UserRow, path: string, ok: string, confirmTitle?: string) => {
     const run = async () => {
       try {
         const r = await api<{ revoked?: number }>(`/api/admin/users/${u.id}/${path}`, { method: "POST" });
@@ -167,8 +227,8 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
         message.error((e as Error).message);
       }
     };
-    if (danger) {
-      modal.confirm({ title: ok + "?", content: `${u.full_name} (${u.email})`, okButtonProps: { danger: true }, onOk: run });
+    if (confirmTitle) {
+      modal.confirm({ title: confirmTitle, content: `${u.full_name} (${u.email})`, okButtonProps: { danger: true }, onOk: run });
     } else run();
   };
 
@@ -243,7 +303,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
         items.push(
           u.status === "locked"
             ? { key: "unlock", label: "Mở khóa", onClick: () => act(u, "unlock", "Đã mở khóa") }
-            : { key: "lock", label: "Khóa tài khoản", danger: true, onClick: () => act(u, "lock", "Đã khóa", true) },
+            : { key: "lock", label: "Khóa tài khoản", danger: true, onClick: () => act(u, "lock", "Đã khóa", "Khóa tài khoản này?") },
         );
         items.push({ key: "revoke", label: "Hủy mọi phiên", onClick: () => act(u, "revoke-sessions", "Đã hủy phiên") });
         items.push(
@@ -251,7 +311,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
             ? { key: "ssa-revoke", label: "Gỡ quyền SSA", danger: true, onClick: () => toggleSsa(u, false) }
             : { key: "ssa-grant", label: "Bổ nhiệm SSA", onClick: () => toggleSsa(u, true) },
         );
-        items.push({ key: "delete", label: "Xóa user", danger: true, onClick: () => act(u, "delete", "Đã xóa user", true) });
+        items.push({ key: "delete", label: "Xóa user", danger: true, onClick: () => act(u, "delete", "Đã xóa user", "Xóa user này?") });
       }
     }
     return items;
@@ -279,19 +339,51 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
           <Text type="secondary">Quản lý tài khoản nhân viên, nhóm quyền và mật khẩu.</Text>
         </div>
         <Space wrap>
-          <Input.Search placeholder="Tìm tên, email, mã NV" allowClear style={{ width: 240 }} onChange={(e) => setQ(e.target.value)} />
+          <Input.Search placeholder="Tìm tên, email, mã NV" allowClear style={{ width: 220 }} onChange={(e) => setQ(e.target.value)} />
+          <Select
+            value={statusFilter}
+            onChange={setStatusFilter}
+            style={{ width: 132 }}
+            options={[
+              { value: "all", label: "Mọi trạng thái" },
+              { value: "active", label: "Hoạt động" },
+              { value: "locked", label: "Đã khóa" },
+              { value: "deleted", label: "Đã xóa" },
+            ]}
+          />
+          <Select
+            value={groupFilter}
+            onChange={setGroupFilter}
+            style={{ width: 150 }}
+            showSearch
+            optionFilterProp="label"
+            options={[{ value: "all", label: "Mọi nhóm" }, ...groups.map((g) => ({ value: g.name, label: g.name }))]}
+          />
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>Nhập CSV</Button>
           <Button icon={<DownloadOutlined />} onClick={exportCsv}>Xuất CSV</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo user</Button>
         </Space>
       </div>
 
+      {selectedKeys.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, padding: "8px 14px", background: "#e8f0ed", borderRadius: 10 }}>
+          <Text strong>Đã chọn {selectedKeys.length} user</Text>
+          <Button type="primary" size="small" onClick={() => setBulkOpen(true)}>Gán vào nhóm</Button>
+          <Button type="text" size="small" onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
+        </div>
+      )}
+
       <Table<UserRow>
         rowKey="id"
         loading={loading}
         dataSource={filtered}
         pagination={{ pageSize: 15, showTotal: (t) => `${t} người dùng` }}
-        scroll={{ x: 720 }}
+        scroll={{ x: 820 }}
+        rowSelection={{
+          selectedRowKeys: selectedKeys,
+          onChange: (keys) => setSelectedKeys(keys as string[]),
+          getCheckboxProps: (u) => ({ disabled: !!u.deleted_at }), // không chọn user đã xóa
+        }}
         columns={[
           {
             title: "Nhân viên",
@@ -309,6 +401,19 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
           },
           { title: "Mã NV", dataIndex: "employee_code", responsive: ["lg"] },
           { title: "Vai trò", render: (_, u) => roleTags(u), responsive: ["md"] },
+          {
+            title: "Nhóm",
+            responsive: ["md"],
+            render: (_, u) =>
+              u.groups?.length ? (
+                <Space size={[4, 4]} wrap>
+                  {u.groups.slice(0, 3).map((g) => <Tag key={g} style={{ marginInlineEnd: 0 }}>{g}</Tag>)}
+                  {u.groups.length > 3 && <Tag style={{ marginInlineEnd: 0 }}>+{u.groups.length - 3}</Tag>}
+                </Space>
+              ) : (
+                <span style={{ color: "#c0c9c5" }}>—</span>
+              ),
+          },
           { title: "Trạng thái", render: (_, u) => statusTag(u), width: 120 },
           { title: "Hạn", render: (_, u) => fmtDate(u.expires_at), responsive: ["lg"], width: 120 },
           {
@@ -331,7 +436,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
         onOk={submitForm}
         okText={editing ? "Lưu" : "Tạo"}
         confirmLoading={saving}
-        destroyOnHidden
+        forceRender
       >
         <Form form={form} layout="vertical" requiredMark={false} style={{ marginTop: 12 }}>
           <Form.Item name="fullName" label="Họ tên" rules={[{ required: true, message: "Nhập họ tên" }]}>
@@ -345,6 +450,45 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
           </Form.Item>
           {!editing && (
             <>
+              <Form.Item name="groupIds" label="Nhóm (tùy chọn)">
+                <Select
+                  mode="multiple"
+                  allowClear
+                  placeholder="Chọn một hoặc nhiều nhóm — gán quyền vào app ngay khi tạo"
+                  optionFilterProp="label"
+                  options={groups.map((g) => ({
+                    value: g.id,
+                    label: g.name,
+                  }))}
+                  optionRender={(o) => {
+                    const apps = accessMap[o.value as string] ?? [];
+                    return (
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                        <span>{o.label}</span>
+                        {apps.length > 0 && (
+                          <Text type="secondary" style={{ fontSize: 12 }}>→ {apps.join(", ")}</Text>
+                        )}
+                      </div>
+                    );
+                  }}
+                />
+              </Form.Item>
+              {(() => {
+                const apps = [...new Set(pickedGroups.flatMap((g) => accessMap[g] ?? []))];
+                if (!pickedGroups.length) return null;
+                return (
+                  <Alert
+                    type={apps.length ? "success" : "info"}
+                    showIcon
+                    style={{ marginBottom: 16, marginTop: -4 }}
+                    message={
+                      apps.length
+                        ? `Với nhóm đã chọn, user vào được: ${apps.join(", ")}`
+                        : "Nhóm đã chọn chưa gắn với ứng dụng nào (chưa mở quyền vào app)."
+                    }
+                  />
+                );
+              })()}
               <Form.Item
                 name="password"
                 label="Mật khẩu (tùy chọn)"
@@ -412,6 +556,37 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
       </Modal>
 
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); load(); }} />
+
+      {/* Gán nhóm hàng loạt */}
+      <Modal
+        open={bulkOpen}
+        title={`Gán ${selectedKeys.length} user vào nhóm`}
+        onCancel={() => setBulkOpen(false)}
+        onOk={bulkAssign}
+        okText="Gán"
+        okButtonProps={{ disabled: !bulkGroups.length }}
+        confirmLoading={bulkBusy}
+      >
+        <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+          Chọn một hoặc nhiều nhóm để thêm tất cả user đã chọn. Ai đã ở nhóm sẽ được bỏ qua.
+        </Text>
+        <Select
+          mode="multiple"
+          allowClear
+          style={{ width: "100%" }}
+          placeholder="Chọn nhóm…"
+          value={bulkGroups}
+          onChange={setBulkGroups}
+          optionFilterProp="label"
+          options={groups.map((g) => ({ value: g.id, label: g.name }))}
+        />
+        {bulkGroups.length > 0 && (() => {
+          const apps = [...new Set(bulkGroups.flatMap((g) => accessMap[g] ?? []))];
+          return apps.length ? (
+            <Alert type="success" showIcon style={{ marginTop: 12 }} message={`User sẽ vào được: ${apps.join(", ")}`} />
+          ) : null;
+        })()}
+      </Modal>
     </div>
   );
 }

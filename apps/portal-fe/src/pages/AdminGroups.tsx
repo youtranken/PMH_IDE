@@ -149,7 +149,8 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
   const [members, setMembers] = useState<Member[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [adding, setAdding] = useState<string | undefined>();
+  const [adding, setAdding] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
 
   const load = () => {
     if (!group) return;
@@ -157,19 +158,27 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
     api<Member[]>(`/api/admin/groups/${group.id}/members`).then(setMembers).finally(() => setLoading(false));
   };
   useEffect(load, [group]);
+  useEffect(() => { setAdding([]); }, [group]);
   useEffect(() => {
     if (group && users.length === 0) api<UserRow[]>("/api/admin/users").then(setUsers).catch(() => {});
   }, [group]);
 
-  const add = async (userId: string) => {
-    try {
-      await api(`/api/admin/groups/${group!.id}/members`, { method: "POST", body: { userId } });
-      message.success("Đã thêm vào nhóm");
-      setAdding(undefined);
-      load();
-    } catch (e) {
-      message.error((e as Error).message);
+  // Thêm NHIỀU thành viên một lần — mỗi người một lời gọi (API thêm từng user).
+  const addMany = async () => {
+    setBusy(true);
+    const failed: string[] = [];
+    for (const userId of adding) {
+      try {
+        await api(`/api/admin/groups/${group!.id}/members`, { method: "POST", body: { userId } });
+      } catch {
+        failed.push(users.find((u) => u.id === userId)?.full_name ?? userId);
+      }
     }
+    setBusy(false);
+    if (failed.length) message.warning(`Chưa thêm được: ${failed.join(", ")}`);
+    else message.success(`Đã thêm ${adding.length} thành viên`);
+    setAdding([]);
+    load();
   };
   const remove = async (userId: string) => {
     try {
@@ -188,15 +197,20 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
     <Drawer open={!!group} onClose={onClose} width={440} title={group ? `Thành viên · ${group.name}` : ""}>
       <Space.Compact style={{ width: "100%", marginBottom: 16 }}>
         <Select
+          mode="multiple"
           showSearch
-          placeholder="Thêm nhân viên vào nhóm…"
+          allowClear
+          placeholder="Thêm một hoặc nhiều nhân viên vào nhóm…"
           style={{ width: "100%" }}
           value={adding}
           onChange={setAdding}
+          maxTagCount="responsive"
           filterOption={(i, o) => (o?.label as string).toLowerCase().includes(i.toLowerCase())}
           options={candidates.map((u) => ({ value: u.id, label: `${u.full_name} · ${u.email}` }))}
         />
-        <Button type="primary" disabled={!adding} onClick={() => add(adding!)}>Thêm</Button>
+        <Button type="primary" loading={busy} disabled={!adding.length} onClick={addMany}>
+          Thêm{adding.length ? ` (${adding.length})` : ""}
+        </Button>
       </Space.Compact>
 
       <List
