@@ -10,6 +10,35 @@ export interface LoginOk {
 }
 
 /**
+ * Cổng phân quyền LOGIN theo client_groups (E5-S3, AD-11) — NGUỒN SỰ THẬT dùng
+ * chung cho CẢ interaction (nhập MK mới) LẪN loadExistingGrant (dùng lại phiên
+ * SSO). Tách thành hàm để hai chỗ KHÔNG có 2 bản SQL lệch nhau (lệch = lỗ hổng).
+ * Cho phép nếu: client TĨNH (không có trong bảng clients — vd portal/demo-app,
+ * hạ tầng nội bộ) HOẶC client bật allow_all_groups HOẶC user thuộc một group đã
+ * gán cho client. allow_all chỉ nới LOGIN, không nới scope Directory (AD-11).
+ */
+export async function isClientLoginAllowed(
+  pool: Pool,
+  userId: string,
+  clientId: string,
+): Promise<boolean> {
+  const { rows } = await pool.query<{ allowed: boolean }>(
+    `SELECT (
+       NOT EXISTS (SELECT 1 FROM clients WHERE client_id = $2)
+       OR EXISTS (SELECT 1 FROM clients
+                  WHERE client_id = $2 AND allow_all_groups AND NOT disabled)
+       OR EXISTS (
+         SELECT 1 FROM clients c
+         JOIN client_groups cg ON cg.client_id = c.id
+         JOIN user_groups ug ON ug.group_id = cg.group_id
+         WHERE c.client_id = $2 AND ug.user_id = $1)
+     ) AS allowed`,
+    [userId, clientId],
+  );
+  return rows[0]?.allowed ?? false;
+}
+
+/**
  * Xác thực email + mật khẩu (FR-01). Trả LoginOk hoặc null — KHÔNG phân biệt
  * "email không tồn tại" với "sai mật khẩu" (chống dò email; AD-9). Luôn chạy
  * argon2.verify kể cả khi không có user (chống timing).
@@ -57,28 +86,9 @@ export class LoginService {
     };
   }
 
-  /**
-   * Cổng LOGIN theo client_groups (E5-S3, AD-11). Cho phép nếu: client TĨNH
-   * (không có trong bảng clients — vd portal/demo-app, hạ tầng nội bộ) HOẶC
-   * client bật allow_all_groups HOẶC user thuộc một group đã gán cho client.
-   * Ngược lại = chặn (user không có quyền vào app này). allow_all chỉ nới LOGIN,
-   * không nới scope Directory (AD-11) — chỗ đó kiểm riêng ở Epic 7.
-   */
+  /** Cổng LOGIN theo client_groups — xem {@link isClientLoginAllowed}. */
   async isAllowedForClient(userId: string, clientId: string): Promise<boolean> {
-    const { rows } = await this.pool.query<{ allowed: boolean }>(
-      `SELECT (
-         NOT EXISTS (SELECT 1 FROM clients WHERE client_id = $2)
-         OR EXISTS (SELECT 1 FROM clients
-                    WHERE client_id = $2 AND allow_all_groups AND NOT disabled)
-         OR EXISTS (
-           SELECT 1 FROM clients c
-           JOIN client_groups cg ON cg.client_id = c.id
-           JOIN user_groups ug ON ug.group_id = cg.group_id
-           WHERE c.client_id = $2 AND ug.user_id = $1)
-       ) AS allowed`,
-      [userId, clientId],
-    );
-    return rows[0]?.allowed ?? false;
+    return isClientLoginAllowed(this.pool, userId, clientId);
   }
 
   /**

@@ -61,8 +61,9 @@ async function findClient(clientId: string): Promise<OidcPayload | undefined> {
     client_id: string;
     redirect_uris: string[];
     app_url: string | null;
+    backchannel_logout_uri: string | null;
   }>(
-    `SELECT client_id, redirect_uris, app_url
+    `SELECT client_id, redirect_uris, app_url, backchannel_logout_uri
      FROM clients WHERE client_id = $1 AND disabled = false`,
     [clientId],
   );
@@ -85,6 +86,15 @@ async function findClient(clientId: string): Promise<OidcPayload | undefined> {
     grant_types: grantTypes,
     response_types: responseTypes,
     redirect_uris: c.redirect_uris,
+    // App gọi RP-initiated logout với post_logout_redirect_uri = app_url. Phải
+    // khai ở đây, nếu không oidc-provider từ chối ("not registered") → trang lỗi
+    // và phiên SSO KHÔNG bị hủy (single-logout hỏng).
+    post_logout_redirect_uris: c.app_url ? [c.app_url] : [],
+    // Back-Channel Logout: khai URI → oidc-provider POST logout_token tới đây khi
+    // phiên SSO kết thúc (end_session) → app đá user ra tức thì (OIDC BCL).
+    ...(c.backchannel_logout_uri
+      ? { backchannel_logout_uri: c.backchannel_logout_uri }
+      : {}),
   };
   return meta;
 }

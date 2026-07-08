@@ -7,6 +7,7 @@ import {
 } from "@pmh/shared";
 import { Pool } from "pg";
 import { SettingsService } from "../config/settings.service";
+import { isClientLoginAllowed } from "../modules/auth-oidc/login.service";
 import { importEsm } from "./esm";
 import { KeysService } from "./keys.service";
 import {
@@ -22,6 +23,7 @@ import {
  */
 export interface OidcProviderInstance {
   proxy: boolean;
+  on(event: string, cb: (...args: unknown[]) => void): void;
   callback(): (req: unknown, res: unknown) => void;
   interactionDetails(req: unknown, res: unknown): Promise<{
     uid: string;
@@ -89,11 +91,12 @@ export async function createOidcProvider(
   setAdapterKek(Buffer.from(config.getOrThrow<string>("KEK_BASE64"), "base64"));
 
   // Dynamic import THẬT (không bị tsc dịch thành require) — AD-5
-  const { default: Provider } = await importEsm<{
+  const { default: Provider, errors } = await importEsm<{
     default: new (
       issuer: string,
       configuration: Record<string, unknown>,
     ) => OidcProviderInstance;
+    errors: { AccessDenied: new (description?: string) => Error };
   }>("oidc-provider");
 
   const issuer = config.getOrThrow<string>("OIDC_ISSUER");
@@ -115,6 +118,19 @@ export async function createOidcProvider(
   setAdapterSessionTtls(idleTtl, capTtl);
   logger.log(
     `TTL(boot): access ${accessTtl()}s, idle ${idleTtl()}s, cap ${capTtl()}s (đọc live)`,
+  );
+
+  // Portal (SPA) redirect + post-logout: sau end_session, provider quay portal về
+  // origin gốc "/" → boot() thấy hết phiên → hiện form login. Suy origin từ chính
+  // redirect_uris để không lệch host giữa dev/prod.
+  const portalRedirects = config.get("PORTAL_REDIRECT_URI")
+    ? config.get<string>("PORTAL_REDIRECT_URI")!.split(",").map((s) => s.trim())
+    : [
+        "https://id.pmh.com.vn:9443/auth/callback",
+        "https://localhost:9443/auth/callback",
+      ];
+  const portalPostLogout = Array.from(
+    new Set(portalRedirects.map((u) => new URL(u).origin + "/")),
   );
 
   async function findAccount(_ctx: unknown, sub: string) {
@@ -222,6 +238,17 @@ export async function createOidcProvider(
       client: { grantTypeAllowed(t: string): boolean },
     ) => client.grantTypeAllowed("refresh_token"),
 
+    // oidc-provider gắn dispatcher chống-SSRF (chặn MỌI IP private) vào mọi fetch
+    // ra ngoài — kể cả Back-Channel Logout. App PMH nội bộ đều ở IP private → BCL
+    // bị chặn hết. Bỏ dispatcher đó để giao BCL tới nội bộ. An toàn: backchannel
+    // _logout_uri đã validate egress (https + allowlist CIDR) LÚC admin lưu
+    // (clients.service.update → assertEgressAllowed). Ta không dùng jwks_uri/
+    // request_uri/sector_uri nên đây là kênh ra duy nhất.
+    fetch: (url: string | URL, options: Record<string, unknown>) => {
+      const { dispatcher: _drop, ...rest } = options ?? {};
+      return globalThis.fetch(url as string, rest);
+    },
+
     // Endpoint khớp hợp đồng docs tích hợp
     routes: {
       authorization: "/authorize",
@@ -242,6 +269,48 @@ export async function createOidcProvider(
     features: {
       clientCredentials: { enabled: true },
       devInteractions: { enabled: false },
+      // Back-Channel Logout (OIDC BCL): khi phiên SSO kết thúc (end_session),
+      // provider POST logout_token (JWT ký) tới backchannel_logout_uri của MỌI
+      // client trong phiên → app đá user ra TỨC THÌ, không chờ token hết hạn.
+      backchannelLogout: { enabled: true },
+      // RP-initiated logout (single-logout). App gọi /oidc/logout → hủy phiên SSO
+      // → quay về post_logout_redirect_uri. Mặc định thư viện hiện trang xác nhận
+      // (nhúng font CDN, vi phạm quy tắc no-CDN) → thay bằng trang PMH tự-submit:
+      // đăng xuất mượt không cần bấm, có fallback nút khi JS tắt.
+      rpInitiatedLogout: {
+        enabled: true,
+        logoutSource: async (
+          ctx: { type: string; body: string },
+          form: string,
+        ) => {
+          ctx.type = "html";
+          ctx.body = `<!doctype html><html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đăng xuất — PMH ID</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;text-align:center;padding:56px 24px;color:#16211F;background:#fff}
+h3{font-weight:600;margin:0 0 8px}.muted{color:#5a6b66;font-size:14px;margin:0 0 20px}
+.btn{font:inherit;font-weight:600;padding:10px 22px;border:0;border-radius:8px;background:#1d7a4d;color:#fff;cursor:pointer}</style>
+</head><body onload="var b=document.querySelector('button[name=logout]');if(b)b.click()">
+${form}
+<h3>Đang đăng xuất…</h3>
+<p class="muted">Nếu trang không tự chuyển, hãy bấm nút bên dưới.</p>
+<button class="btn" type="submit" form="op.logoutForm" value="yes" name="logout">Đăng xuất khỏi PMH ID</button>
+</body></html>`;
+        },
+        postLogoutSuccessSource: async (ctx: {
+          type: string;
+          body: string;
+        }) => {
+          ctx.type = "html";
+          ctx.body = `<!doctype html><html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đã đăng xuất — PMH ID</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;text-align:center;padding:56px 24px;color:#16211F;background:#fff}
+h3{font-weight:600;margin:0 0 8px}a{color:#1d7a4d;font-weight:600;text-decoration:none}</style>
+</head><body><h3>Bạn đã đăng xuất khỏi PMH ID.</h3>
+<p><a href="/">Đăng nhập lại</a></p></body></html>`;
+        },
+      },
       resourceIndicators: {
         enabled: true,
         defaultResource: () => PMH_RESOURCE,
@@ -274,7 +343,7 @@ export async function createOidcProvider(
     },
 
     // Bỏ màn consent: mọi client là first-party nội bộ — tự cấp Grant đúng
-    // scope + resource. Gate quyền theo client_groups đến ở E5.
+    // scope + resource. Phân quyền theo client_groups (E5-S3) enforce NGAY dưới.
     async loadExistingGrant(ctx: {
       oidc: {
         session?: { accountId?: string; grantIdFor(clientId: string): string };
@@ -293,6 +362,20 @@ export async function createOidcProvider(
       };
     }) {
       const { session, client, params, provider: prov } = ctx.oidc;
+
+      // CỔNG PHÂN QUYỀN theo client_groups (E5-S3, AD-11) — chốt chặn DUY NHẤT
+      // chạy cho CẢ login mới LẪN dùng lại phiên SSO. Cổng ở interaction
+      // (submitLogin) CHỈ phủ đường nhập mật khẩu; user đã có phiên SSO (vd đã
+      // đăng nhập Portal — client tĩnh, ai cũng vào) sẽ được cấp token cho MỌI
+      // client mà KHÔNG qua interaction → bypass. Chặn tại đây bịt đường đó.
+      // (client tĩnh/allow_all vẫn được phép — xem isClientLoginAllowed.)
+      if (
+        session?.accountId &&
+        !(await isClientLoginAllowed(pgPool, session.accountId, client.clientId))
+      ) {
+        throw new errors.AccessDenied("no_access_to_client");
+      }
+
       const grantId = session?.grantIdFor(client.clientId);
       if (grantId) {
         const existing = await prov.Grant.find(grantId);
@@ -328,6 +411,8 @@ export async function createOidcProvider(
                 "http://localhost:4000/auth/callback",
             ],
             grant_types: ["authorization_code", "refresh_token"],
+            post_logout_redirect_uris: ["http://localhost:4000"],
+            backchannel_logout_uri: "http://localhost:4000/backchannel-logout",
           },
           // Portal quản trị = SPA công khai (không secret) đăng nhập bằng PKCE.
           // Access token của client này là chứng chỉ vào API quản trị (Epic 4+):
@@ -338,12 +423,10 @@ export async function createOidcProvider(
             token_endpoint_auth_method: "none",
             // SPA dùng location.origin → đăng ký mọi host dev truy cập được.
             // id.pmh.com.vn = domain chính thức; localhost giữ cho test/tương thích.
-            redirect_uris: config.get("PORTAL_REDIRECT_URI")
-              ? config.get<string>("PORTAL_REDIRECT_URI")!.split(",").map((s) => s.trim())
-              : [
-                  "https://id.pmh.com.vn:9443/auth/callback",
-                  "https://localhost:9443/auth/callback",
-                ],
+            redirect_uris: portalRedirects,
+            // Đăng xuất portal đi qua end_session rồi quay về origin "/" (đăng
+            // xuất THẬT, hủy phiên SSO) — phải khai địa chỉ này.
+            post_logout_redirect_uris: portalPostLogout,
             response_types: ["code"],
             grant_types: ["authorization_code", "refresh_token"],
           },
@@ -352,6 +435,19 @@ export async function createOidcProvider(
 
   // Sau Nginx TLS termination — tin X-Forwarded-* đã được sanitize (AD-4)
   provider.proxy = true;
+
+  // Log kết quả Back-Channel Logout (vận hành: biết app nào nhận/miss logout token)
+  provider.on("backchannel.success", (...a: unknown[]) => {
+    const client = a[1] as { clientId?: string };
+    logger.log(`backchannel logout OK → ${client?.clientId}`);
+  });
+  provider.on("backchannel.error", (...a: unknown[]) => {
+    const err = a[1] as { message?: string; cause?: { code?: string; message?: string } };
+    const client = a[2] as { clientId?: string };
+    logger.error(
+      `backchannel logout LỖI → ${client?.clientId}: ${err?.message} | cause=${err?.cause?.code ?? ""} ${err?.cause?.message ?? ""}`,
+    );
+  });
 
   logger.log(`oidc-provider sẵn sàng — issuer ${issuer}`);
   return provider;

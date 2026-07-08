@@ -54,8 +54,9 @@ export function isAuthed(): boolean {
 
 /**
  * Chuyển hướng sang trang đăng nhập PMH ID (PKCE).
- * `prompt="login"` ép hiện lại form (dùng khi Đăng xuất để đổi được user) —
- * boot bình thường KHÔNG truyền prompt để giữ SSO (không bắt nhập lại mỗi lần).
+ * boot bình thường KHÔNG truyền prompt để giữ SSO (không bắt nhập lại mỗi lần);
+ * `prompt` để sẵn phòng khi cần ép hiện lại form (hiện chưa caller nào dùng —
+ * Đăng xuất nay đi qua end_session, hủy phiên SSO thật).
  */
 // Chặn "login() storm": nhiều request 401 đồng thời (vd sau khi user bị vô hiệu
 // hóa) mỗi cái gọi login() → ghi đè pkce/state của nhau → thừa một vòng đăng nhập
@@ -167,10 +168,16 @@ async function doRefresh(): Promise<string> {
 }
 
 export function logout(): void {
-  // prompt=login ép hiện lại form đăng nhập kể cả khi phiên SSO còn sống → đổi
-  // được sang user khác (không tự đăng nhập lại user cũ).
+  // Đăng xuất THẬT: qua end_session của oidc-provider để HỦY phiên SSO (không chỉ
+  // xóa token local). Phiên SSO chết → refresh token mọi app trói phiên cũng chết
+  // (expiresWithSession) → single-logout toàn hệ. Provider quay portal về "/" →
+  // boot() thấy hết phiên → hiện form login (đăng nhập lại được user khác).
   clear();
-  login("login");
+  const params = new URLSearchParams({
+    post_logout_redirect_uri: `${location.origin}/`,
+    client_id: CLIENT_ID,
+  });
+  location.href = `/oidc/logout?${params.toString()}`;
 }
 
 export class ApiError extends Error {

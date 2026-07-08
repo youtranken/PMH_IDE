@@ -149,12 +149,21 @@ export default function InteractionLogin({ uid }: { uid: string }) {
       )}
 
       {dead ? (
-        <Alert
-          type="warning"
-          message="Phiên đăng nhập đã hết hạn"
-          description="Quay lại ứng dụng và thử đăng nhập lại."
-          showIcon
-        />
+        <>
+          <Alert
+            type="warning"
+            message="Phiên đăng nhập đã hết hạn"
+            description="Phiên này đã đóng. Bắt đầu lại để đăng nhập."
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          {/* URL vẫn trỏ vào interaction CŨ đã chết → refresh không thoát được.
+              Về "/" khởi tạo phiên đăng nhập MỚI (App.boot → login → interaction
+              mới), thoát ngõ cụt. */}
+          <Button type="primary" size="large" block onClick={() => { window.location.href = "/"; }}>
+            Đăng nhập lại
+          </Button>
+        </>
       ) : (
         <>
           {error && (
