@@ -1,7 +1,6 @@
 import {
   ApiOutlined,
   AppstoreOutlined,
-  ArrowLeftOutlined,
   CopyOutlined,
   DeleteOutlined,
   MoreOutlined,
@@ -14,6 +13,7 @@ import {
   Avatar,
   Button,
   Card,
+  Collapse,
   Drawer,
   Dropdown,
   Empty,
@@ -24,7 +24,6 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Tooltip,
   Typography,
@@ -43,6 +42,17 @@ interface Client {
 }
 type Secret = { title: string; secret: string; note?: string };
 
+interface OverviewApp {
+  id: string; client_id: string; name: string; env: string;
+  disabled: boolean; allow_all_groups: boolean; app_url: string | null;
+  groups: { id: string; name: string }[];
+}
+interface OverviewProject {
+  id: string; name: string; description: string | null;
+  admins: { user_id: string; full_name: string }[];
+  apps: OverviewApp[];
+}
+
 /**
  * "Dự án & Ứng dụng" (gộp Dự án + Ứng dụng SSO). Điều hướng 2 tầng trong một
  * trang: danh sách dự án → chi tiết dự án (ứng dụng SSO + quản trị viên). SSA
@@ -51,16 +61,15 @@ type Secret = { title: string; secret: string; note?: string };
  */
 export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
   const { modal, message } = AntApp.useApp();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [overview, setOverview] = useState<OverviewProject[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<string | null>(null);
 
   // Modal dự án
   const [projForm, setProjForm] = useState<Project | "new" | null>(null);
   const [adminsOf, setAdminsOf] = useState<Project | null>(null);
   // Modal ứng dụng
-  const [appCreate, setAppCreate] = useState(false);
+  const [createAppFor, setCreateAppFor] = useState<string | null>(null); // project_id
   const [editing, setEditing] = useState<Client | null>(null);
   const [groupsFor, setGroupsFor] = useState<Client | null>(null);
   const [webhookFor, setWebhookFor] = useState<Client | null>(null);
@@ -69,22 +78,20 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
   const load = () => {
     setLoading(true);
     Promise.all([
-      api<Project[]>("/api/admin/projects/mine"),
+      api<OverviewProject[]>("/api/admin/projects/overview"),
       api<Client[]>("/api/admin/clients"),
     ])
-      .then(([p, c]) => { setProjects(p); setClients(c); })
+      .then(([o, c]) => { setOverview(o); setClients(c); })
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
-  const appsByProject = useMemo(() => {
-    const m: Record<string, Client[]> = {};
-    for (const c of clients) (m[c.project_id] ??= []).push(c);
+  // Client đầy đủ (redirect_uris, bcl…) cho các thao tác cần — tra theo id.
+  const clientsById = useMemo(() => {
+    const m: Record<string, Client> = {};
+    for (const c of clients) m[c.id] = c;
     return m;
   }, [clients]);
-
-  const current = projects.find((p) => p.id === selected) ?? null;
-  const currentApps = selected ? appsByProject[selected] ?? [] : [];
 
   const toggle = async (c: Client) => {
     await api(`/api/admin/clients/${c.id}/${c.disabled ? "enable" : "disable"}`, { method: "POST" });
@@ -103,154 +110,134 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
       catch (e) { message.error((e as Error).message); }
     },
   });
-  const delProject = (pr: Project) => modal.confirm({
+  const delProject = (pr: OverviewProject) => modal.confirm({
     title: `Xóa dự án "${pr.name}"?`,
     content: "Chỉ xóa được khi dự án KHÔNG còn ứng dụng nào. Thao tác gỡ luôn quyền quản trị của dự án. Không hoàn tác.",
     okText: "Xóa", okType: "danger", cancelText: "Hủy",
     onOk: async () => {
-      try { await api(`/api/admin/projects/${pr.id}`, { method: "DELETE" }); message.success("Đã xóa dự án"); setSelected(null); load(); }
+      try { await api(`/api/admin/projects/${pr.id}`, { method: "DELETE" }); message.success("Đã xóa dự án"); load(); }
       catch (e) { message.error((e as Error).message); }
     },
   });
 
-  // ---- Danh sách dự án ----
-  if (!current) {
-    return (
-      <div style={{ maxWidth: 1000, margin: "0 auto", width: "100%" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
-          <div>
-            <Title level={3} style={{ marginBottom: 2 }}>Dự án & Ứng dụng</Title>
-            <Text type="secondary">Mỗi dự án gom các ứng dụng SSO (client) và quản trị viên riêng. Chọn một dự án để quản lý ứng dụng bên trong.</Text>
-          </div>
-          {isSsa && <Button type="primary" icon={<PlusOutlined />} onClick={() => setProjForm("new")}>Tạo dự án</Button>}
-        </div>
+  const appMenu = (c: Client) => (
+    <Dropdown
+      trigger={["click"]}
+      menu={{
+        items: [
+          { key: "groups", label: "Nhóm được vào", onClick: () => setGroupsFor(c) },
+          { key: "webhook", label: "Webhook", onClick: () => setWebhookFor(c) },
+          { key: "rotate", label: "Xoay secret", onClick: () => rotate(c) },
+          { key: "edit", label: "Sửa", onClick: () => setEditing(c) },
+          { type: "divider" },
+          { key: "toggle", label: c.disabled ? "Bật ứng dụng" : "Tắt ứng dụng", onClick: () => toggle(c) },
+          { key: "delete", label: "Xóa ứng dụng", danger: true, onClick: () => delApp(c) },
+        ],
+      }}
+    >
+      <Button type="text" size="small" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
+    </Dropdown>
+  );
 
-        {loading ? (
-          <Card loading style={{ minHeight: 120 }} />
-        ) : projects.length === 0 ? (
-          <Empty description={isSsa ? "Chưa có dự án nào — tạo dự án đầu tiên để bắt đầu." : "Bạn chưa được gán quản trị dự án nào. Liên hệ SSA."} />
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-            {projects.map((p) => {
-              const apps = appsByProject[p.id] ?? [];
-              return (
-                <Card key={p.id} hoverable onClick={() => setSelected(p.id)} styles={{ body: { padding: 18 } }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                    <Avatar shape="square" size={40} style={{ background: "#e8f0ed", color: BRAND.green, borderRadius: 10, flex: "0 0 auto" }} icon={<AppstoreOutlined />} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, color: BRAND.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{apps.length} ứng dụng</Text>
-                    </div>
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 13, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", minHeight: 20 }}>
-                    {p.description || "Không có mô tả"}
-                  </Text>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-        <ProjectForm value={projForm} onClose={() => setProjForm(null)} onSaved={load} />
-      </div>
-    );
-  }
-
-  // ---- Chi tiết một dự án ----
-  return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", width: "100%" }}>
-      <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setSelected(null)} style={{ paddingLeft: 0, marginBottom: 8, color: BRAND.muted }}>
-        Dự án & Ứng dụng
-      </Button>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <Avatar shape="square" size={48} style={{ background: "#e8f0ed", color: BRAND.green, borderRadius: 12, flex: "0 0 auto" }} icon={<AppstoreOutlined />} />
-          <div>
-            <Title level={3} style={{ marginBottom: 0 }}>{current.name}</Title>
-            <Text type="secondary">{current.description || "Không có mô tả"}</Text>
+  const items = overview.map((p) => {
+    const groupNames = [...new Set(p.apps.flatMap((a) => a.groups.map((g) => g.name)))];
+    const admins = p.admins.map((a) => a.full_name);
+    return {
+      key: p.id,
+      label: (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <Avatar shape="square" size={36} style={{ background: "#e8f0ed", color: BRAND.green, borderRadius: 9, flex: "0 0 auto" }} icon={<AppstoreOutlined />} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: BRAND.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+            <Text type="secondary" style={{ fontSize: 12.5 }}>
+              {p.apps.length} ứng dụng · {groupNames.length} nhóm ·{" "}
+              {admins.length
+                ? <>QTDA: <span style={{ color: BRAND.ink }}>{admins.join(", ")}</span></>
+                : <span style={{ color: "#c0392b" }}>Chưa có QTDA</span>}
+            </Text>
           </div>
         </div>
-        {isSsa && (
-          <Space>
-            <Button icon={<TeamOutlined />} onClick={() => setAdminsOf(current)}>Quản trị viên</Button>
-            <Button type="text" onClick={() => setProjForm(current)}>Sửa dự án</Button>
-            <Button type="text" danger icon={<DeleteOutlined />} onClick={() => delProject(current)}>Xóa dự án</Button>
-          </Space>
-        )}
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <Text strong style={{ fontSize: 15 }}>Ứng dụng SSO</Text>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAppCreate(true)}>Tạo ứng dụng</Button>
-      </div>
-
-      <Table<Client>
-        rowKey="id"
-        loading={loading}
-        dataSource={currentApps}
-        pagination={false}
-        scroll={{ x: 560 }}
-        locale={{ emptyText: <Empty description="Dự án chưa có ứng dụng nào" /> }}
-        columns={[
-          {
-            title: "Ứng dụng",
-            render: (_, c) => (
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Avatar shape="square" style={{ background: "#e8f0ed", color: BRAND.green, borderRadius: 10, flex: "0 0 auto" }} icon={<ApiOutlined />} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: BRAND.ink }}>{c.name}</div>
-                  <Text code style={{ fontSize: 12 }}>{c.client_id}</Text>
-                </div>
-              </div>
-            ),
-          },
-          {
-            title: "Trạng thái",
-            width: 150,
-            render: (_, c) => (
-              <Space size={4} wrap>
-                <Tag color={c.env === "prod" ? "green" : "default"} style={{ textTransform: "uppercase" }}>{c.env}</Tag>
-                {c.disabled && <Tag color="red">Đã tắt</Tag>}
-                {c.allow_all_groups && <Tag color="gold">Mọi nhóm</Tag>}
-                {!c.app_url && (
-                  <Tooltip title="Chưa đặt App URL → app KHÔNG hiện ở màn Ứng dụng (Launcher). Đăng nhập OIDC vẫn hoạt động bình thường. Sửa app để thêm App URL nếu muốn hiện ô mở nhanh.">
-                    <Tag>Ẩn ở Launcher</Tag>
+      ),
+      extra: isSsa ? (
+        <Dropdown
+          trigger={["click"]}
+          menu={{
+            items: [
+              { key: "admins", icon: <TeamOutlined />, label: "Quản trị viên", onClick: () => setAdminsOf(p) },
+              { key: "edit", label: "Sửa dự án", onClick: () => setProjForm(p) },
+              { key: "del", label: "Xóa dự án", danger: true, onClick: () => delProject(p) },
+            ],
+          }}
+        >
+          <Button type="text" size="small" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
+        </Dropdown>
+      ) : undefined,
+      children: (
+        // Nhánh con: rail dọc bên trái + thụt lề để app đọc như "lá" của dự án.
+        <div style={{ marginLeft: 13, borderLeft: "2px solid #eef0f2", paddingLeft: 16 }}>
+          {p.apps.length === 0 ? (
+            <Text type="secondary" style={{ fontSize: 13 }}>Dự án chưa có ứng dụng nào.</Text>
+          ) : (
+            p.apps.map((a) => (
+              <div
+                key={a.id}
+                style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #f4f6f5" }}
+              >
+                <ApiOutlined style={{ color: BRAND.green, fontSize: 14, flex: "0 0 auto" }} />
+                <span style={{ fontWeight: 600, color: BRAND.ink, fontSize: 13.5 }}>{a.name}</span>
+                <Text code style={{ fontSize: 11.5 }}>{a.client_id}</Text>
+                <Tag color={a.env === "prod" ? "green" : "default"} style={{ textTransform: "uppercase", fontSize: 10.5, lineHeight: "16px", marginInlineStart: 2 }}>{a.env}</Tag>
+                {a.disabled && <Tag color="red" style={{ fontSize: 10.5, lineHeight: "16px" }}>Đã tắt</Tag>}
+                {!a.app_url && (
+                  <Tooltip title="Chưa đặt App URL → app KHÔNG hiện ở màn Ứng dụng (Launcher). Đăng nhập OIDC vẫn chạy bình thường.">
+                    <Tag style={{ fontSize: 10.5, lineHeight: "16px" }}>Ẩn ở Launcher</Tag>
                   </Tooltip>
                 )}
-              </Space>
-            ),
-          },
-          {
-            title: "",
-            width: 48,
-            render: (_, c) => (
-              <Dropdown
-                trigger={["click"]}
-                menu={{
-                  items: [
-                    { key: "groups", label: "Nhóm được vào", onClick: () => setGroupsFor(c) },
-                    { key: "webhook", label: "Webhook", onClick: () => setWebhookFor(c) },
-                    { key: "rotate", label: "Xoay secret", onClick: () => rotate(c) },
-                    { key: "edit", label: "Sửa", onClick: () => setEditing(c) },
-                    { type: "divider" },
-                    { key: "toggle", label: c.disabled ? "Bật ứng dụng" : "Tắt ứng dụng", onClick: () => toggle(c) },
-                    { key: "delete", label: "Xóa ứng dụng", danger: true, onClick: () => delApp(c) },
-                  ],
-                }}
-              >
-                <Button type="text" icon={<MoreOutlined />} />
-              </Dropdown>
-            ),
-          },
-        ]}
-      />
+                <span style={{ flex: 1, minWidth: 8 }} />
+                <TeamOutlined style={{ color: BRAND.muted, fontSize: 12 }} />
+                {a.allow_all_groups ? (
+                  <Tag color="gold" style={{ marginInlineEnd: 0 }}>Mọi nhóm</Tag>
+                ) : a.groups.length ? (
+                  a.groups.map((g) => <Tag key={g.id} style={{ marginInlineEnd: 0 }}>{g.name}</Tag>)
+                ) : (
+                  <Tag color="error" style={{ marginInlineEnd: 0 }}>Chưa gán nhóm</Tag>
+                )}
+                {clientsById[a.id] && appMenu(clientsById[a.id])}
+              </div>
+            ))
+          )}
+          <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => setCreateAppFor(p.id)} style={{ paddingInline: 0, marginTop: 8 }}>
+            Tạo ứng dụng
+          </Button>
+        </div>
+      ),
+    };
+  });
+
+  return (
+    <div style={{ maxWidth: 960, margin: "0 auto", width: "100%" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
+        <div>
+          <Title level={3} style={{ marginBottom: 2 }}>Dự án & Ứng dụng</Title>
+          <Text type="secondary">Mỗi dự án gom ứng dụng SSO và quản trị viên riêng. Bấm để xổ chi tiết.</Text>
+        </div>
+        {isSsa && <Button type="primary" icon={<PlusOutlined />} onClick={() => setProjForm("new")}>Tạo dự án</Button>}
+      </div>
+
+      {loading ? (
+        <Card loading style={{ minHeight: 120 }} />
+      ) : overview.length === 0 ? (
+        <Empty description={isSsa ? "Chưa có dự án nào — tạo dự án đầu tiên để bắt đầu." : "Bạn chưa được gán quản trị dự án nào. Liên hệ SSA."} />
+      ) : (
+        <Collapse items={items} defaultActiveKey={overview.length === 1 ? [overview[0].id] : []} />
+      )}
 
       <ClientForm
-        open={appCreate || !!editing}
+        open={!!createAppFor || !!editing}
         client={editing}
-        fixedProjectId={selected!}
-        onClose={() => { setAppCreate(false); setEditing(null); }}
-        onCreated={(s) => { setAppCreate(false); setSecret({ title: `Secret · ${s.clientId}`, secret: s.secret, note: "Secret chỉ hiện một lần — lưu ngay." }); load(); }}
+        fixedProjectId={createAppFor ?? editing?.project_id ?? ""}
+        onClose={() => { setCreateAppFor(null); setEditing(null); }}
+        onCreated={(s) => { setCreateAppFor(null); setSecret({ title: `Secret · ${s.clientId}`, secret: s.secret, note: "Secret chỉ hiện một lần — lưu ngay." }); load(); }}
         onSaved={() => { setEditing(null); load(); }}
       />
       <ClientGroups client={groupsFor} onClose={() => setGroupsFor(null)} onChanged={load} />
