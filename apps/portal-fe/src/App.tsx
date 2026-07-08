@@ -26,6 +26,19 @@ export interface Profile {
   isSsa: boolean;
 }
 
+/** Các route hợp lệ theo quyền của user (dùng chung cho redirect + chọn trang). */
+function allowedRoutes(p: Profile): string[] {
+  const isAdmin = p.roles.length > 0;
+  const isDev = p.groups.some((g) => g.toLowerCase() === "developers");
+  return [
+    "/",
+    "/account",
+    ...(isDev ? ["/docs"] : []),
+    ...(isAdmin ? ["/admin/users", "/admin/groups", "/admin/workspace", "/audit"] : []),
+    ...(isAdmin && p.isSsa ? ["/settings"] : []),
+  ];
+}
+
 function usePath(): [string, (p: string) => void] {
   const [path, setPath] = useState(window.location.pathname);
   useEffect(() => {
@@ -120,7 +133,9 @@ function Root() {
       .then((p) => {
         if (p) {
           setProfile(p);
-          if (window.location.pathname !== "/") nav("/");
+          // Dọn URL sau /auth/callback VÀ chặn URL không được phép, nhưng GIỮ
+          // deep-link hợp lệ (vd F5 trên /admin/users không bị đá về "/").
+          if (!allowedRoutes(p).includes(window.location.pathname)) nav("/");
         }
       })
       .catch((e) => {
@@ -176,7 +191,7 @@ function Root() {
         ]
       : []),
   ];
-  const selected = ["/", "/account", "/docs", "/audit", "/settings", "/admin/users", "/admin/groups", "/admin/workspace"].includes(path) ? path : "/";
+  const selected = allowedRoutes(profile).includes(path) ? path : "/";
 
   const logo = (
     <div style={{ height: 60, display: "flex", alignItems: "center", gap: 10, paddingInline: 20 }}>
