@@ -38,7 +38,8 @@ const { Title, Text } = Typography;
 interface Project { id: string; name: string; description: string | null }
 interface Client {
   id: string; project_id: string; client_id: string; name: string; env: string;
-  redirect_uris: string[]; app_url: string | null; allow_all_groups: boolean; disabled: boolean; created_at: string;
+  redirect_uris: string[]; app_url: string | null; allow_all_groups: boolean; disabled: boolean;
+  backchannel_logout_uri: string | null; created_at: string;
 }
 type Secret = { title: string; secret: string; note?: string };
 
@@ -313,7 +314,7 @@ function ClientForm({ open, client, fixedProjectId, onClose, onCreated, onSaved 
 
   useEffect(() => {
     if (!open) return;
-    if (client) form.setFieldsValue({ name: client.name, redirectUris: client.redirect_uris.join("\n"), appUrl: client.app_url ?? "" });
+    if (client) form.setFieldsValue({ name: client.name, redirectUris: client.redirect_uris.join("\n"), appUrl: client.app_url ?? "", backchannelLogoutUri: client.backchannel_logout_uri ?? "" });
     else form.resetFields();
   }, [open, client]);
 
@@ -323,7 +324,7 @@ function ClientForm({ open, client, fixedProjectId, onClose, onCreated, onSaved 
     setSaving(true);
     try {
       if (edit) {
-        await api(`/api/admin/clients/${client!.id}`, { method: "PATCH", body: { name: v.name, redirectUris, appUrl: v.appUrl || undefined } });
+        await api(`/api/admin/clients/${client!.id}`, { method: "PATCH", body: { name: v.name, redirectUris, appUrl: v.appUrl || undefined, backchannelLogoutUri: v.backchannelLogoutUri ?? "" } });
         message.success("Đã cập nhật ứng dụng");
         onSaved();
       } else {
@@ -362,6 +363,11 @@ function ClientForm({ open, client, fixedProjectId, onClose, onCreated, onSaved 
         <Form.Item name="redirectUris" label="Redirect URIs" extra="Mỗi URL một dòng. Phải là URL tuyệt đối http(s)://">
           <Input.TextArea rows={3} placeholder={"https://banhang.pmh.com.vn/callback"} style={{ fontFamily: "ui-monospace, monospace", fontSize: 13 }} />
         </Form.Item>
+        {edit && (
+          <Form.Item name="backchannelLogoutUri" label="Back-Channel Logout URI (tùy chọn)" extra="Đăng xuất tức thì: khi phiên SSO kết thúc, PMH ID POST logout_token tới URL này để app đá user ra ngay. Để trống = tắt (app vẫn văng trong ≤5 phút).">
+            <Input placeholder="https://banhang.pmh.com.vn/backchannel-logout" />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   );

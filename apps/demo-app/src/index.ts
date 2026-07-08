@@ -62,6 +62,15 @@ async function verifyOffline(accessToken: string): Promise<JWTPayload> {
 
 // Lưu tạm state → PKCE verifier (app thật dùng session store)
 const pending = new Map<string, string>();
+// Session tối giản: sid (cookie) → { id_token (cho logout hint), sub (để BCL đá
+// đúng user) }. App thật dùng session store thực (express-session/redis).
+const sessions = new Map<string, { idToken: string; sub: string }>();
+function readCookie(req: express.Request, name: string): string | undefined {
+  return (req.headers.cookie ?? "")
+    .split(";")
+    .map((c) => c.trim().split("="))
+    .find(([k]) => k === name)?.[1];
+}
 const app = express();
 
 app.get("/", (_req, res) => {
@@ -103,6 +112,12 @@ app.get("/auth/callback", async (req, res) => {
     // VERIFY OFFLINE — không gọi lại PMH ID
     const claims = await verifyOffline(tokens.access_token);
 
+    // Lưu id_token (làm id_token_hint khi logout) + sub (để Back-Channel Logout
+    // đá đúng user). App thật lưu vào session store.
+    const sid = randomBytes(16).toString("hex");
+    sessions.set(sid, { idToken: tokens.id_token ?? "", sub: String(claims.sub) });
+    res.setHeader("Set-Cookie", `demo_sid=${sid}; HttpOnly; Path=/; SameSite=Lax`);
+
     res.send(`<h1>Đăng nhập thành công ✓</h1>
       <p>Access token đã VERIFY OFFLINE qua JWKS (RS256).</p>
       <table border="1" cellpadding="6">
@@ -113,10 +128,33 @@ app.get("/auth/callback", async (req, res) => {
         <tr><td>groups</td><td>${esc(JSON.stringify(claims.groups))}</td></tr>
         <tr><td>ver</td><td>${esc(claims.ver)}</td></tr>
       </table>
-      <p>refresh_token: ${tokens.refresh_token ? "có" : "không"}</p>`);
+      <p>refresh_token: ${tokens.refresh_token ? "có" : "không"}</p>
+      <p><a href="/logout">Đăng xuất</a></p>`);
   } catch (e) {
+    // User đăng nhập đúng nhưng KHÔNG thuộc group được cấp cho client này → PMH ID
+    // trả callback với ?error=access_denied (mục 4.5). Hiện rõ, đừng để thành 500.
+    const err = new URL(req.url, `http://localhost:${PORT}`).searchParams.get("error");
+    if (err === "access_denied") {
+      return res
+        .status(403)
+        .send(`<h1>Không có quyền truy cập</h1><p>Tài khoản của bạn chưa được cấp quyền vào ứng dụng này. Liên hệ quản trị.</p><p><a href="/">← về trang chủ</a></p>`);
+    }
     res.status(500).send(`<h1>Lỗi đăng nhập</h1><pre>${esc(String(e))}</pre>`);
   }
+});
+
+// --- Đăng xuất (RP-initiated logout, mục 4.5) — KÈM id_token_hint để kết thúc
+// phiên SSO và bỏ qua bước xác nhận. buildEndSessionUrl do thư viện dựng. ---
+app.get("/logout", (req, res) => {
+  const sid = readCookie(req, "demo_sid");
+  const idToken = sid ? sessions.get(sid)?.idToken : undefined;
+  if (sid) sessions.delete(sid);
+  const url = oidc.buildEndSessionUrl(config, {
+    ...(idToken ? { id_token_hint: idToken } : {}),
+    post_logout_redirect_uri: `http://localhost:${PORT}`, // phải khớp app_url đã khai
+  });
+  res.setHeader("Set-Cookie", "demo_sid=; HttpOnly; Path=/; Max-Age=0");
+  res.redirect(url.href);
 });
 
 // --- 3. Directory API (M2M) — lấy danh bạ user trong group được cấp (E8-S2) ---
@@ -137,6 +175,51 @@ app.get("/directory", async (_req, res) => {
     res.status(500).send(`<pre>${esc(String(e))}</pre>`);
   }
 });
+
+// --- Back-Channel Logout: PMH ID POST logout_token (JWT ký) khi phiên SSO kết
+// thúc → đá user ra TỨC THÌ. Verify chữ ký qua JWKS (như access token) + kiểm
+// claim events; rồi xóa mọi phiên local của sub đó. ---
+app.post(
+  "/backchannel-logout",
+  express.urlencoded({ extended: false }),
+  async (req, res) => {
+    try {
+      const token = (req.body as { logout_token?: string })?.logout_token ?? "";
+      if (!token) return res.status(400).json({ error: "missing logout_token" });
+      // Verify chữ ký + iss + aud (KHÔNG dùng verifyOffline vì nó cho access token;
+      // logout_token có cùng issuer/aud nên tái dùng jwks + jwtVerify).
+      const { payload } = await jwtVerify(token, jwks, {
+        issuer: ISSUER,
+        audience: CLIENT_ID,
+      });
+      // Bắt buộc theo spec BCL: có claim events backchannel-logout; KHÔNG có nonce
+      // (để không nhầm với id_token bị chèn).
+      const events = payload.events as Record<string, unknown> | undefined;
+      const isLogout =
+        !!events &&
+        Object.prototype.hasOwnProperty.call(
+          events,
+          "http://schemas.openid.net/event/backchannel-logout",
+        );
+      if (!isLogout || "nonce" in payload) {
+        return res.status(400).json({ error: "not a valid logout token" });
+      }
+      // Đá MỌI phiên local của user (theo sub — id nội bộ ổn định).
+      let killed = 0;
+      for (const [sid, s] of sessions) {
+        if (s.sub === payload.sub) {
+          sessions.delete(sid);
+          killed++;
+        }
+      }
+      console.log(`backchannel-logout OK: sub=${payload.sub} → xóa ${killed} phiên`);
+      res.status(200).end();
+    } catch (e) {
+      console.warn("backchannel-logout: token KHÔNG hợp lệ —", String(e));
+      res.status(400).json({ error: "invalid logout_token" });
+    }
+  },
+);
 
 // --- 4. Nhận webhook — VERIFY HMAC-SHA256 TIMING-SAFE (E8-S2, AD-14) ---
 // Secret lấy khi admin bật webhook cho client (hiện một lần) → PMH_WEBHOOK_SECRET.

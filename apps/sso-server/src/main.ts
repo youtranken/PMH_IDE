@@ -9,6 +9,7 @@ import { Pool } from "pg";
 import { KekService } from "./common/kek.service";
 import { PG_POOL } from "./database/database.module";
 import { AppModule } from "./app.module";
+import { SettingsService } from "./config/settings.service";
 import { RateLimitService } from "./modules/auth-oidc/rate-limit.service";
 import { OIDC_PROVIDER } from "./oidc/oidc.module";
 import type { OidcProviderInstance } from "./oidc/provider.factory";
@@ -57,6 +58,21 @@ async function bootstrap() {
   // Import CSV (E4-S3) gửi cả file dạng text trong JSON → nới giới hạn body.
   // Route quản trị đã sau AdminGuard nên rủi ro DoS thấp; 5mb đủ ~1000 user.
   app.useBodyParser("json", { limit: "5mb" });
+
+  // Dải nội bộ được phép nhận webhook + Back-Channel Logout cấu hình qua .env
+  // (WEBHOOK_ALLOWLIST_CIDR) cho tiện ops — seed vào settings lúc boot để mọi nơi
+  // đọc settings.get("webhook_allowlist_cidr") vẫn dùng chung một nguồn. Mặc định
+  // chặn mọi IP private (chống SSRF); khai dải app on-prem ở đây để BCL/webhook tới được.
+  // Đọc THẲNG process.env (không qua ConfigService — validateEnv lọc bỏ biến
+  // không khai trong EnvVars). env_file .env đã đưa biến vào process.env.
+  {
+    const cidr = process.env.WEBHOOK_ALLOWLIST_CIDR;
+    if (cidr !== undefined) {
+      const settings = app.get(SettingsService);
+      await settings.preload();
+      await settings.set("webhook_allowlist_cidr", cidr.trim());
+    }
+  }
 
   // Chống dò client_secret trên /oidc/token (AD-9/E2-S3): backoff theo
   // client_id, ghi login_attempts. Đặt TRƯỚC mount provider.

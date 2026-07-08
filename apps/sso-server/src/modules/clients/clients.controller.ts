@@ -19,6 +19,7 @@ import {
   IsString,
   IsUrl,
   IsUUID,
+  ValidateIf,
 } from "class-validator";
 
 // redirect_uri phải TUYỆT ĐỐI có http(s):// (require_protocol) — không thì
@@ -46,6 +47,11 @@ class UpdateClientDto {
   @IsOptional() @IsString() @IsNotEmpty() name?: string;
   @IsOptional() @IsArray() @IsUrl(URI_OPTS, { each: true }) redirectUris?: string[];
   @IsOptional() @IsUrl(URI_OPTS) appUrl?: string;
+  // Cho phép chuỗi rỗng để TẮT BCL; nếu không rỗng phải là URL http(s) tuyệt đối.
+  @IsOptional()
+  @ValidateIf((o) => o.backchannelLogoutUri !== "")
+  @IsUrl(URI_OPTS)
+  backchannelLogoutUri?: string;
 }
 class GroupDto {
   @IsUUID() groupId!: string;

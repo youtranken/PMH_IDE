@@ -48,6 +48,11 @@ services:
       PGTZ: Asia/Bangkok
       # host DB trong network compose là tên service `postgres`
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    # Cho container resolve host app nội bộ (chạy NGOÀI container, trên máy host)
+    # → gửi được Back-Channel Logout / webhook tới chúng. host-gateway =
+    # 192.168.65.254 trên Docker Desktop. Thêm dòng cho mỗi app nội bộ cần nhận.
+    extra_hosts:
+      - "qlts.pmh.com.vn:host-gateway"
     volumes:
       - signing_keys:/run/secrets/signing-keys
       - audit_archive:/archive

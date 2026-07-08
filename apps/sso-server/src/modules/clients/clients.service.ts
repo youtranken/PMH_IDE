@@ -26,11 +26,12 @@ export interface ClientRow {
   app_url: string | null;
   allow_all_groups: boolean;
   disabled: boolean;
+  backchannel_logout_uri: string | null;
   created_at: Date;
 }
 
 const CLIENT_COLS =
-  "id, project_id, client_id, name, env, redirect_uris, app_url, allow_all_groups, disabled, created_at";
+  "id, project_id, client_id, name, env, redirect_uris, app_url, allow_all_groups, disabled, backchannel_logout_uri, created_at";
 
 /**
  * client_id dành riêng cho client TĨNH của provider (demo-app, pmh-portal). Tạo
@@ -224,7 +225,12 @@ export class ClientsService {
 
   async update(
     id: string,
-    input: { name?: string; redirectUris?: string[]; appUrl?: string },
+    input: {
+      name?: string;
+      redirectUris?: string[];
+      appUrl?: string;
+      backchannelLogoutUri?: string;
+    },
     admin: AdminContext,
     ip: string | null,
   ): Promise<ClientRow> {
@@ -243,6 +249,22 @@ export class ClientsService {
     if (input.appUrl !== undefined) {
       sets.push(`app_url = $${++i}`);
       vals.push(input.appUrl.trim());
+    }
+    if (input.backchannelLogoutUri !== undefined) {
+      // Rỗng = tắt BCL (NULL). Có giá trị = validate egress (PMH ID sẽ POST
+      // logout_token tới đây → chặn SSRF ra metadata/nội mạng, như webhook).
+      const uri = input.backchannelLogoutUri.trim();
+      if (uri) {
+        const allowlist =
+          (await this.settings.get("webhook_allowlist_cidr", "")) ?? "";
+        try {
+          await assertEgressAllowed(uri, allowlist);
+        } catch (e) {
+          throw new BadRequestException((e as Error).message);
+        }
+      }
+      sets.push(`backchannel_logout_uri = $${++i}`);
+      vals.push(uri || null);
     }
     if (sets.length === 0) return this.getScoped(id, admin);
     const { rows } = await this.pool.query<ClientRow>(
