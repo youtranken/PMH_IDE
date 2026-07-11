@@ -15,7 +15,7 @@ services:
       TZ: Asia/Bangkok # giờ VN (UTC+7) — đồng bộ log/hiển thị; timestamptz vẫn lưu UTC
       PGTZ: Asia/Bangkok
     ports:
-      - "${HOST_PG_PORT:-5433}:5432" # chỉ dev; prod bỏ dòng này
+      - "${HOST_PG_PORT:-5490}:5432" # chỉ dev; prod bỏ dòng này. PMH ID quy định host = 5490
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
