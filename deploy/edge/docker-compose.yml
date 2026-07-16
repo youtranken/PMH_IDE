@@ -18,7 +18,9 @@ services:
       - "443:443"
     volumes:
       - ./conf.d:/etc/nginx/conf.d:ro
-      - ./certs:/etc/nginx/certs:ro
+      # Nhà cert CHUNG duy nhất (gen-certs.sh sinh vào đây; prod đặt cert thật vào đây).
+      # KHÔNG copy riêng cho edge → gia hạn cert 1 chỗ, không lệch.
+      - ../nginx/certs:/etc/nginx/certs:ro
     networks:
       edge:
         # Alias để container nội bộ (vd qlts-api gọi token-exchange) resolve

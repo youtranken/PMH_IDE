@@ -38,7 +38,7 @@ openssl rand -base64 24                 # → BACKUP_PASSPHRASE=...
 - [ ] `NODE_ENV=production`.
 - [ ] `OIDC_ISSUER=https://id.pmh.com.vn/oidc` (KHÔNG localhost). Issuer đổi = mọi client phải cập nhật.
 - [ ] DNS `id.pmh.com.vn` → IP host prod.
-- [ ] **Cert TLS thật** đặt vào `deploy/nginx/certs/` (thay cert tự ký của `gen-certs.sh`). Tên file khớp `deploy/nginx/default.conf.template`.
+- [ ] **Cert TLS thật** đặt vào `deploy/nginx/certs/` (thay cert tự ký của `gen-certs.sh`). Tên file `fullchain.pem`/`privkey.pem` khớp `deploy/edge/conf.d/*.conf`; EDGE mount thư mục này.
 - [ ] Kiểm `allowedHosts` FE đã có `id.pmh.com.vn` (đã có sẵn trong `vite.config.ts`, chỉ ảnh hưởng dev).
 
 ### 3. SMTP thật

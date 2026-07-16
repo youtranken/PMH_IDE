@@ -13,9 +13,6 @@ build/
 deploy/nginx/certs/*.pem
 deploy/nginx/certs/*.key
 deploy/nginx/certs/*.crt
-deploy/edge/certs/*.pem
-deploy/edge/certs/*.key
-deploy/edge/certs/*.crt
 # nguồn cert/PFX gốc (private key + mật khẩu PFX) — tuyệt đối không commit
 pmh.com.vn/
 *.pfx
