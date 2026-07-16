@@ -1,0 +1,33 @@
+# EDGE — cổng vào DUY NHẤT cho mọi project (Model B). Terminate TLS bằng cert
+# wildcard *.pmh.com.vn, route theo hostname sang backend chạy HTTP thuần.
+# Chỉ service này publish 80/443 ra host. Vòng đời độc lập với pmhid/qlts.
+#
+#   docker network create edge   (1 lần, nếu chưa có)
+#   docker compose -f deploy/edge/docker-compose.yml up -d
+name: pmh-edge
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      TZ: Asia/Bangkok
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks:
+      edge:
+        # Alias để container nội bộ (vd qlts-api gọi token-exchange) resolve
+        # id.pmh.com.vn / qlts.pmh.com.vn về chính nginx này — đi trong máy,
+        # không ra internet, issuer giữ URL công khai.
+        aliases:
+          - id.pmh.com.vn
+          - qlts.pmh.com.vn
+
+networks:
+  edge:
+    external: true

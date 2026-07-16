@@ -13,6 +13,9 @@ build/
 deploy/nginx/certs/*.pem
 deploy/nginx/certs/*.key
 deploy/nginx/certs/*.crt
+deploy/edge/certs/*.pem
+deploy/edge/certs/*.key
+deploy/edge/certs/*.crt
 # nguồn cert/PFX gốc (private key + mật khẩu PFX) — tuyệt đối không commit
 pmh.com.vn/
 *.pfx
@@ -21,6 +24,10 @@ pmh.com.vn/
 # signing keys / KEK (AD-6/AD-8/AD-15) — kept on mounted volume, out of git
 secrets/
 keys/
+
+# test artifacts (playwright / ảnh chụp verify)
+.playwright-mcp/
+/login-via-edge.png
 
 # logs / misc
 *.log
