@@ -126,8 +126,11 @@ export async function createOidcProvider(
   const portalRedirects = config.get("PORTAL_REDIRECT_URI")
     ? config.get<string>("PORTAL_REDIRECT_URI")!.split(",").map((s) => s.trim())
     : [
-        "https://id.pmh.com.vn:9443/auth/callback",
-        "https://localhost:9443/auth/callback",
+        // EDGE nginx phục vụ portal ở cổng 443 (không port trong URL). Cổng 9443
+        // cũ đã bỏ khi gộp về EDGE chung — redirect_uri phải khớp location.origin
+        // của SPA (https://id.pmh.com.vn) nếu không authorize trả invalid_redirect_uri.
+        "https://id.pmh.com.vn/auth/callback",
+        "https://localhost/auth/callback",
       ];
   const portalPostLogout = Array.from(
     new Set(portalRedirects.map((u) => new URL(u).origin + "/")),
