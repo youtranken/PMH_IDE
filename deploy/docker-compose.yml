@@ -117,7 +117,8 @@ services:
         condition: service_healthy
 
 networks:
-  # Cổng-vào chung (tạo ngoài: `docker network create edge`). sso-server & portal-fe join.
+  # Cổng-vào chung (tạo ngoài: `docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 edge`
+  # — PIN subnet để webhook allowlist ổn định). sso-server & portal-fe join.
   edge:
     external: true
   # Nội bộ PMH ID: postgres/mailpit/backup — EDGE và project khác KHÔNG thấy.

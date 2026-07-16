@@ -60,7 +60,9 @@ Trình duyệt ── HTTPS (cert *.pmh.com.vn) ──▶ [EDGE nginx] ── HT
 - [ ] Lưu `docker ps -a` + `docker network ls` để đối chiếu rollback.
 
 ### B1. Mạng chung
-- [ ] `docker network create edge` → verify `docker network ls`.
+- [ ] `docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 edge` → verify `docker network ls`.
+      (PIN subnet cố định: webhook/BCL tới app sau edge resolve ra IP dải này; `WEBHOOK_ALLOWLIST_CIDR`
+      phải chứa `172.20.0.0/16`. Nếu tạo mạng không kèm `--subnet`, Docker cấp subnet khác → allowlist vỡ.)
 
 ### B2. Tạo stack EDGE (viết file, chưa bật)
 - [ ] `deploy/edge/docker-compose.yml`: `nginx:1.27-alpine`, `ports:[80:80,443:443]`, mount `./conf.d`+`./certs`,

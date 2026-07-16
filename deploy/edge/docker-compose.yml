@@ -2,7 +2,8 @@
 # wildcard *.pmh.com.vn, route theo hostname sang backend chạy HTTP thuần.
 # Chỉ service này publish 80/443 ra host. Vòng đời độc lập với pmhid/qlts.
 #
-#   docker network create edge   (1 lần, nếu chưa có)
+#   docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 edge
+#   (1 lần; PIN subnet cố định để WEBHOOK_ALLOWLIST_CIDR không vỡ khi tạo lại mạng)
 #   docker compose -f deploy/edge/docker-compose.yml up -d
 name: pmh-edge
 

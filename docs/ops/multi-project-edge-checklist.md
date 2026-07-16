@@ -25,7 +25,7 @@
 - [ ] **IP LAN tĩnh** cho máy `192.168.1.10` (DHCP reservation) để NAT không lệch khi reboot.
 
 ## C. Mạng Docker chung (làm 1 lần)
-- [ ] Tạo mạng external: `docker network create edge`
+- [ ] Tạo mạng external (PIN subnet): `docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 edge`
 - [ ] Quy ước: web container join `edge`; DB container chỉ join `*-internal`.
 
 ## D. Tách cụm EDGE (nginx) ra riêng
