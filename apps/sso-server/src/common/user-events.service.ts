@@ -43,10 +43,17 @@ export class UserEventsService {
     // Đẩy webhook (E7-S3) cho client CÓ webhook + trong phạm vi user (client_
     // groups). Worker gửi ngầm. user.deleted vẫn tới được (soft-delete giữ
     // user_groups). Chỉ enqueue; không chặn luồng chính.
+    // Shape khớp contract docs/integration/README (client đọc `type`, `event_id`,
+    // và `groups` cho user.groups_changed). Trước đây gửi `event`/`seq` → client
+    // (vd QLTS) parse theo doc bị 400. Giữ detail/at làm dữ liệu bổ sung.
     const payload = JSON.stringify({
-      event: eventType,
+      type: eventType,
       user_id: userId,
-      seq: Number(rows[0].seq),
+      event_id: String(rows[0].seq),
+      // user.groups_changed: client cần DANH SÁCH group hiện tại (không phải delta).
+      ...(eventType === "user.groups_changed"
+        ? { groups: await this.currentGroupNames(userId) }
+        : {}),
       detail: detail ?? null,
       at: rows[0].created_at,
     });
@@ -59,5 +66,15 @@ export class UserEventsService {
        WHERE ug.user_id = $1 AND c.webhook_url IS NOT NULL AND NOT c.disabled`,
       [userId, eventType, payload],
     );
+  }
+
+  /** TÊN các group hiện tại của user — dựng `groups` cho payload user.groups_changed. */
+  private async currentGroupNames(userId: string): Promise<string[]> {
+    const { rows } = await this.pool.query<{ name: string }>(
+      `SELECT g.name FROM user_groups ug JOIN groups g ON g.id = ug.group_id
+       WHERE ug.user_id = $1 ORDER BY g.name`,
+      [userId],
+    );
+    return rows.map((r) => r.name);
   }
 }

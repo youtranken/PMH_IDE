@@ -29,7 +29,14 @@ function postPinned(
         path: u.pathname + u.search,
         method: "POST",
         headers: { ...headers, "Content-Length": Buffer.byteLength(body) },
-        lookup: (_h, _o, cb) => cb(null, pin.address, pin.family),
+        // Node ≥20 bật autoSelectFamily (Happy Eyeballs) → gọi lookup với
+        // options.all=true và CHỜ callback trả MẢNG. Trả scalar kiểu cũ khiến
+        // Node hiểu address=undefined ("Invalid IP address: undefined"). Hỗ trợ
+        // cả hai dạng để pin-IP (anti-rebinding) chạy đúng trên mọi Node.
+        lookup: (_h, o: { all?: boolean } | undefined, cb) =>
+          o?.all
+            ? cb(null, [{ address: pin.address, family: pin.family }])
+            : cb(null, pin.address, pin.family),
         timeout: timeoutMs,
       },
       (res) => {
@@ -133,7 +140,10 @@ export class WebhookWorker {
         {
           "Content-Type": "application/json",
           "X-PMH-Event": job.event,
-          "X-PMH-Signature": `sha256=${sig}`,
+          // Hex THUẦN, KHÔNG tiền tố "sha256=" — khớp contract docs/integration/README
+          // (client verify `timingSafeEqual(header, hmacHex)`). Thêm tiền tố sẽ lệch
+          // độ dài → client trả 401 (đã gặp với QLTS).
+          "X-PMH-Signature": sig,
         },
         body,
         WebhookWorker.TIMEOUT_MS,
