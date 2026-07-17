@@ -114,9 +114,9 @@ export class MfaService {
     ]);
     const codes: string[] = [];
     for (let i = 0; i < 10; i++) {
-      // 10 ký tự base32-ish dễ đọc, chia 2 nhóm
-      const raw = randomBytes(5).toString("hex").toUpperCase();
-      const code = `${raw.slice(0, 5)}-${raw.slice(5)}`;
+      // 64-bit entropy (16 hex), chia 4 nhóm XXXX-XXXX-XXXX-XXXX dễ đọc/nhập.
+      const raw = randomBytes(8).toString("hex").toUpperCase();
+      const code = (raw.match(/.{4}/g) ?? [raw]).join("-");
       codes.push(code);
       const hash = await argon2.hash(code);
       await this.pool.query(

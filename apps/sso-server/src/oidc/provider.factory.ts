@@ -8,6 +8,7 @@ import {
 import { Pool } from "pg";
 import { SettingsService } from "../config/settings.service";
 import { isClientLoginAllowed } from "../modules/auth-oidc/login.service";
+import { assertEgressAllowed } from "../modules/notifications/egress.util";
 import { importEsm } from "./esm";
 import { KeysService } from "./keys.service";
 import {
@@ -243,12 +244,15 @@ export async function createOidcProvider(
 
     // oidc-provider gắn dispatcher chống-SSRF (chặn MỌI IP private) vào mọi fetch
     // ra ngoài — kể cả Back-Channel Logout. App PMH nội bộ đều ở IP private → BCL
-    // bị chặn hết. Bỏ dispatcher đó để giao BCL tới nội bộ. An toàn: backchannel
-    // _logout_uri đã validate egress (https + allowlist CIDR) LÚC admin lưu
-    // (clients.service.update → assertEgressAllowed). Ta không dùng jwks_uri/
-    // request_uri/sector_uri nên đây là kênh ra duy nhất.
-    fetch: (url: string | URL, options: Record<string, unknown>) => {
+    // bị chặn hết. Ta gỡ dispatcher đó NHƯNG thay bằng egress guard của mình (https
+    // + chặn private TRỪ allowlist CIDR) áp NGAY LÚC GỬI (L6) — thay vì tin mỗi
+    // validate lúc admin lưu. Nhờ vậy mọi kênh egress của provider (BCL hiện tại,
+    // và jwks_uri/request_uri/sector_uri nếu bật sau) đều không thể SSRF nội bộ.
+    fetch: async (url: string | URL, options: Record<string, unknown>) => {
       const { dispatcher: _drop, ...rest } = options ?? {};
+      const allowlist =
+        (await settings.get("webhook_allowlist_cidr", "")) ?? "";
+      await assertEgressAllowed(String(url), allowlist); // ném nếu đích bị chặn
       return globalThis.fetch(url as string, rest);
     },
 

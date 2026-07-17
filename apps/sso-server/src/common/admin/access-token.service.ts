@@ -106,7 +106,12 @@ export class AccessTokenService {
     if (!ok) throw new UnauthorizedException("chữ ký token sai");
 
     const now = Math.floor(Date.now() / 1000);
-    if (typeof claims.exp === "number" && claims.exp < now) {
+    // BẮT BUỘC có exp: token hợp lệ (portal/M2M do provider phát) luôn có exp;
+    // từ chối token thiếu hạn (phòng token bất tử khi khóa bị lộ/token dị dạng).
+    if (typeof claims.exp !== "number") {
+      throw new UnauthorizedException("token thiếu hạn (exp)");
+    }
+    if (claims.exp < now) {
       throw new UnauthorizedException("token hết hạn");
     }
     if (claims.iss !== this.issuer) {
