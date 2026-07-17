@@ -35,4 +35,27 @@ describe("egress SSRF guard", () => {
     expect(pin.address).toBe("93.184.216.34");
     expect(pin.family).toBe(4);
   });
+
+  // ===== IPv6 (L1): CIDR thật thay so-chuỗi-prefix =====
+  it("chặn loopback ::1", () => blocked("https://[::1]/x"));
+  it("chặn unspecified ::", () => blocked("https://[::]/x"));
+  it("chặn link-local fe80::/10", () => blocked("https://[fe80::1]/x"));
+  it("chặn ULA fc00::/7 (fc/fd)", async () => {
+    await blocked("https://[fc00::1]/x");
+    await blocked("https://[fd12:3456::1]/x");
+  });
+  it("chặn multicast ff00::/8", () => blocked("https://[ff02::1]/x"));
+  it("chặn v4-mapped loopback ::ffff:127.0.0.1", () =>
+    blocked("https://[::ffff:127.0.0.1]/x"));
+  it("chặn v4-mapped private ::ffff:10.0.0.1", () =>
+    blocked("https://[::ffff:10.0.0.1]/x"));
+  it("chặn NAT64 64:ff9b:: (→ v4 nội bộ)", () =>
+    blocked("https://[64:ff9b::10.0.0.1]/x"));
+  it("cho IPv6 công khai", () => ok("https://[2606:4700:4700::1111]/x"));
+  it("cho v4-mapped công khai ::ffff:93.184.216.34", () =>
+    ok("https://[::ffff:93.184.216.34]/x"));
+  it("allowlist v6 CIDR mở đúng ULA", async () => {
+    await ok("https://[fd00::5]/x", "fd00::/8");
+    await blocked("https://[fc00::5]/x", "fd00::/8"); // ngoài allowlist vẫn chặn
+  });
 });

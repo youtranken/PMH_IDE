@@ -48,7 +48,10 @@ export class ForgotPasswordController {
       res.status(429);
       return { error: "rate_limited", retryAfter: wait };
     }
-    await this.rateLimit.record(key, null, ip, false);
+    // Backoff RIÊNG theo email (key) — KHÔNG ghi `ip` để không bơm counter
+    // per-IP dùng chung với /interaction/login: nếu không, ~20 lượt quên-MK hợp
+    // lệ sau một NAT công ty sẽ backoff luôn đăng nhập của mọi người (L3).
+    await this.rateLimit.record(key, null, null, false);
 
     const { rows } = await this.pool.query<{ id: string }>(
       `SELECT id FROM users
