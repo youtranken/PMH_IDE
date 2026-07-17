@@ -59,9 +59,26 @@ export class UsersService {
     private readonly events: UserEventsService,
   ) {}
 
-  async list(): Promise<UserRow[]> {
+  async list(admin: AdminContext): Promise<UserRow[]> {
     // Tài khoản break-glass ẩn HOÀN TOÀN khỏi UI quản trị (bảo vệ lối vào khẩn
     // cấp — SSA không thấy/không đụng được; quản lý qua script offline).
+    // project_admin chỉ thấy user TRONG phạm vi project mình (AD-1, cùng luật
+    // CsvExport) — chặn lộ toàn bộ danh bạ + topology admin xuyên tenant.
+    const where = ["u.is_breakglass = false"];
+    const params: unknown[] = [];
+    if (!admin.isSsa) {
+      params.push(admin.projectIds);
+      where.push(`(
+        EXISTS (SELECT 1 FROM clients c WHERE c.project_id = ANY($1::uuid[])
+                AND c.allow_all_groups AND NOT c.disabled)
+        OR EXISTS (
+          SELECT 1 FROM user_groups ugx
+          JOIN client_groups cgx ON cgx.group_id = ugx.group_id
+          JOIN clients cx ON cx.id = cgx.client_id
+          WHERE ugx.user_id = u.id AND cx.project_id = ANY($1::uuid[])
+                AND NOT cx.disabled)
+      )`);
+    }
     const { rows } = await this.pool.query<UserRow>(
       `SELECT ${USER_COLS.split(", ").map((c) => "u." + c).join(", ")},
               EXISTS(SELECT 1 FROM admin_roles r WHERE r.user_id = u.id AND r.role = 'ssa') AS is_ssa,
@@ -72,8 +89,9 @@ export class UsersService {
                         FROM user_groups ug JOIN groups g ON g.id = ug.group_id
                         WHERE ug.user_id = u.id), '{}') AS groups
        FROM users u
-       WHERE u.is_breakglass = false
+       WHERE ${where.join(" AND ")}
        ORDER BY u.created_at DESC LIMIT 500`,
+      params,
     );
     return rows;
   }
@@ -123,6 +141,53 @@ export class UsersService {
         "đây là SSA vận hành cuối cùng — bổ nhiệm SSA khác trước khi khóa/xóa/đặt hạn",
       );
     }
+  }
+
+  /**
+   * project_admin chỉ thao tác user TRONG phạm vi project mình (AD-1, cùng luật
+   * với CsvExport). SSA bỏ qua. Ngoài phạm vi → 404 (giữ mờ, không lộ tồn tại).
+   */
+  private async assertUserInScope(
+    admin: AdminContext,
+    userId: string,
+  ): Promise<void> {
+    if (admin.isSsa) return;
+    const { rows } = await this.pool.query<{ ok: boolean }>(
+      `SELECT (
+        EXISTS (SELECT 1 FROM clients c WHERE c.project_id = ANY($2::uuid[])
+                AND c.allow_all_groups AND NOT c.disabled)
+        OR EXISTS (
+          SELECT 1 FROM user_groups ug
+          JOIN client_groups cg ON cg.group_id = ug.group_id
+          JOIN clients c ON c.id = cg.client_id
+          WHERE ug.user_id = $1 AND c.project_id = ANY($2::uuid[])
+                AND NOT c.disabled)
+      ) AS ok`,
+      [userId, admin.projectIds],
+    );
+    if (!rows[0]?.ok) throw new NotFoundException("user không tồn tại");
+  }
+
+  /**
+   * Chặn admin non-SSA sửa tài khoản QUẢN TRỊ khác (SSA/project_admin) — nếu
+   * không, project_admin có thể đổi email SSA rồi chiếm qua forgot-password.
+   */
+  private async assertTargetNotAdmin(userId: string): Promise<void> {
+    const { rows } = await this.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM admin_roles WHERE user_id = $1`,
+      [userId],
+    );
+    if (rows[0].n > 0) {
+      throw new ForbiddenException(
+        "không thể sửa tài khoản quản trị khác — cần quyền SSA",
+      );
+    }
+  }
+
+  /** get() có kiểm phạm vi project_admin — dùng cho endpoint đọc 1 user. */
+  async getScoped(id: string, admin: AdminContext): Promise<UserRow> {
+    await this.assertUserInScope(admin, id);
+    return this.get(id);
   }
 
   async create(
@@ -210,10 +275,16 @@ export class UsersService {
   async update(
     id: string,
     input: UpdateUserInput,
-    actorUserId: string,
+    admin: AdminContext,
     ip: string | null,
   ): Promise<UserRow> {
     await this.get(id); // 404 nếu không có
+    // Phạm vi: project_admin chỉ sửa user trong project mình, và KHÔNG được sửa
+    // tài khoản quản trị khác (chống đổi email SSA → chiếm qua forgot-password).
+    if (!admin.isSsa) {
+      await this.assertUserInScope(admin, id);
+      await this.assertTargetNotAdmin(id);
+    }
     const sets: string[] = [];
     const vals: unknown[] = [];
     let i = 1;
@@ -238,7 +309,7 @@ export class UsersService {
         [id, ...vals],
       );
       await this.audit.record({
-        actorUserId,
+        actorUserId: admin.userId,
         action: "user.updated",
         targetType: "user",
         targetId: id,
@@ -460,6 +531,9 @@ export class UsersService {
     opts: { password?: string; mustChangePassword?: boolean } = {},
   ): Promise<{ ok: true; revoked: number }> {
     await this.assertNotBreakglass(id);
+    // Đường email temp cũng phải theo phạm vi project_admin (đường manual đã
+    // chặn cứng chỉ-SSA bên dưới). SSA bỏ qua.
+    await this.assertUserInScope(admin, id);
     if (opts.password) {
       // Đặt MK THỦ CÔNG = admin biết MK của target → CHỈ SSA. Nếu để
       // project_admin làm, họ có thể đặt MK biết trước cho bất kỳ ai (kể cả

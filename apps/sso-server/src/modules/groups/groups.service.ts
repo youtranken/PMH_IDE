@@ -150,10 +150,17 @@ export class GroupsService {
     }
   }
 
+  /** get() có kiểm phạm vi project_admin (như addMember) — cho endpoint đọc. */
+  async getScoped(id: string, admin: AdminContext): Promise<GroupRow> {
+    await this.assertCanManage(admin, id);
+    return this.get(id);
+  }
+
   async listMembers(
     groupId: string,
+    admin: AdminContext,
   ): Promise<{ user_id: string; email: string; full_name: string }[]> {
-    await this.get(groupId);
+    await this.assertCanManage(admin, groupId);
     const { rows } = await this.pool.query<{
       user_id: string;
       email: string;

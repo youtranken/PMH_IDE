@@ -163,7 +163,10 @@ export class DirectoryService {
     const { rows } = await this.pool.query(
       // Ẩn break-glass khỏi MỌI đường directory (đồng bộ với list/getUser):
       // nếu tài khoản break-glass lỡ phát sự kiện, không lộ user_id ra ngoài.
-      `SELECT ue.seq, ue.user_id, ue.event_type, ue.detail, ue.created_at
+      // CHỈ trả {seq,user_id,event_type} đúng hợp đồng tối thiểu — KHÔNG trả
+      // `detail` (chứa group_id thêm/bớt) để feed global không lộ thay đổi
+      // quyền của user thuộc tenant khác; client resolve chi tiết qua GET scoped.
+      `SELECT ue.seq, ue.user_id, ue.event_type
        FROM user_events ue
        WHERE ue.seq > $1
          AND NOT EXISTS (
