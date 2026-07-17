@@ -9,6 +9,14 @@ import { PG_POOL } from "../../database/database.module";
 // Chấp nhận ±1 bước 30s (window=1) — dung sai lệch đồng hồ thiết bị/server và
 // biên khi user gõ mã ở cuối bước. window=0 (mặc định) làm SSA fail mã đúng.
 authenticator.options = { window: 1 };
+const TOTP_PERIOD = 30; // giây/bước — khớp mặc định otplib (dùng tính step).
+
+/** Step tuyệt đối của mã đang khớp (để chống replay one-time, M5). null nếu sai. */
+function matchedStep(code: string, secret: string): number | null {
+  const delta = authenticator.checkDelta(code, secret);
+  if (delta === null || delta === undefined) return null;
+  return Math.floor(Date.now() / 1000 / TOTP_PERIOD) + delta;
+}
 
 export interface MfaStatus {
   enabled: boolean;
@@ -61,7 +69,8 @@ export class MfaService {
     await this.pool.query(
       `INSERT INTO mfa_totp (user_id, totp_secret_enc, enabled)
        VALUES ($1, $2, false)
-       ON CONFLICT (user_id) DO UPDATE SET totp_secret_enc = EXCLUDED.totp_secret_enc, enabled = false`,
+       ON CONFLICT (user_id) DO UPDATE SET totp_secret_enc = EXCLUDED.totp_secret_enc,
+         enabled = false, last_totp_step = NULL`,
       [userId, enc],
     );
     return authenticator.keyuri(accountLabel, "PMH ID", secret);
@@ -71,19 +80,31 @@ export class MfaService {
   async confirmEnroll(userId: string, code: string): Promise<boolean> {
     const secret = await this.loadSecret(userId);
     if (!secret) return false;
-    if (!authenticator.check(code, secret)) return false;
+    const step = matchedStep(code, secret);
+    if (step === null) return false;
+    // Ghi step xác nhận → mã enroll này KHÔNG replay lại được làm mã đăng nhập.
     await this.pool.query(
-      `UPDATE mfa_totp SET enabled = true WHERE user_id = $1`,
-      [userId],
+      `UPDATE mfa_totp SET enabled = true, last_totp_step = $2 WHERE user_id = $1`,
+      [userId, step],
     );
     return true;
   }
 
-  /** Verify mã TOTP lúc đăng nhập. */
+  /** Verify mã TOTP lúc đăng nhập — ONE-TIME: chỉ nhận step MỚI hơn lần trước
+   *  (chống replay mã đã lộ trong cửa sổ ~90s, M5). */
   async verifyTotp(userId: string, code: string): Promise<boolean> {
     const secret = await this.loadSecret(userId);
     if (!secret) return false;
-    return authenticator.check(code, secret);
+    const step = matchedStep(code, secret);
+    if (step === null) return false;
+    // Cập nhật nguyên tử: rowCount=0 nghĩa là step này (hoặc cũ hơn) đã dùng →
+    // từ chối replay. Điều kiện < $2 để mã của bước trước không dùng lại được.
+    const res = await this.pool.query(
+      `UPDATE mfa_totp SET last_totp_step = $2
+       WHERE user_id = $1 AND (last_totp_step IS NULL OR last_totp_step < $2)`,
+      [userId, step],
+    );
+    return (res.rowCount ?? 0) === 1;
   }
 
   /** Sinh 10 recovery code, lưu hash, trả plaintext để hiện MỘT LẦN. */
