@@ -50,16 +50,13 @@ export class CsvExportService {
     if (!admin.isSsa) {
       const $proj = `$${++p}`;
       params.push(admin.projectIds);
-      where.push(`(
-        EXISTS (SELECT 1 FROM clients c WHERE c.project_id = ANY(${$proj}::uuid[])
-                AND c.allow_all_groups AND NOT c.disabled)
-        OR EXISTS (
-          SELECT 1 FROM user_groups ug3
-          JOIN client_groups cg ON cg.group_id = ug3.group_id
-          JOIN clients c3 ON c3.id = cg.client_id
-          WHERE ug3.user_id = u.id AND c3.project_id = ANY(${$proj}::uuid[])
-                AND NOT c3.disabled)
-      )`);
+      // Không xét allow_all_groups — xem chú thích ở UsersService.list().
+      where.push(`EXISTS (
+        SELECT 1 FROM user_groups ug3
+        JOIN client_groups cg ON cg.group_id = ug3.group_id
+        JOIN clients c3 ON c3.id = cg.client_id
+        WHERE ug3.user_id = u.id AND c3.project_id = ANY(${$proj}::uuid[])
+              AND NOT c3.disabled)`);
     }
 
     const { rows } = await this.pool.query<ExportRow>(

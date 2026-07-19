@@ -68,16 +68,15 @@ export class UsersService {
     const params: unknown[] = [];
     if (!admin.isSsa) {
       params.push(admin.projectIds);
-      where.push(`(
-        EXISTS (SELECT 1 FROM clients c WHERE c.project_id = ANY($1::uuid[])
-                AND c.allow_all_groups AND NOT c.disabled)
-        OR EXISTS (
-          SELECT 1 FROM user_groups ugx
-          JOIN client_groups cgx ON cgx.group_id = ugx.group_id
-          JOIN clients cx ON cx.id = cgx.client_id
-          WHERE ugx.user_id = u.id AND cx.project_id = ANY($1::uuid[])
-                AND NOT cx.disabled)
-      )`);
+      // KHÔNG xét allow_all_groups ở đây: cờ đó nới quyền ĐĂNG NHẬP (login.service),
+      // không phải quyền QUẢN TRỊ. project_admin tự bật được cờ trên client của
+      // mình → nếu tính vào đây thì họ tự nới phạm vi quản trị ra toàn hệ thống.
+      where.push(`EXISTS (
+        SELECT 1 FROM user_groups ugx
+        JOIN client_groups cgx ON cgx.group_id = ugx.group_id
+        JOIN clients cx ON cx.id = cgx.client_id
+        WHERE ugx.user_id = u.id AND cx.project_id = ANY($1::uuid[])
+              AND NOT cx.disabled)`);
     }
     const { rows } = await this.pool.query<UserRow>(
       `SELECT ${USER_COLS.split(", ").map((c) => "u." + c).join(", ")},
@@ -153,15 +152,14 @@ export class UsersService {
   ): Promise<void> {
     if (admin.isSsa) return;
     const { rows } = await this.pool.query<{ ok: boolean }>(
-      `SELECT (
-        EXISTS (SELECT 1 FROM clients c WHERE c.project_id = ANY($2::uuid[])
-                AND c.allow_all_groups AND NOT c.disabled)
-        OR EXISTS (
-          SELECT 1 FROM user_groups ug
-          JOIN client_groups cg ON cg.group_id = ug.group_id
-          JOIN clients c ON c.id = cg.client_id
-          WHERE ug.user_id = $1 AND c.project_id = ANY($2::uuid[])
-                AND NOT c.disabled)
+      // Không xét allow_all_groups — xem chú thích ở list(). Đây là hàm gác MỌI
+      // mutation theo phạm vi, nên rò cờ login vào đây là leo thang đặc quyền.
+      `SELECT EXISTS (
+        SELECT 1 FROM user_groups ug
+        JOIN client_groups cg ON cg.group_id = ug.group_id
+        JOIN clients c ON c.id = cg.client_id
+        WHERE ug.user_id = $1 AND c.project_id = ANY($2::uuid[])
+              AND NOT c.disabled
       ) AS ok`,
       [userId, admin.projectIds],
     );
@@ -534,6 +532,10 @@ export class UsersService {
     // Đường email temp cũng phải theo phạm vi project_admin (đường manual đã
     // chặn cứng chỉ-SSA bên dưới). SSA bỏ qua.
     await this.assertUserInScope(admin, id);
+    // Cùng luật với update(): project_admin KHÔNG đụng được tài khoản quản trị
+    // khác. Thiếu chốt này thì reset MK là đường ép-đổi-MK + thu hồi phiên của
+    // một SSA (phá hoại/khóa cửa), dù MK tạm gửi về hòm thư của chính SSA đó.
+    if (!admin.isSsa) await this.assertTargetNotAdmin(id);
     if (opts.password) {
       // Đặt MK THỦ CÔNG = admin biết MK của target → CHỈ SSA. Nếu để
       // project_admin làm, họ có thể đặt MK biết trước cho bất kỳ ai (kể cả

@@ -8,3 +8,8 @@
 deploy/nginx/certs
 docs
 *.md
+# NGOẠI LỆ: cổng /docs bundle docs/integration vào image (Dockerfile:20 COPY).
+# Phải đứng SAU `docs` và `*.md` — pattern khớp cuối cùng thắng, nếu không thì
+# build sso-server chết ở bước COPY ("/docs/integration": not found).
+!docs/integration
+!docs/integration/**

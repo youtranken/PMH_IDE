@@ -182,8 +182,13 @@ export class GroupsService {
     ip: string | null,
   ): Promise<void> {
     await this.assertCanManage(admin, groupId);
+    // Thêm user THƯỜNG vào group mình quản = onboarding hợp lệ (cùng luật CSV
+    // import). Nhưng KHÔNG cho kéo tài khoản QUẢN TRỊ/break-glass vào: đó là
+    // đường project_admin tự kéo một SSA vào phạm vi quản trị của mình.
+    if (!admin.isSsa) await this.assertTargetNotAdmin(userId);
     const { rowCount } = await this.pool.query(
-      `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL
+         AND is_breakglass = false`,
       [userId],
     );
     if (rowCount === 0) throw new NotFoundException("user không tồn tại");
@@ -253,6 +258,22 @@ export class GroupsService {
     if (rowCount === 0) {
       throw new ForbiddenException(
         "group không thuộc phạm vi project của bạn",
+      );
+    }
+  }
+
+  /**
+   * Chặn admin non-SSA đụng tài khoản QUẢN TRỊ khác — cùng luật với
+   * UsersService.assertTargetNotAdmin.
+   */
+  private async assertTargetNotAdmin(userId: string): Promise<void> {
+    const { rowCount } = await this.pool.query(
+      `SELECT 1 FROM admin_roles WHERE user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    if (rowCount && rowCount > 0) {
+      throw new ForbiddenException(
+        "không thể gán nhóm cho tài khoản quản trị khác — cần quyền SSA",
       );
     }
   }
