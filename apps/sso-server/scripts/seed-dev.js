@@ -10,6 +10,18 @@
 const argon2 = require("argon2");
 const { Pool } = require("pg");
 
+// CHẶN CỨNG Ở PROD: script này đặt mật khẩu CÔNG KHAI ("Passw0rd!") cho SSA
+// kiêm break-glass, và upsert ON CONFLICT DO UPDATE nên GHI ĐÈ cả tài khoản đã
+// có. Chạy nhầm ở prod = trao SSA cho bất kỳ ai đọc repo. Dùng
+// scripts/bootstrap-admin.js cho môi trường thật (nó từ chối ghi đè).
+if (process.env.NODE_ENV === "production") {
+  console.error(
+    "[seed-dev] TỪ CHỐI CHẠY: đây là dữ liệu DEV với mật khẩu công khai và sẽ " +
+      "GHI ĐÈ tài khoản hiện có. Ở môi trường thật dùng scripts/bootstrap-admin.js.",
+  );
+  process.exit(1);
+}
+
 const DATABASE_URL =
   process.env.DATABASE_URL ||
   "postgres://pmhid:change_me_dev_only@localhost:5433/pmhid";

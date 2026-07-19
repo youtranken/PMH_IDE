@@ -137,6 +137,36 @@ export async function createOidcProvider(
     new Set(portalRedirects.map((u) => new URL(u).origin + "/")),
   );
 
+  // Portal quản trị = SPA công khai (không secret) đăng nhập bằng PKCE. Access
+  // token của client này là chứng chỉ vào API quản trị (Epic 4+): AdminGuard
+  // verify offline rồi đối chiếu admin_roles. redirect về /auth/callback do
+  // portal SPA xử lý (Epic 6).
+  const portalClient = {
+    client_id: config.get("PORTAL_CLIENT_ID") ?? "pmh-portal",
+    token_endpoint_auth_method: "none",
+    // SPA dùng location.origin → redirect_uris suy từ PORTAL_REDIRECT_URI
+    // (prod đặt domain thật; mặc định đã là https://id.pmh.com.vn).
+    redirect_uris: portalRedirects,
+    // Đăng xuất portal đi qua end_session rồi quay về origin "/" (đăng xuất
+    // THẬT, hủy phiên SSO) — phải khai địa chỉ này.
+    post_logout_redirect_uris: portalPostLogout,
+    response_types: ["code"],
+    grant_types: ["authorization_code", "refresh_token"],
+  };
+
+  // Demo app: CHỈ dev (seed sẵn secret) — prod dùng client thật tạo từ UI.
+  const demoClient = {
+    client_id: config.get("DEMO_CLIENT_ID") ?? "demo-app",
+    client_secret: config.get("DEMO_CLIENT_SECRET") ?? "demo-secret-dev-only",
+    redirect_uris: [
+      config.get("DEMO_CLIENT_REDIRECT_URI") ??
+        "http://localhost:4000/auth/callback",
+    ],
+    grant_types: ["authorization_code", "refresh_token"],
+    post_logout_redirect_uris: ["http://localhost:4000"],
+    backchannel_logout_uri: "http://localhost:4000/backchannel-logout",
+  };
+
   async function findAccount(_ctx: unknown, sub: string) {
     const claims = await loadUserClaims(pgPool, sub);
     if (!claims) return undefined;
@@ -405,39 +435,12 @@ h3{font-weight:600;margin:0 0 8px}a{color:#1d7a4d;font-weight:600;text-decoratio
       return grant;
     },
 
-    // Client tĩnh: dev seed cho demo-app; client thật từ DB đến ở E5-S5
-    clients: isProd
-      ? []
-      : [
-          {
-            client_id: config.get("DEMO_CLIENT_ID") ?? "demo-app",
-            client_secret:
-              config.get("DEMO_CLIENT_SECRET") ?? "demo-secret-dev-only",
-            redirect_uris: [
-              config.get("DEMO_CLIENT_REDIRECT_URI") ??
-                "http://localhost:4000/auth/callback",
-            ],
-            grant_types: ["authorization_code", "refresh_token"],
-            post_logout_redirect_uris: ["http://localhost:4000"],
-            backchannel_logout_uri: "http://localhost:4000/backchannel-logout",
-          },
-          // Portal quản trị = SPA công khai (không secret) đăng nhập bằng PKCE.
-          // Access token của client này là chứng chỉ vào API quản trị (Epic 4+):
-          // AdminGuard verify offline rồi đối chiếu admin_roles. redirect về
-          // /auth/callback do portal SPA xử lý (Epic 6).
-          {
-            client_id: config.get("PORTAL_CLIENT_ID") ?? "pmh-portal",
-            token_endpoint_auth_method: "none",
-            // SPA dùng location.origin → đăng ký mọi host dev truy cập được.
-            // id.pmh.com.vn = domain chính thức; localhost giữ cho test/tương thích.
-            redirect_uris: portalRedirects,
-            // Đăng xuất portal đi qua end_session rồi quay về origin "/" (đăng
-            // xuất THẬT, hủy phiên SSO) — phải khai địa chỉ này.
-            post_logout_redirect_uris: portalPostLogout,
-            response_types: ["code"],
-            grant_types: ["authorization_code", "refresh_token"],
-          },
-        ],
+    // Client tĩnh. Portal quản trị PHẢI có ở MỌI môi trường: nó là SPA công khai
+    // (PKCE, không secret) nên KHÔNG thể đến từ DB — pg-adapter ép mọi DB client
+    // thành client_secret_basic, và clients.service cấm tạo client_id này
+    // (RESERVED_CLIENT_IDS). Nếu để prod rỗng thì bootstrap xong SSA cũng không
+    // có client nào để đăng nhập qua. demo-app thì chỉ dev.
+    clients: isProd ? [portalClient] : [demoClient, portalClient],
   });
 
   // Sau Nginx TLS termination — tin X-Forwarded-* đã được sanitize (AD-4)
