@@ -111,10 +111,45 @@ services:
     volumes:
       - ../.env:/secrets/.env:ro
       - signing_keys:/run/secrets/signing-keys:ro
-      - backups:/backups
+      # Kho backup = THƯ MỤC HOST (BACKUP_DIR), không phải named volume: volume
+      # nằm cùng đĩa Docker với pg_data → hỏng đĩa là mất CẢ DB LẪN backup.
+      - ${BACKUP_DIR:-../../backup-pmhid}:/backups
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Hẹn giờ backup THƯỜNG TRÚ — thay cho cron host/Task Scheduler (host cài lại
+  # là mất lịch mà không ai biết). Dùng chung image + chung backup.sh với lần
+  # chạy tay để hai đường không lệch nhau.
+  #   Chạy tay 1 bản:  docker compose --profile backup run --rm backup
+  #   Xem lịch/log:    docker compose logs -f backup-cron
+  backup-cron:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    mem_limit: 256m
+    entrypoint: ["sh", "/cron-loop.sh"]
+    env_file: ../.env
+    environment:
+      TZ: Asia/Bangkok
+      PGTZ: Asia/Bangkok
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SIGNING_KEYS_DIR: /run/secrets/signing-keys
+      ENV_FILE: /secrets/.env
+      BACKUP_OUT: /backups
+      BACKUP_AT: ${BACKUP_AT:-02:00}
+    networks: [pmhid-internal]
+    volumes:
+      - ../.env:/secrets/.env:ro
+      - signing_keys:/run/secrets/signing-keys:ro
+      - ${BACKUP_DIR:-../../backup-pmhid}:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
 
 networks:
   # Cổng-vào chung (tạo ngoài: `docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 edge`
@@ -128,4 +163,6 @@ volumes:
   pg_data:
   signing_keys:
   audit_archive:
-  backups:
+  # `backups` KHÔNG còn là named volume — đã chuyển sang thư mục host BACKUP_DIR
+  # (xem service backup/backup-cron). Giữ chỗ này trống có chủ đích để không ai
+  # vô tình khai lại rồi backup quay về nằm cùng đĩa với pg_data.
