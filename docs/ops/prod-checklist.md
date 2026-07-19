@@ -47,10 +47,18 @@ openssl rand -base64 24                 # → BACKUP_PASSPHRASE=...
 
 ### 4. Compose prod
 - [ ] Xoá dòng `ports:` của service **postgres** trong `deploy/docker-compose.yml` (không mở DB ra host — file đã ghi chú "chỉ dev; prod bỏ dòng này").
-- [ ] Lên bằng override prod (FE build tĩnh, tắt mailpit):
+- [ ] Lên bằng override prod (FE build tĩnh, tắt mailpit). **Phải có `--env-file .env`**
+  — compose tìm `.env` cạnh file compose (`deploy/.env`, không tồn tại), không phải
+  thư mục đang đứng; thiếu cờ này thì `DATABASE_URL` nội suy rỗng và container chết
+  với `no PostgreSQL user name specified in startup packet`:
   ```bash
-  docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+  docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 edge   # 1 lần
+  docker compose --env-file .env -f deploy/docker-compose.yml \
+    -f deploy/docker-compose.prod.yml up -d --build
+  docker compose --env-file .env -f deploy/edge/docker-compose.yml up -d
   ```
+- [ ] `BACKUP_DIR` trỏ thư mục host **khác đĩa** với Docker/pg_data (mặc định named
+  volume = backup nằm cùng đĩa với DB, hỏng đĩa mất cả hai).
 
 ### 5. Migrate DB
 - [ ] `docker compose ... exec sso-server pnpm migrate:up` (hoặc để CMD tự chạy lần đầu). Kiểm `migrations` chạy hết, không lỗi.
