@@ -304,27 +304,41 @@ Nếu cần đá user ngay khi bị khóa (không chờ ≤5 phút), khai `webho
 
 `user.locked` · `user.unlocked` · `user.deleted` · `user.password_changed` · `user.groups_changed`
 
-Payload ký **HMAC-SHA256** bằng `webhook_secret` (admin cấp) ở header — **luôn verify chữ ký** trước khi xử lý:
+Payload ký **HMAC-SHA256** bằng `webhook_secret` (admin cấp) — **luôn verify chữ ký** trước khi xử lý. PMH ID gửi **hai** chữ ký ở header:
+
+| Header | Ký trên | Ghi chú |
+|---|---|---|
+| `X-PMH-Signature` | `body` | **v1** — hex thuần, tương thích ngược. **Không** chống replay. |
+| `X-PMH-Signature-V2` | `` `${X-PMH-Timestamp}.${body}` `` | **v2** — kèm `X-PMH-Timestamp` (unix giây). Chống phát lại. |
+
+**KHUYẾN NGHỊ: chuyển sang v2** — kiểm timestamp tươi (±5 phút) rồi verify v2. Gói tin cũ bị bắt sẽ không phát lại được (timestamp hết hạn). v1 giữ nguyên để không gãy trong lúc chuyển đổi; **sau khi bạn dùng v2, hãy ngừng chấp nhận v1** (v1 còn thì replay vẫn được).
 
 ```js
 import crypto from 'crypto';
 
 app.post('/webhooks/pmh-id', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig = req.header('X-PMH-Signature');
+  // v2 — chống replay (khuyến nghị)
+  const ts = req.header('X-PMH-Timestamp');
+  const sig = req.header('X-PMH-Signature-V2');
+  if (!ts || Math.abs(Date.now() / 1000 - Number(ts)) > 300) {
+    return res.status(401).end();            // timestamp quá cũ/tương lai → nghi replay
+  }
   const expected = crypto.createHmac('sha256', process.env.PMH_WEBHOOK_SECRET)
-                         .update(req.body).digest('hex');
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+                         .update(`${ts}.${req.body}`).digest('hex');
+  if (sig.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
     return res.status(401).end();
   }
   const event = JSON.parse(req.body);
   if (event.type === 'user.locked' || event.type === 'user.deleted') {
     // hủy phiên local của event.user_id → buộc logout
+    // (nên idempotent: cùng một sự kiện có thể tới hơn một lần khi worker retry)
   }
   res.status(200).end();   // trả 2xx nhanh; xử lý nặng thì làm async
 });
 ```
 
-PMH ID **retry giãn dần** nếu bạn trả lỗi/timeout. Webhook phải là `https`; nếu ở **IP nội bộ**, admin PMH ID phải khai dải của bạn vào `WEBHOOK_ALLOWLIST_CIDR` (xem lưu ý ở mục 4.7 — dùng chung cho webhook và Back-Channel Logout). Nếu không làm webhook, hệ thống vẫn an toàn — user bị khóa sẽ văng trong ≤5 phút nhờ token hết hạn, hoặc bạn polling `GET /events`.
+PMH ID **retry giãn dần** nếu bạn trả lỗi/timeout — tối đa **6 lần trong ~30 phút**, sau đó delivery vào **dead-letter** (SSA gửi lại được qua `POST /api/admin/webhooks/:id/requeue`). Vì có retry, cùng một sự kiện **có thể tới hơn một lần** → xử lý phải **idempotent**. Webhook phải là `https`; nếu ở **IP nội bộ**, admin PMH ID phải khai dải của bạn vào `WEBHOOK_ALLOWLIST_CIDR` (xem lưu ý ở mục 4.7 — dùng chung cho webhook và Back-Channel Logout). Nếu không làm webhook, hệ thống vẫn an toàn — user bị khóa sẽ văng trong ≤5 phút nhờ token hết hạn, hoặc bạn polling `GET /events`.
 
 ---
 

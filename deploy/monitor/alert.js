@@ -12,7 +12,9 @@
 const https = require("node:https");
 const http = require("node:http");
 
-const HEALTH_URL = process.env.HEALTH_URL || "https://localhost:9443/api/health";
+// Mặc định qua EDGE domain thật (cổng 9443 đã bỏ khi tách edge). Override bằng
+// HEALTH_URL khi cần.
+const HEALTH_URL = process.env.HEALTH_URL || "https://id.pmh.com.vn/api/health";
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT = process.env.TELEGRAM_CHAT_ID;
 // Dev self-signed → cho phép bỏ verify khi ALLOW_INSECURE=1 (prod KHÔNG)
@@ -53,12 +55,20 @@ async function sendTelegram(text) {
   await new Promise((resolve, reject) => {
     const req = https.request(
       `https://api.telegram.org/bot${TOKEN}/sendMessage`,
-      { method: "POST", headers: { "Content-Type": "application/json" } },
+      { method: "POST", headers: { "Content-Type": "application/json" }, timeout: 8000 },
       (res) => {
         res.resume();
-        res.on("end", resolve);
+        // Trước đây nuốt mọi phản hồi → token sai/chat sai/timeout đều "gửi
+        // thành công" âm thầm, đúng kênh cuối cùng lại hỏng lặng lẽ. Giờ reject
+        // khi Telegram từ chối để cron/monitor ngoài bắt được (exit != 0).
+        res.on("end", () =>
+          res.statusCode && res.statusCode < 300
+            ? resolve()
+            : reject(new Error(`Telegram HTTP ${res.statusCode}`)),
+        );
       },
     );
+    req.on("timeout", () => req.destroy(new Error("Telegram timeout")));
     req.on("error", reject);
     req.write(data);
     req.end();
@@ -80,6 +90,11 @@ async function main() {
       const sp = json.stalePending;
       if (sp && (sp.emailQueue > 0 || sp.webhooks > 0))
         problems.push(`job kẹt: email=${sp.emailQueue} webhook=${sp.webhooks}`);
+      // Sự kiện đã BỎ HẲN (dead-letter) = MẤT — webhook 'khóa user' không giao
+      // được sau hết retry. Cảnh báo để SSA requeue qua /admin/webhooks.
+      const dl = json.deadLettered;
+      if (dl && (dl.emailQueue > 0 || dl.webhooks > 0))
+        problems.push(`ĐÃ BỎ (mất): email=${dl.emailQueue} webhook=${dl.webhooks}`);
     }
   } catch (e) {
     problems.push(`KHÔNG kết nối được /health: ${String(e.message || e)}`);

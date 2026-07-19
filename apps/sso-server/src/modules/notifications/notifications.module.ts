@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { EmailQueueService } from "./email-queue.service";
 import { EmailWorker } from "./email-worker.service";
 import { MailerService } from "./mailer.service";
+import { WebhookAdminController } from "./webhook-admin.controller";
 import { WebhookWorker } from "./webhook-worker.service";
 
 /**
@@ -10,6 +11,7 @@ import { WebhookWorker } from "./webhook-worker.service";
  * export cho MK tạm / import CSV / cảnh báo hạn.
  */
 @Module({
+  controllers: [WebhookAdminController],
   providers: [MailerService, EmailQueueService, EmailWorker, WebhookWorker],
   exports: [EmailQueueService],
 })

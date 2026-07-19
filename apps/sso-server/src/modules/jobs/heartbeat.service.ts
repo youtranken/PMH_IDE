@@ -5,7 +5,12 @@ import { PG_POOL } from "../../database/database.module";
 
 export interface SystemStatus {
   scheduler: { lastBeatAgeSeconds: number | null; alive: boolean };
+  // Job TỚI HẠN mà vẫn pending quá lâu = worker chết (không đếm job đang chờ
+  // retry — next_attempt_at ở tương lai).
   stalePending: { emailQueue: number; webhooks: number };
+  // Job đã BỎ HẲN (failed) = sự kiện MẤT, cần người xử lý/requeue. Trước đây
+  // không lộ ra đâu cả → webhook 'khóa user' chết âm thầm.
+  deadLettered: { emailQueue: number; webhooks: number };
 }
 
 /**
@@ -41,18 +46,30 @@ export class HeartbeatService {
     );
     const age = hb[0]?.age ?? null;
 
+    // "Pending TỚI HẠN mà vẫn kẹt" = worker chết. Retry job đặt status='pending'
+    // với next_attempt_at TƯƠNG LAI (email/webhook worker) → phải loại bằng
+    // (next_attempt_at IS NULL OR <= now()), nếu không job đang chờ retry bình
+    // thường bị đếm là stale = báo động sai vĩnh viễn (bug cũ: thiếu đúng vế này).
+    const stale = HeartbeatService.STALE_SECONDS;
     const { rows: eq } = await this.pool.query<{ n: string }>(
       `SELECT count(*) AS n FROM email_queue
        WHERE status = 'pending'
-         AND created_at < now() - interval '${HeartbeatService.STALE_SECONDS} seconds'`,
+         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+         AND created_at < now() - interval '${stale} seconds'`,
     );
-    // Chỉ tính "pending quá tuổi" = worker chết (E3-S4). KHÔNG tính 'failed'
-    // đang retry (có next_attempt_at) — nếu không sẽ báo động vĩnh viễn khi
-    // một endpoint webhook chết hẳn (alert fatigue).
     const { rows: wh } = await this.pool.query<{ n: string }>(
       `SELECT count(*) AS n FROM webhook_deliveries
        WHERE status = 'pending'
-         AND created_at < now() - interval '${HeartbeatService.STALE_SECONDS} seconds'`,
+         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+         AND created_at < now() - interval '${stale} seconds'`,
+    );
+    // Job đã BỎ HẲN (failed) — sự kiện MẤT. Bug cũ: 'failed' không được đếm ở
+    // đâu → webhook chết hẳn hoàn toàn im lặng. Requeue qua /admin/webhooks.
+    const { rows: eqd } = await this.pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM email_queue WHERE status = 'failed'`,
+    );
+    const { rows: whd } = await this.pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM webhook_deliveries WHERE status = 'failed'`,
     );
 
     return {
@@ -63,6 +80,10 @@ export class HeartbeatService {
       stalePending: {
         emailQueue: Number.parseInt(eq[0].n, 10),
         webhooks: Number.parseInt(wh[0].n, 10),
+      },
+      deadLettered: {
+        emailQueue: Number.parseInt(eqd[0].n, 10),
+        webhooks: Number.parseInt(whd[0].n, 10),
       },
     };
   }

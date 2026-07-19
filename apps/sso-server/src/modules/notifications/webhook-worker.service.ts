@@ -133,17 +133,27 @@ export class WebhookWorker {
 
       const secret = this.kek.decrypt(enc);
       const body = JSON.stringify(job.payload);
+      // Chữ ký CŨ (v1): HMAC chỉ trên body, hex thuần không tiền tố. GIỮ NGUYÊN
+      // để QLTS/QLHS đang verify kiểu này KHÔNG gãy (đổi format từng làm QLTS
+      // trả 401). Nhược điểm: không có timestamp → REPLAY được vĩnh viễn.
       const sig = createHmac("sha256", secret).update(body).digest("hex");
+      // Chữ ký MỚI (v2, chống replay): ký `${timestamp}.${body}`. Receiver kiểm
+      // X-PMH-Timestamp trong ±5' RỒI verify v2 → gói cũ bắt được không phát lại
+      // được. Thêm SONG SONG (không thay v1) để chuyển đổi không phá vỡ: receiver
+      // nâng lên v2, bỏ v1, ta gỡ v1 sau. Xem docs/integration/README §6.
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const sigV2 = createHmac("sha256", secret)
+        .update(`${ts}.${body}`)
+        .digest("hex");
       const status = await postPinned(
         job.target_url,
         pin,
         {
           "Content-Type": "application/json",
           "X-PMH-Event": job.event,
-          // Hex THUẦN, KHÔNG tiền tố "sha256=" — khớp contract docs/integration/README
-          // (client verify `timingSafeEqual(header, hmacHex)`). Thêm tiền tố sẽ lệch
-          // độ dài → client trả 401 (đã gặp với QLTS).
           "X-PMH-Signature": sig,
+          "X-PMH-Timestamp": ts,
+          "X-PMH-Signature-V2": sigV2,
         },
         body,
         WebhookWorker.TIMEOUT_MS,
@@ -189,5 +199,51 @@ export class WebhookWorker {
        SET status = 'failed', locked_at = NULL, last_error = $2 WHERE id = $1`,
       [id, (config ? "[config] " : "") + err],
     );
+  }
+
+  // ---- Dead-letter: xem + requeue (E7, SSA qua /admin/webhooks) ----
+  // Trước đây delivery 'failed' nằm im trong bảng, không đường nào thấy/gửi lại
+  // → sự kiện MẤT vĩnh viễn. Hai hàm dưới cho SSA soi và gửi lại.
+
+  /** Danh sách delivery đã BỎ HẲN (mới nhất trước), kèm client + lỗi cuối. */
+  async listFailed(limit = 100): Promise<
+    {
+      id: string;
+      client_id: string;
+      client_name: string | null;
+      event: string;
+      target_url: string;
+      attempts: number;
+      last_error: string | null;
+      created_at: Date;
+    }[]
+  > {
+    const { rows } = await this.pool.query(
+      `SELECT d.id, d.client_id, c.name AS client_name, d.event, d.target_url,
+              d.attempts, d.last_error, d.created_at
+       FROM webhook_deliveries d
+       LEFT JOIN clients c ON c.id = d.client_id
+       WHERE d.status = 'failed'
+       ORDER BY d.created_at DESC
+       LIMIT $1`,
+      [Math.min(Math.max(limit, 1), 500)],
+    );
+    return rows;
+  }
+
+  /**
+   * Gửi lại một delivery đã BỎ: reset về pending, attempts=0, xóa next_attempt_at
+   * → tick kế tiếp claim ngay. Chỉ tác động lên bản 'failed' (không đụng job đang
+   * chạy). Trả false nếu id không phải delivery đã failed.
+   */
+  async requeue(id: string): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE webhook_deliveries
+       SET status = 'pending', attempts = 0, next_attempt_at = NULL,
+           locked_at = NULL, last_error = NULL
+       WHERE id = $1 AND status = 'failed'`,
+      [id],
+    );
+    return (rowCount ?? 0) > 0;
   }
 }
