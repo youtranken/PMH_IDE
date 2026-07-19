@@ -20,5 +20,10 @@
     "migrate:down": "pnpm --filter @pmh/sso-server migrate:down",
     "certs": "bash deploy/gen-certs.sh"
   },
-  "packageManager": "pnpm@9.15.9"
+  "packageManager": "pnpm@9.15.9",
+  "pnpm": {
+    "overrides": {
+      "multer@<2.1.0": ">=2.1.0"
+    }
+  }
 }
