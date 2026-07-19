@@ -185,10 +185,24 @@ export async function createOidcProvider(
     jwks: { keys: keys.loadOrCreate() },
     cookies: {
       keys: cookieKeys,
+      // oidc-provider mặc định cookie chỉ {httpOnly, sameSite:'lax'} — KHÔNG tự
+      // đặt Secure. Bật ở prod để _session/_interaction không đi qua HTTP trần
+      // (khớp với stage cookie của app vốn đã secure:true). Dev để tắt cho phép
+      // chạy http://localhost khi cần.
+      long: { secure: isProd },
       // Cookie interaction mặc định Path=/interaction/:uid — SPA gọi API tại
       // /api/interaction/:uid nên phải nới path để cookie đi kèm (AD-3)
-      short: { path: "/" },
+      short: { path: "/", secure: isProd },
     },
+
+    /**
+     * PKCE BẮT BUỘC cho MỌI client (RFC 9700 §2.1.1). oidc-provider v9 mặc định
+     * chỉ bắt buộc với client auth 'none' (portal SPA) → confidential client
+     * (QLTS, QLHS dùng client_secret_basic) có thể chạy code flow TRẦN. Hợp đồng
+     * tích hợp (docs/integration §205) vốn đã yêu cầu integrator gửi code_verifier
+     * nên đây chỉ là thực thi điều đã ghi. `plain` không reachable: v9 chỉ nhận S256.
+     */
+    pkce: { required: () => true },
 
     /**
      * Trang lỗi thô của oidc-provider (vd "interaction session not found" khi
