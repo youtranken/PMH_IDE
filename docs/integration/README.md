@@ -45,7 +45,7 @@ Bạn chỉ cần lo **kịch bản B** (thư viện OIDC lo hết phần redire
 
 > **Luôn dùng Discovery URL** thay vì hardcode từng endpoint — thư viện OIDC tự đọc cấu hình từ đó, và nếu endpoint đổi thì bạn không phải sửa code.
 >
-> **Prod vs môi trường local:** bảng trên là **prod** (`https://id.pmh.com.vn`, cổng 443 mặc định). Khi test trên máy dev, domain giữ nguyên nhưng có **cổng `:9443`** — ví dụ Issuer `https://id.pmh.com.vn:9443/oidc`, Discovery `https://id.pmh.com.vn:9443/oidc/.well-known/openid-configuration` (cần dòng hosts `127.0.0.1 id.pmh.com.vn`). Vẫn chỉ nên trỏ thư viện vào Discovery URL rồi để nó tự suy ra phần còn lại.
+> **Prod vs môi trường local:** URL **giống hệt nhau** — cùng `https://id.pmh.com.vn` (cổng 443). Từ khi gộp về EDGE nginx chung, môi trường dev **không còn cổng `:9443`**. Khi test trên máy dev chỉ cần: thêm dòng hosts `127.0.0.1 id.pmh.com.vn`, và **chấp nhận cert tự ký** (dev dùng self-signed; prod là cert wildcard thật). Vẫn chỉ nên trỏ thư viện vào Discovery URL rồi để nó tự suy ra phần còn lại.
 
 **Bạn cần khai với admin khi xin client:**
 - `redirect_uris`: URL callback của app, ví dụ `https://pmh.com.vn/projectA/auth/callback`.
@@ -114,6 +114,8 @@ app.listen(3000);
 
 Các ngôn ngữ khác: dùng thư viện OIDC certified tương ứng (PHP: `jumbojett/openid-connect-php`, .NET: `Microsoft.AspNetCore.Authentication.OpenIdConnect`, Java: Spring Security OAuth2). Nguyên tắc giống hệt.
 
+> ⚠️ **PKCE là BẮT BUỘC cho MỌI client** (kể cả confidential có `client_secret`). PMH ID **từ chối** mọi `/authorize` không kèm `code_challenge` (`code_challenge_method=S256`) với lỗi *"Authorization Server policy requires PKCE"*. Thư viện OIDC certified (openid-client, Spring, MSAL…) **tự gửi PKCE** — không cần làm gì thêm. Nhưng nếu bạn tự ghép URL authorize hoặc dùng cấu hình cũ tắt PKCE, đăng nhập sẽ **fail ngay ở bước authorize**. Chỉ chấp nhận `S256` (không nhận `plain`).
+
 ### 4.3 Verify JWT offline (quan trọng)
 
 Đừng gọi UserInfo mỗi request. Verify chữ ký JWT bằng public key lấy từ JWKS (thư viện cache sẵn):
@@ -173,7 +175,7 @@ https://id.pmh.com.vn/oidc/logout
     ?id_token_hint=<id_token nhận lúc login>
     &post_logout_redirect_uri=https%3A%2F%2Fqlts.pmh.com.vn   # url-encode; khớp hệt app_url
 
-# (dev) cùng URL nhưng thêm cổng :9443 → https://id.pmh.com.vn:9443/oidc/logout?...
+# (dev dùng CÙNG URL này — không còn cổng :9443 sau khi gộp EDGE)
 ```
 
 Còn **đăng xuất RIÊNG app** thì **không có URL nào tới PMH ID cả** — app chỉ tự xóa session của nó:
