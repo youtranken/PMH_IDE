@@ -41,9 +41,13 @@ openssl rand -base64 24                 # → BACKUP_PASSPHRASE=...
 - [ ] **Cert TLS thật** đặt vào `deploy/nginx/certs/` (thay cert tự ký của `gen-certs.sh`). Tên file `fullchain.pem`/`privkey.pem` khớp `deploy/edge/conf.d/*.conf`; EDGE mount thư mục này.
 - [ ] Kiểm `allowedHosts` FE đã có `id.pmh.com.vn` (đã có sẵn trong `vite.config.ts`, chỉ ảnh hưởng dev).
 
-### 3. SMTP thật
-- [ ] `SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD/SMTP_FROM` trỏ mail server thật (không mailpit).
+### 3. SMTP thật (cấu hình ở FE: Cấu hình → Email)
+- [ ] Vào **Cấu hình → Email** đặt: `smtp_host` (Gmail: `smtp.gmail.com`), `smtp_port`
+  (`587`), `smtp_user` (địa chỉ Gmail), `smtp_password` (**App password 16 ký tự** —
+  Google Account → Bảo mật → Xác minh 2 bước → Mật khẩu ứng dụng; KHÔNG dùng mật khẩu
+  Gmail thường), `smtp_from`. Mật khẩu lưu **mã hóa KEK**, chỉ nhập được, không hiện lại.
 - [ ] Gửi thử 1 mail (reset mật khẩu 1 user) và nhận được.
+- [ ] (Tùy chọn) `.env` có `SMTP_USER/PASSWORD/FROM` làm fallback — chỉ dùng khi setting để trống.
 
 ### 4. Compose prod
 - [ ] Xoá dòng `ports:` của service **postgres** trong `deploy/docker-compose.yml` (không mở DB ra host — file đã ghi chú "chỉ dev; prod bỏ dòng này").

@@ -68,7 +68,9 @@ export class SettingsService {
     // Cập nhật cache IN-PLACE (giữ loaded=true) → getIntSync đọc ngay giá trị
     // mới, TTL/policy có hiệu lực runtime không cần restart.
     if (this.loaded) this.cache.set(key, value);
-    this.logger.log(`setting updated: ${key}=${value}`);
+    // KHÔNG log giá trị của secret (vd smtp_password đã mã hóa 'enc:v1:...').
+    const shown = /password|secret/i.test(key) || value.startsWith("enc:v1:") ? "***" : value;
+    this.logger.log(`setting updated: ${key}=${shown}`);
   }
 
   /** Buộc nạp lại từ DB lần đọc kế (dùng khi nghi cache lệch, vd đa tiến trình). */

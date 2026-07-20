@@ -36,6 +36,9 @@ const LABELS: Record<string, string> = {
   expiry_warning_days: "Cảnh báo trước hết hạn (ngày)",
   smtp_host: "SMTP host",
   smtp_port: "SMTP port",
+  smtp_user: "SMTP user (địa chỉ email gửi)",
+  smtp_password: "SMTP mật khẩu (Gmail: app password)",
+  smtp_from: "Địa chỉ From (vd: PMH ID <no-reply@pmh.com.vn>)",
   backup_path: "Đường dẫn backup",
   audit_archive_path: "Đường dẫn lưu trữ audit",
   require_mfa_roles: "Vai bắt buộc MFA (phẩy, vd ssa,project_admin)",
@@ -57,8 +60,13 @@ const HELP: Record<string, string> = {
   bruteforce_ip_threshold: "Số lần sai liên tiếp từ MỘT địa chỉ IP (gồm cả gọi /token) trước khi bị làm chậm.",
   bruteforce_backoff_seconds: "Thời gian chờ tối đa bị áp khi vượt ngưỡng dò mật khẩu.",
   expiry_warning_days: "Gửi email nhắc trước khi tài khoản hết hạn bao nhiêu ngày.",
-  smtp_host: "Máy chủ gửi email (SMTP). Tài khoản/mật khẩu SMTP đặt ở .env, không ở đây.",
-  smtp_port: "Cổng máy chủ SMTP (vd 587, 465, 1025 cho Mailpit dev).",
+  smtp_host: "Máy chủ gửi email. Gmail: smtp.gmail.com.",
+  smtp_port: "Cổng SMTP. Gmail: 587 (STARTTLS) hoặc 465 (SSL). Mailpit dev: 1025.",
+  smtp_user: "Tài khoản đăng nhập SMTP — thường là địa chỉ Gmail gửi thư.",
+  smtp_password:
+    "Với Gmail PHẢI dùng 'App password' (16 ký tự) sinh ở Google Account → Bảo mật → Xác minh 2 bước → Mật khẩu ứng dụng — KHÔNG dùng mật khẩu Gmail thường. Lưu mã hóa; nhập để đổi, để trống = giữ nguyên.",
+  smtp_from:
+    "Địa chỉ hiển thị ở mục From. Gmail yêu cầu khớp tài khoản gửi (hoặc alias đã xác minh).",
   backup_path: "Thư mục lưu bản sao lưu đã mã hóa (pg_dump + .env + khóa ký).",
   audit_archive_path: "Thư mục lưu nhật ký audit đã nén theo tháng để đối soát lâu dài.",
   require_mfa_roles: "Vai trò bắt buộc bật xác thực 2 lớp (TOTP), phân tách bằng dấu phẩy — vd: ssa hoặc ssa,project_admin.",
@@ -71,11 +79,15 @@ const GROUPS: { title: string; icon: ReactNode; keys: string[] }[] = [
   { title: "Chống dò mật khẩu", icon: <SafetyOutlined />, keys: ["bruteforce_account_threshold", "bruteforce_ip_threshold", "bruteforce_backoff_seconds"] },
   { title: "Xác thực 2 lớp", icon: <SafetyCertificateOutlined />, keys: ["require_mfa_roles"] },
   { title: "Client & tích hợp", icon: <ApiOutlined />, keys: ["client_secret_grace_hours"] },
-  { title: "Email & cảnh báo", icon: <MailOutlined />, keys: ["smtp_host", "smtp_port", "expiry_warning_days"] },
+  { title: "Email & cảnh báo", icon: <MailOutlined />, keys: ["smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from", "expiry_warning_days"] },
   { title: "Vận hành & lưu trữ", icon: <DatabaseOutlined />, keys: ["backup_path", "audit_archive_path"] },
 ];
 
-const WIDE_KEYS = new Set(["smtp_host", "backup_path", "audit_archive_path", "require_mfa_roles"]);
+const WIDE_KEYS = new Set(["smtp_host", "smtp_user", "smtp_from", "backup_path", "audit_archive_path", "require_mfa_roles"]);
+// Ô bí mật: render password, write-only. Backend trả sentinel "__SET__" khi đã
+// đặt (không lộ giá trị); gửi lại sentinel = giữ nguyên.
+const SECRET_KEYS = new Set(["smtp_password"]);
+const SECRET_SET = "__SET__";
 
 function GroupIcon({ children }: { children: ReactNode }) {
   return (
@@ -109,7 +121,13 @@ export default function Settings() {
     api<Setting[]>("/api/admin/settings")
       .then((r) => {
         setRows(r);
-        setDraft(Object.fromEntries(r.map((s) => [s.key, s.value])));
+        // Ô bí mật luôn khởi tạo RỖNG (không đổ sentinel vào input) → người dùng
+        // nhập mới để đổi, để trống thì không gửi.
+        setDraft(
+          Object.fromEntries(
+            r.map((s) => [s.key, SECRET_KEYS.has(s.key) ? "" : s.value]),
+          ),
+        );
       })
       .finally(() => setLoading(false));
   useEffect(() => {
@@ -139,7 +157,10 @@ export default function Settings() {
   const Row = (key: string, isLast: boolean) => {
     const s = byKey[key];
     if (!s) return null;
-    const changed = draft[key] !== s.value;
+    const isSecret = SECRET_KEYS.has(key);
+    // Secret: "đổi" khi người dùng gõ gì đó (draft khởi tạo rỗng). Thường: khác giá trị cũ.
+    const changed = isSecret ? (draft[key] ?? "").length > 0 : draft[key] !== s.value;
+    const secretIsSet = isSecret && s.value === SECRET_SET;
     return (
       <div
         key={key}
@@ -163,12 +184,23 @@ export default function Settings() {
           </div>
           <code style={{ fontSize: 12, color: BRAND.muted }}>{key}</code>
         </div>
-        <Input
-          value={draft[key] ?? ""}
-          onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-          onPressEnter={() => changed && save(key)}
-          style={{ width: WIDE_KEYS.has(key) ? 300 : 150, flex: "0 0 auto" }}
-        />
+        {isSecret ? (
+          <Input.Password
+            value={draft[key] ?? ""}
+            placeholder={secretIsSet ? "•••• đã đặt — nhập để đổi" : "chưa đặt"}
+            autoComplete="new-password"
+            onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+            onPressEnter={() => changed && save(key)}
+            style={{ width: 300, flex: "0 0 auto" }}
+          />
+        ) : (
+          <Input
+            value={draft[key] ?? ""}
+            onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+            onPressEnter={() => changed && save(key)}
+            style={{ width: WIDE_KEYS.has(key) ? 300 : 150, flex: "0 0 auto" }}
+          />
+        )}
         <Button
           type="primary"
           loading={savingKey === key}
@@ -185,7 +217,7 @@ export default function Settings() {
     <div style={{ maxWidth: 860, margin: "0 auto", width: "100%" }}>
       <Title level={3} style={{ marginBottom: 2 }}>Cấu hình hệ thống</Title>
       <Text type="secondary" style={{ display: "block", marginBottom: 20 }}>
-        Tham số vận hành áp dụng ngay (không cần khởi động lại). Bí mật SMTP nằm ở .env.
+        Tham số vận hành áp dụng ngay (không cần khởi động lại). Mật khẩu SMTP lưu mã hóa, chỉ nhập được — không hiển thị lại.
       </Text>
 
       {loading && (
