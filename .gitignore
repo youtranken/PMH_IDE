@@ -26,7 +26,15 @@ keys/
 .playwright-mcp/
 /login-via-edge.png
 
+# graphify: bản đồ code sinh tự động (5MB+, đổi mỗi lần sửa code). Dựng lại bằng
+# `graphify update .` (chỉ AST, không tốn API) — không commit để khỏi phình lịch
+# sử + xung đột merge trên JSON to.
+graphify-out/
+
 # logs / misc
 *.log
 .DS_Store
 Thumbs.db
+
+# backup .env tu script sinh secret (chua secret)
+.env.bak.*
