@@ -4,8 +4,9 @@
  *   2. VERIFY JWT OFFLINE bằng JWKS (jose) — không gọi PMH ID mỗi request
  * (Directory API + webhook bổ sung ở Epic 8.)
  *
- * Chạy dev:  PMH_ISSUER=https://localhost:9443/oidc node dist/index.js
- * (dev cert self-signed → đặt NODE_TLS_REJECT_UNAUTHORIZED=0; prod KHÔNG)
+ * Chạy dev:  PMH_ISSUER=https://localhost/oidc node dist/index.js
+ * (dev cert self-signed → đặt NODE_TLS_REJECT_UNAUTHORIZED=0; prod KHÔNG.
+ *  Cổng 443 mặc định qua EDGE nginx — không còn :9443 sau khi gộp edge.)
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import express from "express";
@@ -13,7 +14,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import * as oidc from "openid-client";
 import { MAX_JWKS_CACHE_SECONDS } from "@pmh/shared";
 
-const ISSUER = process.env.PMH_ISSUER ?? "https://localhost:9443/oidc";
+const ISSUER = process.env.PMH_ISSUER ?? "https://localhost/oidc";
 const CLIENT_ID = process.env.PMH_CLIENT_ID ?? "demo-app";
 const CLIENT_SECRET = process.env.PMH_CLIENT_SECRET ?? "demo-secret-dev-only";
 const PORT = Number.parseInt(process.env.PORT ?? "4000", 10);

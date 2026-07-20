@@ -1,11 +1,11 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// Portal chạy sau Nginx (TLS 9443). Vite dev server nghe 5173 trong container;
-// Nginx proxy `/` vào đây. HMR websocket đi qua Nginx TLS nên clientPort = cổng
-// https public (mặc định 9443), có thể đổi bằng biến VITE_PUBLIC_HTTPS_PORT.
+// Portal chạy sau EDGE nginx (TLS 443). Vite dev server nghe 5173 trong container;
+// EDGE proxy `/` vào đây. HMR websocket đi qua EDGE TLS nên clientPort = cổng
+// https public (mặc định 443), có thể đổi bằng biến VITE_PUBLIC_HTTPS_PORT.
 const publicHttpsPort = Number.parseInt(
-  process.env.VITE_PUBLIC_HTTPS_PORT ?? "9443",
+  process.env.VITE_PUBLIC_HTTPS_PORT ?? "443",
   10,
 );
 
