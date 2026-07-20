@@ -1,5 +1,6 @@
 # PMH ID — hạ tầng dev. `docker compose -f deploy/docker-compose.yml up --build`
 # Cổng host lấy từ ../.env (né project khác đang chiếm 8080/8443).
+# EDGE (deploy/edge) là cổng vào 80/443 chung; stack này KHÔNG còn nginx riêng.
 name: pmh-id
 
 services:
@@ -16,6 +17,7 @@ services:
       PGTZ: Asia/Bangkok
     ports:
       - "${HOST_PG_PORT:-5490}:5432" # chỉ dev; prod bỏ dòng này. PMH ID quy định host = 5490
+    networks: [pmhid-internal]
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -33,6 +35,7 @@ services:
     ports:
       - "${HOST_MAILPIT_UI_PORT:-8026}:8025" # UI xem mail dev
       - "${HOST_MAILPIT_SMTP_PORT:-1026}:1025" # SMTP app gửi vào
+    networks: [pmhid-internal]
 
   sso-server:
     build:
@@ -48,11 +51,9 @@ services:
       PGTZ: Asia/Bangkok
       # host DB trong network compose là tên service `postgres`
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    # Cho container resolve host app nội bộ (chạy NGOÀI container, trên máy host)
-    # → gửi được Back-Channel Logout / webhook tới chúng. host-gateway =
-    # 192.168.65.254 trên Docker Desktop. Thêm dòng cho mỗi app nội bộ cần nhận.
-    extra_hosts:
-      - "qlts.pmh.com.vn:host-gateway"
+    # Mạng: edge (EDGE nginx proxy tới sso-server:3000; và sso-server resolve
+    # qlts.pmh.com.vn qua alias EDGE cho webhook/BCL) + pmhid-internal (postgres/mailpit).
+    networks: [edge, pmhid-internal]
     volumes:
       - signing_keys:/run/secrets/signing-keys
       - audit_archive:/archive
@@ -84,8 +85,10 @@ services:
     mem_limit: 512m # Vite dev server (prod tĩnh nginx dùng ít hơn nhiều)
     mem_reservation: 128m
     environment:
-      VITE_PUBLIC_HTTPS_PORT: ${HOST_HTTPS_PORT:-9443}
+      # EDGE chạy 443 → HMR websocket client nối cổng 443 (dev hot-reload).
+      VITE_PUBLIC_HTTPS_PORT: "443"
       TZ: Asia/Bangkok
+    networks: [edge]
     expose:
       - "5173"
 
@@ -104,36 +107,62 @@ services:
       SIGNING_KEYS_DIR: /run/secrets/signing-keys
       ENV_FILE: /secrets/.env
       BACKUP_OUT: /backups
+    networks: [pmhid-internal]
     volumes:
       - ../.env:/secrets/.env:ro
       - signing_keys:/run/secrets/signing-keys:ro
-      - backups:/backups
+      # Kho backup = THƯ MỤC HOST (BACKUP_DIR), không phải named volume: volume
+      # nằm cùng đĩa Docker với pg_data → hỏng đĩa là mất CẢ DB LẪN backup.
+      - ${BACKUP_DIR:-../../backup-pmhid}:/backups
     depends_on:
       postgres:
         condition: service_healthy
 
-  nginx:
-    image: nginx:1.27-alpine
+  # Hẹn giờ backup THƯỜNG TRÚ — thay cho cron host/Task Scheduler (host cài lại
+  # là mất lịch mà không ai biết). Dùng chung image + chung backup.sh với lần
+  # chạy tay để hai đường không lệch nhau.
+  #   Chạy tay 1 bản:  docker compose --profile backup run --rm backup
+  #   Xem lịch/log:    docker compose logs -f backup-cron
+  backup-cron:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
     restart: unless-stopped
-    mem_limit: 128m
+    mem_limit: 256m
+    entrypoint: ["sh", "/cron-loop.sh"]
+    env_file: ../.env
     environment:
-      # nginx envsubst thay vào default.conf.template lúc khởi động
-      HTTPS_REDIRECT_PORT: ${HOST_HTTPS_PORT:-9443}
       TZ: Asia/Bangkok
-    ports:
-      - "${HOST_HTTP_PORT:-9080}:80"
-      - "${HOST_HTTPS_PORT:-9443}:443"
+      PGTZ: Asia/Bangkok
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SIGNING_KEYS_DIR: /run/secrets/signing-keys
+      ENV_FILE: /secrets/.env
+      BACKUP_OUT: /backups
+      BACKUP_AT: ${BACKUP_AT:-02:00}
+    networks: [pmhid-internal]
     volumes:
-      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
+      - ../.env:/secrets/.env:ro
+      - signing_keys:/run/secrets/signing-keys:ro
+      - ${BACKUP_DIR:-../../backup-pmhid}:/backups
     depends_on:
-      sso-server:
-        condition: service_healthy # chờ lõi auth nghe cổng, tránh 502 lúc khởi động
-      portal-fe:
-        condition: service_started
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+networks:
+  # Cổng-vào chung (tạo ngoài: `docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 edge`
+  # — PIN subnet để webhook allowlist ổn định). sso-server & portal-fe join.
+  edge:
+    external: true
+  # Nội bộ PMH ID: postgres/mailpit/backup — EDGE và project khác KHÔNG thấy.
+  pmhid-internal:
 
 volumes:
   pg_data:
   signing_keys:
   audit_archive:
-  backups:
+  # `backups` KHÔNG còn là named volume — đã chuyển sang thư mục host BACKUP_DIR
+  # (xem service backup/backup-cron). Giữ chỗ này trống có chủ đích để không ai
+  # vô tình khai lại rồi backup quay về nằm cùng đĩa với pg_data.

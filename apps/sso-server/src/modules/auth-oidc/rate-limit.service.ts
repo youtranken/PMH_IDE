@@ -29,7 +29,7 @@ export class RateLimitService {
     await this.pool.query(
       `INSERT INTO login_attempts (identifier, client_id, ip, success)
        VALUES ($1, $2, $3, $4)`,
-      [identifier.toLowerCase(), clientId, ip, success],
+      [identifier.trim().toLowerCase(), clientId, ip, success],
     );
   }
 
@@ -52,7 +52,7 @@ export class RateLimitService {
        WHERE identifier = $1 AND created_at > now() - interval '${RateLimitService.WINDOW}'
        ORDER BY created_at DESC
        LIMIT 100`,
-      [identifier.toLowerCase()],
+      [identifier.trim().toLowerCase()],
     );
 
     // Đếm thất bại liên tiếp từ mới nhất tới lần thành công đầu tiên

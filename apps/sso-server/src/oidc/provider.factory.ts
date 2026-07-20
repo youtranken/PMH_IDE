@@ -8,6 +8,7 @@ import {
 import { Pool } from "pg";
 import { SettingsService } from "../config/settings.service";
 import { isClientLoginAllowed } from "../modules/auth-oidc/login.service";
+import { assertEgressAllowed } from "../modules/notifications/egress.util";
 import { importEsm } from "./esm";
 import { KeysService } from "./keys.service";
 import {
@@ -126,12 +127,45 @@ export async function createOidcProvider(
   const portalRedirects = config.get("PORTAL_REDIRECT_URI")
     ? config.get<string>("PORTAL_REDIRECT_URI")!.split(",").map((s) => s.trim())
     : [
-        "https://id.pmh.com.vn:9443/auth/callback",
-        "https://localhost:9443/auth/callback",
+        // EDGE nginx phục vụ portal ở cổng 443 (không port trong URL). Cổng 9443
+        // cũ đã bỏ khi gộp về EDGE chung — redirect_uri phải khớp location.origin
+        // của SPA (https://id.pmh.com.vn) nếu không authorize trả invalid_redirect_uri.
+        "https://id.pmh.com.vn/auth/callback",
+        "https://localhost/auth/callback",
       ];
   const portalPostLogout = Array.from(
     new Set(portalRedirects.map((u) => new URL(u).origin + "/")),
   );
+
+  // Portal quản trị = SPA công khai (không secret) đăng nhập bằng PKCE. Access
+  // token của client này là chứng chỉ vào API quản trị (Epic 4+): AdminGuard
+  // verify offline rồi đối chiếu admin_roles. redirect về /auth/callback do
+  // portal SPA xử lý (Epic 6).
+  const portalClient = {
+    client_id: config.get("PORTAL_CLIENT_ID") ?? "pmh-portal",
+    token_endpoint_auth_method: "none",
+    // SPA dùng location.origin → redirect_uris suy từ PORTAL_REDIRECT_URI
+    // (prod đặt domain thật; mặc định đã là https://id.pmh.com.vn).
+    redirect_uris: portalRedirects,
+    // Đăng xuất portal đi qua end_session rồi quay về origin "/" (đăng xuất
+    // THẬT, hủy phiên SSO) — phải khai địa chỉ này.
+    post_logout_redirect_uris: portalPostLogout,
+    response_types: ["code"],
+    grant_types: ["authorization_code", "refresh_token"],
+  };
+
+  // Demo app: CHỈ dev (seed sẵn secret) — prod dùng client thật tạo từ UI.
+  const demoClient = {
+    client_id: config.get("DEMO_CLIENT_ID") ?? "demo-app",
+    client_secret: config.get("DEMO_CLIENT_SECRET") ?? "demo-secret-dev-only",
+    redirect_uris: [
+      config.get("DEMO_CLIENT_REDIRECT_URI") ??
+        "http://localhost:4000/auth/callback",
+    ],
+    grant_types: ["authorization_code", "refresh_token"],
+    post_logout_redirect_uris: ["http://localhost:4000"],
+    backchannel_logout_uri: "http://localhost:4000/backchannel-logout",
+  };
 
   async function findAccount(_ctx: unknown, sub: string) {
     const claims = await loadUserClaims(pgPool, sub);
@@ -151,10 +185,24 @@ export async function createOidcProvider(
     jwks: { keys: keys.loadOrCreate() },
     cookies: {
       keys: cookieKeys,
+      // oidc-provider mặc định cookie chỉ {httpOnly, sameSite:'lax'} — KHÔNG tự
+      // đặt Secure. Bật ở prod để _session/_interaction không đi qua HTTP trần
+      // (khớp với stage cookie của app vốn đã secure:true). Dev để tắt cho phép
+      // chạy http://localhost khi cần.
+      long: { secure: isProd },
       // Cookie interaction mặc định Path=/interaction/:uid — SPA gọi API tại
       // /api/interaction/:uid nên phải nới path để cookie đi kèm (AD-3)
-      short: { path: "/" },
+      short: { path: "/", secure: isProd },
     },
+
+    /**
+     * PKCE BẮT BUỘC cho MỌI client (RFC 9700 §2.1.1). oidc-provider v9 mặc định
+     * chỉ bắt buộc với client auth 'none' (portal SPA) → confidential client
+     * (QLTS, QLHS dùng client_secret_basic) có thể chạy code flow TRẦN. Hợp đồng
+     * tích hợp (docs/integration §205) vốn đã yêu cầu integrator gửi code_verifier
+     * nên đây chỉ là thực thi điều đã ghi. `plain` không reachable: v9 chỉ nhận S256.
+     */
+    pkce: { required: () => true },
 
     /**
      * Trang lỗi thô của oidc-provider (vd "interaction session not found" khi
@@ -240,12 +288,15 @@ export async function createOidcProvider(
 
     // oidc-provider gắn dispatcher chống-SSRF (chặn MỌI IP private) vào mọi fetch
     // ra ngoài — kể cả Back-Channel Logout. App PMH nội bộ đều ở IP private → BCL
-    // bị chặn hết. Bỏ dispatcher đó để giao BCL tới nội bộ. An toàn: backchannel
-    // _logout_uri đã validate egress (https + allowlist CIDR) LÚC admin lưu
-    // (clients.service.update → assertEgressAllowed). Ta không dùng jwks_uri/
-    // request_uri/sector_uri nên đây là kênh ra duy nhất.
-    fetch: (url: string | URL, options: Record<string, unknown>) => {
+    // bị chặn hết. Ta gỡ dispatcher đó NHƯNG thay bằng egress guard của mình (https
+    // + chặn private TRỪ allowlist CIDR) áp NGAY LÚC GỬI (L6) — thay vì tin mỗi
+    // validate lúc admin lưu. Nhờ vậy mọi kênh egress của provider (BCL hiện tại,
+    // và jwks_uri/request_uri/sector_uri nếu bật sau) đều không thể SSRF nội bộ.
+    fetch: async (url: string | URL, options: Record<string, unknown>) => {
       const { dispatcher: _drop, ...rest } = options ?? {};
+      const allowlist =
+        (await settings.get("webhook_allowlist_cidr", "")) ?? "";
+      await assertEgressAllowed(String(url), allowlist); // ném nếu đích bị chặn
       return globalThis.fetch(url as string, rest);
     },
 
@@ -398,39 +449,12 @@ h3{font-weight:600;margin:0 0 8px}a{color:#1d7a4d;font-weight:600;text-decoratio
       return grant;
     },
 
-    // Client tĩnh: dev seed cho demo-app; client thật từ DB đến ở E5-S5
-    clients: isProd
-      ? []
-      : [
-          {
-            client_id: config.get("DEMO_CLIENT_ID") ?? "demo-app",
-            client_secret:
-              config.get("DEMO_CLIENT_SECRET") ?? "demo-secret-dev-only",
-            redirect_uris: [
-              config.get("DEMO_CLIENT_REDIRECT_URI") ??
-                "http://localhost:4000/auth/callback",
-            ],
-            grant_types: ["authorization_code", "refresh_token"],
-            post_logout_redirect_uris: ["http://localhost:4000"],
-            backchannel_logout_uri: "http://localhost:4000/backchannel-logout",
-          },
-          // Portal quản trị = SPA công khai (không secret) đăng nhập bằng PKCE.
-          // Access token của client này là chứng chỉ vào API quản trị (Epic 4+):
-          // AdminGuard verify offline rồi đối chiếu admin_roles. redirect về
-          // /auth/callback do portal SPA xử lý (Epic 6).
-          {
-            client_id: config.get("PORTAL_CLIENT_ID") ?? "pmh-portal",
-            token_endpoint_auth_method: "none",
-            // SPA dùng location.origin → đăng ký mọi host dev truy cập được.
-            // id.pmh.com.vn = domain chính thức; localhost giữ cho test/tương thích.
-            redirect_uris: portalRedirects,
-            // Đăng xuất portal đi qua end_session rồi quay về origin "/" (đăng
-            // xuất THẬT, hủy phiên SSO) — phải khai địa chỉ này.
-            post_logout_redirect_uris: portalPostLogout,
-            response_types: ["code"],
-            grant_types: ["authorization_code", "refresh_token"],
-          },
-        ],
+    // Client tĩnh. Portal quản trị PHẢI có ở MỌI môi trường: nó là SPA công khai
+    // (PKCE, không secret) nên KHÔNG thể đến từ DB — pg-adapter ép mọi DB client
+    // thành client_secret_basic, và clients.service cấm tạo client_id này
+    // (RESERVED_CLIENT_IDS). Nếu để prod rỗng thì bootstrap xong SSA cũng không
+    // có client nào để đăng nhập qua. demo-app thì chỉ dev.
+    clients: isProd ? [portalClient] : [demoClient, portalClient],
   });
 
   // Sau Nginx TLS termination — tin X-Forwarded-* đã được sanitize (AD-4)

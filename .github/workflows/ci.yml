@@ -1,0 +1,59 @@
+# CI tối thiểu: typecheck/build toàn monorepo + unit test bảo mật.
+#
+# PHẠM VI CÓ CHỦ Ý: chỉ chạy `pnpm build` + `pnpm test`. Bộ e2e
+# (apps/sso-server/test/*.e2e-spec.ts) KHÔNG chạy ở đây vì nó là black-box qua
+# HTTP tới edge và seed bằng `docker exec` vào container có tên cố định — cần
+# stack dev đang chạy. Chạy tay trước khi merge:
+#
+#   pnpm test:e2e        (cần: docker compose --env-file .env -f deploy/docker-compose.yml up -d)
+#
+# Đưa e2e vào CI được là việc riêng: phải dựng stack bằng service container +
+# bỏ phụ thuộc tên container cứng.
+name: CI
+
+on:
+  push:
+    branches: [main, "infra/**", "feat/**", "fix/**", "harden/**"]
+  pull_request:
+    branches: [main]
+
+# Đẩy commit mới lên cùng nhánh → hủy lượt chạy cũ, khỏi xếp hàng vô ích.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      # --frozen-lockfile: CI phải cài ĐÚNG cây phụ thuộc trong lockfile. Nếu
+      # bước này đỏ nghĩa là lockfile lệch package.json — sửa lockfile, đừng nới
+      # cờ (xem ghi chú AD-5 ở apps/sso-server/Dockerfile).
+      - name: Cài phụ thuộc
+        run: pnpm install --frozen-lockfile
+
+      # `pnpm -r build` chạy tsc cho cả shared, sso-server và portal-fe → đây
+      # chính là bước typecheck toàn repo, không chỉ là đóng gói.
+      - name: Build + typecheck toàn monorepo
+        run: pnpm build
+
+      - name: Unit test
+        run: pnpm test
+
+      # Cảnh báo sớm về CVE. Không chặn merge (`|| true`) vì phần lớn phát hiện
+      # nằm ở tooling dev; đọc log rồi quyết. Bỏ `|| true` khi đã dọn xong nợ
+      # hiện tại (multer <2.1.0 là dep RUNTIME — xem báo cáo rà soát tiền-prod).
+      - name: Quét lỗ hổng phụ thuộc (không chặn)
+        run: pnpm audit --audit-level high || true

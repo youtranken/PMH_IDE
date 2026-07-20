@@ -32,6 +32,7 @@ const URI_OPTS = {
 import type { Request } from "express";
 import { AdminGuard } from "../../common/admin/admin.guard";
 import { CurrentAdmin } from "../../common/admin/current-admin.decorator";
+import { Roles } from "../../common/admin/roles.decorator";
 import type { AdminContext } from "../../common/admin/admin.types";
 import { ClientsService } from "./clients.service";
 
@@ -190,6 +191,10 @@ export class ClientsController {
     return this.clients.removeGroup(id, groupId, admin, req.ip ?? null);
   }
 
+  // Chỉ SSA: cờ này nới quyền đăng nhập cho MỌI group (kể cả group tạo sau),
+  // tức mở cửa ứng dụng cho toàn công ty — quyết định cấp hệ thống, không phải
+  // cấp project.
+  @Roles("ssa")
   @Post(":id/allow-all")
   allowAll(
     @Param("id") id: string,

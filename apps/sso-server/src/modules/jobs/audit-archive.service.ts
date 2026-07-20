@@ -82,33 +82,45 @@ export class AuditArchiveService {
     if (!dir) return 0;
     mkdirSync(dir, { recursive: true });
 
-    // Chốt cutoff MỘT lần
-    const { rows: cr } = await this.pool.query<{ cutoff_month: string }>(
-      `SELECT to_char(now() - make_interval(days => $1), 'YYYY-MM') AS cutoff_month`,
-      [days],
-    );
-    const cutoffMonth = cr[0].cutoff_month;
-
-    // Chỉ các tháng HOÀN TOÀN trước tháng-cutoff (tháng trọn vẹn)
+    // Chốt cutoff MỘT lần = đầu tháng-cutoff, và lấy bản ghi CŨ NHẤT còn lại.
+    // Trước đây danh sách tháng lấy bằng `SELECT DISTINCT to_char(created_at,…)`
+    // — to_char không sargable nên quét TOÀN BẢNG, và với statement_timeout=10s
+    // thì job im lặng chết ở đây, audit_logs phình vĩnh viễn. min(created_at)
+    // dùng được index nên rẻ, rồi tự duyệt tháng bằng vòng lặp.
+    // Duyệt tháng TÍNH HOÀN TOÀN TRONG SQL. Không đưa mốc tháng qua JS Date:
+    // date_trunc trả mốc theo TimeZone phiên (Asia/Bangkok), đầu tháng 7 giờ VN
+    // là 2026-06-30T17:00Z → getUTCMonth() đọc ra tháng 6, lệch nguyên 1 tháng.
+    // generate_series + to_char giữ mọi thứ trong cùng một hệ quy chiếu với
+    // range predicate ($1||'-01')::timestamptz bên dưới.
     const { rows: months } = await this.pool.query<{ ym: string }>(
-      `SELECT DISTINCT to_char(created_at, 'YYYY-MM') AS ym
-       FROM audit_logs
-       WHERE to_char(created_at, 'YYYY-MM') < $1
-       ORDER BY ym`,
-      [cutoffMonth],
+      `SELECT to_char(m, 'YYYY-MM') AS ym
+       FROM generate_series(
+         (SELECT date_trunc('month', min(created_at)) FROM audit_logs),
+         date_trunc('month', now() - make_interval(days => $1))
+           - interval '1 month',
+         interval '1 month'
+       ) AS m
+       ORDER BY m`,
+      [days],
     );
 
     let total = 0;
+    // Chỉ các tháng HOÀN TOÀN trước tháng-cutoff (tháng trọn vẹn)
     for (const { ym } of months) {
       const file = join(dir, `audit-${ym}.jsonl.gz`);
       const count = await this.streamMonthToFile(ym, file);
-      // Tháng trọn vẹn → mọi bản ghi của ym đều thuộc diện lưu trữ; xóa cả tháng
-      await this.pool.query(
-        `DELETE FROM audit_logs WHERE to_char(created_at, 'YYYY-MM') = $1`,
-        [ym],
-      );
+      if (count > 0) {
+        // Tháng trọn vẹn → mọi bản ghi của ym đều thuộc diện lưu trữ; xóa cả
+        // tháng bằng range predicate (dùng audit_logs_created_idx).
+        await this.pool.query(
+          `DELETE FROM audit_logs
+           WHERE created_at >= ($1 || '-01')::timestamptz
+             AND created_at <  ($1 || '-01')::timestamptz + interval '1 month'`,
+          [ym],
+        );
+        this.logger.log(`audit ${ym}: ${count} bản → ${file}`);
+      }
       total += count;
-      this.logger.log(`audit ${ym}: ${count} bản → ${file}`);
     }
     return total;
   }
@@ -121,8 +133,12 @@ export class AuditArchiveService {
       let lastId = "0";
       for (;;) {
         const { rows } = await pool.query(
+          // Range predicate (dùng audit_logs_created_idx) thay cho to_char —
+          // to_char không sargable nên mỗi lô quét lại toàn bảng.
           `SELECT * FROM audit_logs
-           WHERE to_char(created_at, 'YYYY-MM') = $1 AND id > $2
+           WHERE created_at >= ($1 || '-01')::timestamptz
+             AND created_at <  ($1 || '-01')::timestamptz + interval '1 month'
+             AND id > $2
            ORDER BY id LIMIT $3`,
           [ym, lastId, AuditArchiveService.BATCH],
         );

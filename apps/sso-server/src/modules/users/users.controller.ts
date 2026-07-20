@@ -68,8 +68,8 @@ export class UsersController {
   ) {}
 
   @Get()
-  list() {
-    return this.users.list();
+  list(@CurrentAdmin() admin: AdminContext) {
+    return this.users.list(admin);
   }
 
   // Khai TRƯỚC @Get(":id") để "export" không bị bắt làm :id.
@@ -89,18 +89,18 @@ export class UsersController {
   }
 
   @Post("import/preview")
-  previewImport(@Body() dto: ImportDto) {
-    return this.csvImport.preview(dto.csv, dto.autoCreateGroups ?? false);
+  previewImport(@Body() dto: ImportDto, @CurrentAdmin() admin: AdminContext) {
+    return this.csvImport.preview(dto.csv, dto.autoCreateGroups ?? false, admin);
   }
 
   @Post("import/commit")
-  commitImport(@Body() dto: ImportDto) {
-    return this.csvImport.commit(dto.csv, dto.autoCreateGroups ?? false);
+  commitImport(@Body() dto: ImportDto, @CurrentAdmin() admin: AdminContext) {
+    return this.csvImport.commit(dto.csv, dto.autoCreateGroups ?? false, admin);
   }
 
   @Get(":id")
-  get(@Param("id") id: string) {
-    return this.users.get(id);
+  get(@Param("id") id: string, @CurrentAdmin() admin: AdminContext) {
+    return this.users.getScoped(id, admin);
   }
 
   @Post()
@@ -129,7 +129,7 @@ export class UsersController {
     @CurrentAdmin() admin: AdminContext,
     @Req() req: Request,
   ) {
-    return this.users.update(id, dto, admin.userId, req.ip ?? null);
+    return this.users.update(id, dto, admin, req.ip ?? null);
   }
 
   @Post(":id/delete")

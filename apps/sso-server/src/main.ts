@@ -47,9 +47,27 @@ function basicClientId(auth: string | undefined): string | null {
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Sau Nginx (TLS termination + sanitize X-Forwarded-*, AD-4). Tin đúng 1 hop.
-  // Prod: siết về IP/subnet Nginx thay vì true.
-  app.set("trust proxy", 1);
+  // Sau Nginx (TLS termination + sanitize X-Forwarded-*, AD-4). CHỈ tin XFF từ
+  // mạng edge (subnet PIN 172.20.0.0/16) + loopback (healthcheck) — KHÔNG tin mọi
+  // hop như `true`/`1`, để kẻ chạm thẳng :3000 không giả được X-Forwarded-For qua
+  // mặt limiter/audit theo IP (M6). Siết hơn: pin IP tĩnh cho nginx, chỉ tin IP đó.
+  app.set("trust proxy", "loopback, 172.20.0.0/16");
+
+  // Security headers (M4): HSTS ép HTTPS; chống clickjacking (trang logout OIDC
+  // tự-submit KHÔNG được nhúng iframe); chặn MIME-sniff; giấu referrer. SPA do
+  // Nginx phục vụ — đây phủ /oidc (HTML), /api (JSON), /docs. CSP đầy đủ cho SPA
+  // đặt ở FE; ở đây chỉ frame-ancestors để không phá trang tương tác OIDC.
+  app.use((_req: Request, res: Response, next: NextFunction): void => {
+    res.setHeader(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    );
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+    next();
+  });
 
   // Parse cookie cho các route /api (vé giai đoạn đăng nhập — StageService).
   // oidc-provider tự quản cookie riêng nên không bị ảnh hưởng.

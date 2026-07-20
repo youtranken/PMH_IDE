@@ -15,11 +15,16 @@ import { ConfigService } from "@nestjs/config";
 export class StageService {
   static readonly COOKIE = "auth_stage";
   private static readonly TTL_MS = 5 * 60 * 1000; // 5' đủ cho vài bước
-  private readonly secret: string;
+  private readonly macKey: Buffer;
 
   constructor(config: ConfigService) {
-    // Dẫn xuất từ COOKIE_KEYS (đã là bí mật hạ tầng .env, AD-15)
-    this.secret = config.getOrThrow<string>("COOKIE_KEYS").split(",")[0].trim();
+    // Dẫn xuất SUB-KEY riêng từ COOKIE_KEYS (bí mật .env, AD-15) — domain-
+    // separated để không dùng chung byte khóa với chữ ký cookie của oidc-provider
+    // (Keygrip cùng COOKIE_KEYS). Cùng pattern client-secret.util (L4).
+    const base = config.getOrThrow<string>("COOKIE_KEYS").split(",")[0].trim();
+    this.macKey = createHmac("sha256", base)
+      .update("pmh:stage-ticket-mac-key:v1")
+      .digest();
   }
 
   /** Ký vé cho (uid,userId,step). `step` ràng vé vào ĐÚNG bước kế → không cho
@@ -56,6 +61,6 @@ export class StageService {
   }
 
   private mac(body: string): string {
-    return createHmac("sha256", this.secret).update(body).digest("base64url");
+    return createHmac("sha256", this.macKey).update(body).digest("base64url");
   }
 }

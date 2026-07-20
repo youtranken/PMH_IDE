@@ -9,6 +9,9 @@
   },
   "scripts": {
     "build": "pnpm -r build",
+    "test": "pnpm --filter @pmh/sso-server test",
+    "test:e2e": "pnpm --filter @pmh/sso-server test:e2e",
+    "check": "pnpm build && pnpm test",
     "dev": "docker compose --env-file .env -f deploy/docker-compose.yml up --build",
     "dev:fast": "docker compose --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml up -d",
     "down": "docker compose --env-file .env -f deploy/docker-compose.yml down",
@@ -17,5 +20,10 @@
     "migrate:down": "pnpm --filter @pmh/sso-server migrate:down",
     "certs": "bash deploy/gen-certs.sh"
   },
-  "packageManager": "pnpm@9.15.9"
+  "packageManager": "pnpm@9.15.9",
+  "pnpm": {
+    "overrides": {
+      "multer@<2.1.0": ">=2.1.0"
+    }
+  }
 }

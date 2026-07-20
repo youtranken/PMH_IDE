@@ -48,11 +48,19 @@ export class ForgotPasswordController {
       res.status(429);
       return { error: "rate_limited", retryAfter: wait };
     }
-    await this.rateLimit.record(key, null, ip, false);
+    // Backoff RIÊNG theo email (key) — KHÔNG ghi `ip` để không bơm counter
+    // per-IP dùng chung với /interaction/login: nếu không, ~20 lượt quên-MK hợp
+    // lệ sau một NAT công ty sẽ backoff luôn đăng nhập của mọi người (L3).
+    await this.rateLimit.record(key, null, null, false);
 
+    // Loại break-glass: tài khoản này BYPASS MFA (mfa.isRequired) nên nếu cho
+    // tự phục vụ quên-MK thì hòm thư trở thành đường MỘT yếu tố vào SSA. Khôi
+    // phục break-glass đi theo runbook offline. (Đồng bộ với users.list/get,
+    // directory, csv-export — mọi nơi khác đều đã ẩn.)
     const { rows } = await this.pool.query<{ id: string }>(
       `SELECT id FROM users
-       WHERE lower(email) = $1 AND deleted_at IS NULL AND status = 'active'`,
+       WHERE lower(email) = $1 AND deleted_at IS NULL AND status = 'active'
+         AND is_breakglass = false`,
       [email],
     );
 

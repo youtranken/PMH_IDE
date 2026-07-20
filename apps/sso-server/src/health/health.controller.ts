@@ -28,6 +28,7 @@ export class HealthController {
     // status() gồm nhiều query, DB chậm không được kéo /health treo theo).
     let scheduler = null;
     let stalePending = null;
+    let deadLettered = null;
     try {
       const s = await Promise.race([
         this.heartbeat?.status() ?? Promise.resolve(null),
@@ -36,6 +37,7 @@ export class HealthController {
       if (s) {
         scheduler = s.scheduler;
         stalePending = s.stalePending;
+        deadLettered = s.deadLettered;
       }
     } catch {
       /* best-effort */
@@ -47,6 +49,7 @@ export class HealthController {
       provider: this.provider ? "up" : "down",
       scheduler,
       stalePending,
+      deadLettered,
       claimsVersion: JWT_CLAIMS_VERSION,
       ts: new Date().toISOString(),
     };

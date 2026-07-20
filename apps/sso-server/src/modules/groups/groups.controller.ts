@@ -51,8 +51,8 @@ export class GroupsController {
   }
 
   @Get(":id")
-  get(@Param("id") id: string) {
-    return this.groups.get(id);
+  get(@Param("id") id: string, @CurrentAdmin() admin: AdminContext) {
+    return this.groups.getScoped(id, admin);
   }
 
   @Post()
@@ -81,8 +81,8 @@ export class GroupsController {
   }
 
   @Get(":id/members")
-  listMembers(@Param("id") id: string) {
-    return this.groups.listMembers(id);
+  listMembers(@Param("id") id: string, @CurrentAdmin() admin: AdminContext) {
+    return this.groups.listMembers(id, admin);
   }
 
   @Post(":id/members")

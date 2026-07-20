@@ -38,19 +38,31 @@ openssl rand -base64 24                 # → BACKUP_PASSPHRASE=...
 - [ ] `NODE_ENV=production`.
 - [ ] `OIDC_ISSUER=https://id.pmh.com.vn/oidc` (KHÔNG localhost). Issuer đổi = mọi client phải cập nhật.
 - [ ] DNS `id.pmh.com.vn` → IP host prod.
-- [ ] **Cert TLS thật** đặt vào `deploy/nginx/certs/` (thay cert tự ký của `gen-certs.sh`). Tên file khớp `deploy/nginx/default.conf.template`.
+- [ ] **Cert TLS thật** đặt vào `deploy/nginx/certs/` (thay cert tự ký của `gen-certs.sh`). Tên file `fullchain.pem`/`privkey.pem` khớp `deploy/edge/conf.d/*.conf`; EDGE mount thư mục này.
 - [ ] Kiểm `allowedHosts` FE đã có `id.pmh.com.vn` (đã có sẵn trong `vite.config.ts`, chỉ ảnh hưởng dev).
 
-### 3. SMTP thật
-- [ ] `SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD/SMTP_FROM` trỏ mail server thật (không mailpit).
+### 3. SMTP thật (cấu hình ở FE: Cấu hình → Email)
+- [ ] Vào **Cấu hình → Email** đặt: `smtp_host` (Gmail: `smtp.gmail.com`), `smtp_port`
+  (`587`), `smtp_user` (địa chỉ Gmail), `smtp_password` (**App password 16 ký tự** —
+  Google Account → Bảo mật → Xác minh 2 bước → Mật khẩu ứng dụng; KHÔNG dùng mật khẩu
+  Gmail thường), `smtp_from`. Mật khẩu lưu **mã hóa KEK**, chỉ nhập được, không hiện lại.
 - [ ] Gửi thử 1 mail (reset mật khẩu 1 user) và nhận được.
+- [ ] (Tùy chọn) `.env` có `SMTP_USER/PASSWORD/FROM` làm fallback — chỉ dùng khi setting để trống.
 
 ### 4. Compose prod
 - [ ] Xoá dòng `ports:` của service **postgres** trong `deploy/docker-compose.yml` (không mở DB ra host — file đã ghi chú "chỉ dev; prod bỏ dòng này").
-- [ ] Lên bằng override prod (FE build tĩnh, tắt mailpit):
+- [ ] Lên bằng override prod (FE build tĩnh, tắt mailpit). **Phải có `--env-file .env`**
+  — compose tìm `.env` cạnh file compose (`deploy/.env`, không tồn tại), không phải
+  thư mục đang đứng; thiếu cờ này thì `DATABASE_URL` nội suy rỗng và container chết
+  với `no PostgreSQL user name specified in startup packet`:
   ```bash
-  docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+  docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 edge   # 1 lần
+  docker compose --env-file .env -f deploy/docker-compose.yml \
+    -f deploy/docker-compose.prod.yml up -d --build
+  docker compose --env-file .env -f deploy/edge/docker-compose.yml up -d
   ```
+- [ ] `BACKUP_DIR` trỏ thư mục host **khác đĩa** với Docker/pg_data (mặc định named
+  volume = backup nằm cùng đĩa với DB, hỏng đĩa mất cả hai).
 
 ### 5. Migrate DB
 - [ ] `docker compose ... exec sso-server pnpm migrate:up` (hoặc để CMD tự chạy lần đầu). Kiểm `migrations` chạy hết, không lỗi.

@@ -37,13 +37,37 @@ export class MeService {
     return { enabled: (await this.mfa.status(userId)).enabled };
   }
 
-  /** Bước 1: sinh secret (chưa bật) + trả QR data URL để quét. */
-  async mfaSetup(userId: string): Promise<{ otpauth: string; qr: string }> {
+  /**
+   * Bước 1: sinh secret (chưa bật) + trả QR data URL để quét.
+   *
+   * CHẶN khi MFA ĐANG BẬT: beginEnroll ghi đè secret và đặt enabled=false, nên
+   * nếu cho gọi tự do thì đây là đường TẮT MFA mà không cần chứng minh sở hữu —
+   * vòng qua toàn bộ hàng rào của mfaDisable. Muốn đổi thiết bị: tắt (nhập mã
+   * hiện tại) rồi thiết lập lại.
+   */
+  async mfaSetup(
+    userId: string,
+    ip: string | null,
+  ): Promise<{ otpauth: string; qr: string }> {
+    if ((await this.mfa.status(userId)).enabled) {
+      throw new BadRequestException(
+        "MFA đang bật — hãy tắt (cần mã hiện tại) trước khi thiết lập lại",
+      );
+    }
     const { rows } = await this.pool.query<{ email: string }>(
       `SELECT email FROM users WHERE id = $1`,
       [userId],
     );
     const otpauth = await this.mfa.beginEnroll(userId, rows[0]?.email ?? userId);
+    // Ghi vết: đây là bước làm MẤT yếu tố thứ hai cũ (secret cũ bị thay).
+    await this.audit.record({
+      actorUserId: userId,
+      action: "mfa.secret_reset",
+      targetType: "user",
+      targetId: userId,
+      ip,
+      detail: { via: "self-service" },
+    });
     return { otpauth, qr: await QRCode.toDataURL(otpauth) };
   }
 

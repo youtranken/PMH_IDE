@@ -30,14 +30,10 @@ export class EnvVars {
   @IsNotEmpty()
   KEK_BASE64!: string;
 
-  @IsString()
-  @IsNotEmpty()
-  SMTP_HOST!: string;
-
-  @IsString()
-  @IsNotEmpty()
-  SMTP_PORT!: string;
-
+  // SMTP_HOST/SMTP_PORT KHÔNG khai ở đây: host/port đọc từ bảng settings (SSA
+  // chỉnh runtime qua FE — MailerService.resolve), không phải .env. Trước đây
+  // bắt buộc ở .env nhưng KHÔNG code nào đọc → biến chết gây hiểu nhầm "host
+  // nhập ở .env". Creds (SMTP_USER/PASSWORD) tùy chọn; SMTP_FROM bắt buộc.
   @IsString()
   @IsNotEmpty()
   SMTP_FROM!: string;

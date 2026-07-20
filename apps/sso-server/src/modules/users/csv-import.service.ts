@@ -5,6 +5,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { Pool, type PoolClient } from "pg";
+import type { AdminContext } from "../../common/admin/admin.types";
 import { PG_POOL } from "../../database/database.module";
 import { parseCsv, splitGroups } from "./csv.util";
 import { TempPasswordService } from "./temp-password.service";
@@ -53,16 +54,21 @@ export class CsvImportService {
     private readonly tempPassword: TempPasswordService,
   ) {}
 
-  async preview(csv: string, autoCreateGroups: boolean): Promise<ImportReport> {
-    const { rows } = await this.validate(csv, autoCreateGroups);
+  async preview(
+    csv: string,
+    autoCreateGroups: boolean,
+    admin: AdminContext,
+  ): Promise<ImportReport> {
+    const { rows } = await this.validate(csv, autoCreateGroups, admin);
     return this.summarize(rows);
   }
 
   async commit(
     csv: string,
     autoCreateGroups: boolean,
+    admin: AdminContext,
   ): Promise<ImportReport> {
-    const { rows } = await this.validate(csv, autoCreateGroups);
+    const { rows } = await this.validate(csv, autoCreateGroups, admin);
     for (const r of rows) {
       if (r.status !== "ok") {
         r.status = "skipped"; // dòng lỗi ở preview → bỏ qua, giữ nguyên errors
@@ -88,6 +94,7 @@ export class CsvImportService {
   private async validate(
     csv: string,
     autoCreateGroups: boolean,
+    admin: AdminContext,
   ): Promise<{ rows: RowResult[] }> {
     const grid = parseCsv(csv);
     if (grid.length === 0) throw new BadRequestException("CSV rỗng");
@@ -124,6 +131,21 @@ export class CsvImportService {
     const dbCodes = new Set(users.rows.map((u) => u.employee_code));
     const dbGroups = new Set(groups.rows.map((g) => g.name));
 
+    // project_admin chỉ được gán vào group THUỘC phạm vi project mình (như
+    // assertCanManage) — chặn cấy user vào group của project khác qua import.
+    // SSA bỏ qua. Group auto-tạo mới không gán client nào nên vô hại → cho phép.
+    let scopedGroups: Set<string> | null = null;
+    if (!admin.isSsa) {
+      const sg = await this.pool.query<{ name: string }>(
+        `SELECT DISTINCT lower(g.name) AS name
+         FROM groups g JOIN client_groups cg ON cg.group_id = g.id
+         JOIN clients c ON c.id = cg.client_id
+         WHERE c.project_id = ANY($1::uuid[])`,
+        [admin.projectIds],
+      );
+      scopedGroups = new Set(sg.rows.map((r) => r.name));
+    }
+
     const seenEmails = new Set<string>();
     const seenCodes = new Set<string>();
     const rows: RowResult[] = [];
@@ -155,9 +177,12 @@ export class CsvImportService {
         errors.push("mã NV đã có trong hệ thống");
 
       for (const g of data.groups) {
-        if (!dbGroups.has(g.toLowerCase())) {
+        const gl = g.toLowerCase();
+        if (!dbGroups.has(gl)) {
           if (autoCreateGroups) newGroups.push(g);
           else errors.push(`group chưa tồn tại: ${g}`);
+        } else if (scopedGroups && !scopedGroups.has(gl)) {
+          errors.push(`group ngoài phạm vi project của bạn: ${g}`);
         }
       }
 

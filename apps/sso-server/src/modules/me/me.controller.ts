@@ -76,8 +76,8 @@ export class MeController {
   }
 
   @Post("mfa/setup")
-  mfaSetup(@CurrentUser() userId: string) {
-    return this.me.mfaSetup(userId);
+  mfaSetup(@CurrentUser() userId: string, @Req() req: Request) {
+    return this.me.mfaSetup(userId, req.ip ?? null);
   }
 
   @Post("mfa/enable")
