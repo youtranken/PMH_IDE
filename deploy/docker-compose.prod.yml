@@ -15,6 +15,5 @@ services:
   mailpit:
     profiles: ["disabled"]
 
-  # LƯU Ý: postgres không nên mở cổng ra host ở prod. Compose không xoá được `ports`
-  # qua override → xoá TAY dòng `ports:` của postgres trong docker-compose.yml (đã ghi
-  # chú "chỉ dev; prod bỏ dòng này"). Xem checklist mục 4.
+  # postgres: cổng ra host đã được TÁCH sang docker-compose.dev.yml → base (prod)
+  # KHÔNG phơi 5490. Không cần thao tác tay nữa (trước đây phải xóa dòng `ports`).

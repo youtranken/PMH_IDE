@@ -15,8 +15,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       TZ: Asia/Bangkok # giờ VN (UTC+7) — đồng bộ log/hiển thị; timestamptz vẫn lưu UTC
       PGTZ: Asia/Bangkok
-    ports:
-      - "${HOST_PG_PORT:-5490}:5432" # chỉ dev; prod bỏ dòng này. PMH ID quy định host = 5490
+    # KHÔNG mở cổng DB ra host ở prod (chống H2). Cổng 5490 chỉ bật khi dev qua
+    # docker-compose.dev.yml. Trước đây `ports` nằm đây và prod phải xóa tay.
     networks: [pmhid-internal]
     volumes:
       - pg_data:/var/lib/postgresql/data

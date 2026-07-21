@@ -8,6 +8,12 @@
 # container → phải bật polling để watcher thấy thay đổi.
 
 services:
+  # Cổng DB ra host CHỈ ở dev (debug bằng psql/DBeaver). Prod không mở (base
+  # compose đã bỏ `ports` của postgres — chống phơi 5490 ra host).
+  postgres:
+    ports:
+      - "${HOST_PG_PORT:-5490}:5432" # PMH ID quy định host = 5490
+
   sso-server:
     # MỘT chủ sở hữu dist duy nhất = tsc -w (không nest build/deleteOutDir để
     # tránh tranh xóa). node --watch chờ tới khi có dist/main.js rồi chạy,
