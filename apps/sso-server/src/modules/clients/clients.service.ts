@@ -110,6 +110,24 @@ export class ClientsService {
     return randomBytes(32).toString("base64url");
   }
 
+  /**
+   * Client PROD chỉ được dùng URL https (L1): redirect_uri/app_url/BCL http trên
+   * prod = kênh chuyển code/logout_token qua HTTP → nghe lén/đánh cắp mã. Dev vẫn
+   * cho http (localhost không TLS). Controller cho cả http|https vì không thấy env
+   * ở decorator; chốt env-aware ở đây.
+   */
+  private assertHttpsIfProd(env: string, urls: (string | undefined)[]): void {
+    if (env !== "prod") return;
+    for (const u of urls) {
+      const v = u?.trim();
+      if (v && !/^https:\/\//i.test(v)) {
+        throw new BadRequestException(
+          `client prod chỉ chấp nhận URL https (không http): ${v}`,
+        );
+      }
+    }
+  }
+
   private scopeClause(admin: AdminContext, param: string): string {
     return admin.isSsa ? "TRUE" : `project_id = ANY(${param}::uuid[])`;
   }
@@ -179,6 +197,7 @@ export class ClientsService {
     if (RESERVED_CLIENT_IDS.has(input.clientId.trim())) {
       throw new ConflictException("client_id này dành riêng cho hệ thống");
     }
+    this.assertHttpsIfProd(input.env, [...input.redirectUris, input.appUrl]);
     const secret = this.genSecret();
     const hash = await argon2.hash(secret);
     const client = await this.pool.connect();
@@ -234,7 +253,12 @@ export class ClientsService {
     admin: AdminContext,
     ip: string | null,
   ): Promise<ClientRow> {
-    await this.getScoped(id, admin);
+    const existing = await this.getScoped(id, admin);
+    this.assertHttpsIfProd(existing.env, [
+      ...(input.redirectUris ?? []),
+      input.appUrl,
+      input.backchannelLogoutUri,
+    ]);
     const sets: string[] = [];
     const vals: unknown[] = [];
     let i = 1;
