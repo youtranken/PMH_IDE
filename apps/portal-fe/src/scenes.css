@@ -75,6 +75,12 @@
 .sc-shimmer { animation: scShimmer 5s ease-in-out infinite; }
 @keyframes scShimmer { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.5; } }
 
+/* Gợn nước: transform rất nhẹ (composited GPU) thay cho animate feTurbulence */
+.sc-water { animation: scWater 7s ease-in-out infinite alternate; transform-origin: center top; }
+@keyframes scWater { from { transform: translateY(0) skewX(0deg); } to { transform: translateY(2px) skewX(0.6deg); } }
+.sc-ray { animation: scRay 9s ease-in-out infinite alternate; }
+@keyframes scRay { from { opacity: 0.7; } to { opacity: 1; } }
+
 .sc-balloon { animation: scBalloon 66s linear infinite; }
 @keyframes scBalloon {
   0% { transform: translate(-200px, 0); }

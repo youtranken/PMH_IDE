@@ -2,7 +2,7 @@ import { Alert, Button, Checkbox, Form, Input, List } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone, LockOutlined, UserOutlined } from "@ant-design/icons";
 import { Brand, BRAND } from "../ui";
 import { LoginScene } from "../scenes";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   checkPassword,
   PASSWORD_RULE_LABELS,
@@ -13,7 +13,16 @@ import {
 const authCss = `
 .pmh-auth{position:fixed;inset:0;overflow:auto;isolation:isolate;background:#082b27;}
 /* Ảnh phối cảnh full-bleed + Ken Burns zoom chậm (thay bằng ảnh render thật sau) */
-.pmh-auth__bg{position:absolute;inset:0;z-index:0;}
+.pmh-auth__bg{position:absolute;inset:0;z-index:0;overflow:hidden;}
+.pmh-auth__bgi{position:absolute;inset:0;}
+/* Vignette điện ảnh + hạt phim (grain TĨNH — tính 1 lần, GPU rẻ) */
+.pmh-auth__vignette{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(125% 105% at 50% 40%, transparent 52%, rgba(4,8,16,.5) 100%);}
+.pmh-auth__grain{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;background-size:150px 150px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+/* Card: viền vàng mảnh trên đỉnh + vi tương tác */
+.pmh-card::before{content:"";position:absolute;top:0;left:26px;right:26px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#C9A24B,transparent);}
+.pmh-card .ant-btn-primary{transition:transform .16s ease, box-shadow .16s ease;}
+.pmh-card .ant-btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(14,77,69,.34);}
+.pmh-card .ant-input-affix-wrapper-focused,.pmh-card .ant-input:focus,.pmh-card .ant-input-affix-wrapper:focus-within{box-shadow:0 0 0 3px rgba(201,162,75,.2)!important;}
 /* Lớp phủ tối để khung login + chữ nổi rõ trên scene động */
 .pmh-auth__overlay{position:absolute;inset:0;z-index:1;background:
   linear-gradient(110deg, rgba(9,16,30,.8) 0%, rgba(9,16,30,.18) 44%, rgba(8,14,26,.48) 64%, rgba(8,14,26,.8) 100%);}
@@ -67,6 +76,7 @@ export default function InteractionLogin({ uid }: { uid: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dead, setDead] = useState(false);
+  const bgRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch(`/api/interaction/${uid}`, { credentials: "same-origin" })
@@ -74,6 +84,15 @@ export default function InteractionLogin({ uid }: { uid: string }) {
       .then((d) => setClientName(d.clientName ?? d.clientId))
       .catch(() => setDead(true));
   }, [uid]);
+
+  // Tôn trọng reduced-motion: freeze SMIL ở khung hoàng hôn cho người nhạy cảm
+  // chuyển động (SMIL không nghe @media prefers-reduced-motion nên phải chặn tay).
+  useEffect(() => {
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const svg = bgRef.current?.querySelector("svg") as (SVGSVGElement & { pauseAnimations?: () => void; setCurrentTime?: (t: number) => void }) | null;
+    svg?.pauseAnimations?.();
+    svg?.setCurrentTime?.(11);
+  }, []);
 
   /** Xử lý phản hồi chung: điều hướng / chuyển bước / lỗi. */
   function handle(res: { status: number; data: any }): boolean {
@@ -189,9 +208,13 @@ export default function InteractionLogin({ uid }: { uid: string }) {
     <div className="pmh-auth">
       <style>{authCss}</style>
       <div className="pmh-auth__bg">
-        <LoginScene />
+        <div className="pmh-auth__bgi" ref={bgRef}>
+          <LoginScene />
+        </div>
       </div>
       <div className="pmh-auth__overlay" />
+      <div className="pmh-auth__vignette" />
+      <div className="pmh-auth__grain" />
       <div className="pmh-auth__wrap">
         <div className="pmh-auth__hero">
           <div className="pmh-auth__logo">

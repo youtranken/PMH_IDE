@@ -216,7 +216,7 @@ interface BandOpts {
   sx: number;
   sy: number;
 }
-function band(seed: number, o: BandOpts, lightUp = false): ReactElement[] {
+function band(seed: number, o: BandOpts, lightUp = false, noFlicker = false): ReactElement[] {
   const r = rng(seed);
   const els: ReactElement[] = [];
   let x = -30;
@@ -231,14 +231,17 @@ function band(seed: number, o: BandOpts, lightUp = false): ReactElement[] {
         for (let wx = x + 14; wx < x + bw - 12; wx += o.sx) {
           if (r() > 0.34) {
             if (lightUp) {
-              // Về chiều đèn bật DẦN (mỗi ô một thời điểm) rồi NHẤP NHÁY: ô tắt ô mở.
+              // Về chiều đèn bật DẦN rồi NHẤP NHÁY. Luôn tiêu thụ rng như nhau để
+              // phản chiếu (noFlicker) khớp layout với skyline thật.
               const b = 2 + r() * 7;
-              const flick = r() < 0.42;
+              const willFlick = r() < 0.3;
+              const fdur = 3 + r() * 4;
+              const showFlick = willFlick && !noFlicker;
               els.push(
                 <rect key={`w${i}-${wx}-${wy}`} x={wx} y={wy} width={5} height={9} fill={o.win} opacity={0}>
                   <animate attributeName="opacity" begin={`${b.toFixed(1)}s`} dur="1s" fill="freeze" values="0;0.9" />
-                  {flick ? (
-                    <animate attributeName="opacity" begin={`${(b + 1).toFixed(1)}s`} dur={`${(3 + r() * 4).toFixed(1)}s`} repeatCount="indefinite" values="0.9;0.5;0.92;0.15;0.85;0.6;0.9" />
+                  {showFlick ? (
+                    <animate attributeName="opacity" begin={`${(b + 1).toFixed(1)}s`} dur={`${fdur.toFixed(1)}s`} repeatCount="indefinite" values="0.9;0.5;0.92;0.15;0.85;0.6;0.9" />
                   ) : null}
                 </rect>,
               );
@@ -303,7 +306,7 @@ export function LoginScene() {
   const w = 1600;
   const h = 900;
   const horizon = 706;
-  const nearOpts: BandOpts = { w: w + 60, baseY: horizon + 8, minH: 180, maxH: 430, win: "#ffcf8c", fill: "#111a2b", twinkleProb: 0.18, sx: 28, sy: 30 };
+  const nearOpts: BandOpts = { w: w + 60, baseY: horizon + 8, minH: 180, maxH: 430, win: "#ffcf8c", fill: "#111a2b", twinkleProb: 0.18, sx: 32, sy: 34 };
   return (
     <svg className="sc-scene" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden>
       <defs>
@@ -340,13 +343,25 @@ export function LoginScene() {
           <stop offset="0.6" stopColor="#0d1a2b" stopOpacity="0.5" />
           <stop offset="1" stopColor="#0d1a2b" stopOpacity="0.92" />
         </linearGradient>
-        {/* Gợn sóng nước cho phản chiếu — turbulence + displacement, chuyển động chậm */}
+        {/* Gợn sóng nước — turbulence TĨNH (tính 1 lần, cache) + displacement; chuyển
+            động lấy từ transform CSS .sc-water (GPU rẻ), KHÔNG animate baseFrequency. */}
         <filter id="lg-ripple" x="-6%" y="-6%" width="112%" height="120%">
-          <feTurbulence type="turbulence" baseFrequency="0.01 0.045" numOctaves="2" seed="7" result="t">
-            <animate attributeName="baseFrequency" dur="16s" repeatCount="indefinite" values="0.01 0.04; 0.014 0.055; 0.01 0.04" />
-          </feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="t" scale="12" xChannelSelector="R" yChannelSelector="G" />
+          <feTurbulence type="turbulence" baseFrequency="0.012 0.05" numOctaves="2" seed="7" result="t" />
+          <feDisplacementMap in="SourceGraphic" in2="t" scale="11" xChannelSelector="R" yChannelSelector="G" />
         </filter>
+        {/* Bloom/haze/god-ray — chỉ gradient, không filter per-frame */}
+        <radialGradient id="lg-pool" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stopColor="#ffcf8c" stopOpacity="0.5" />
+          <stop offset="1" stopColor="#ffcf8c" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="lg-haze" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#dd9a68" stopOpacity="0" />
+          <stop offset="1" stopColor="#e2a06b" stopOpacity="0.5" />
+        </linearGradient>
+        <linearGradient id="lg-ray" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="#ffe6b0" stopOpacity="0.24" />
+          <stop offset="1" stopColor="#ffe6b0" stopOpacity="0" />
+        </linearGradient>
         <linearGradient id="lg-balloon" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#f0c169" />
           <stop offset="1" stopColor="#c9863a" />
@@ -404,8 +419,27 @@ export function LoginScene() {
       <g className="sc-para" opacity="0.6">
         {band(21, { w: w + 60, baseY: horizon, minH: 90, maxH: 250, win: "#bcd0e0", fill: "#2b3a57", twinkleProb: 0.1, sx: 28, sy: 30 })}
       </g>
+      {/* HAZE khí quyển ở chân trời → chiều sâu + backlight cho toà nhà silhouette */}
+      <rect x="0" y={horizon - 150} width={w} height="205" fill="url(#lg-haze)" opacity="0.72" />
+      {/* GOD-RAYS: tia nắng xuyên khe toà nhà, hiện dần về hoàng hôn (sau đó bị near che gốc) */}
+      <g opacity="0">
+        <animate attributeName="opacity" begin="4.5s" dur="6.5s" fill="freeze" values="0;0.6" />
+        <g className="sc-ray">
+          <polygon points="580,720 470,120 520,120" fill="url(#lg-ray)" />
+          <polygon points="580,720 560,110 612,110" fill="url(#lg-ray)" />
+          <polygon points="580,720 664,140 712,140" fill="url(#lg-ray)" />
+          <polygon points="580,720 360,175 406,175" fill="url(#lg-ray)" />
+        </g>
+      </g>
       {/* skyline gần — cửa sổ bật đèn DẦN về chiều */}
       <g className="sc-para2">{band(37, nearOpts, true)}</g>
+      {/* BLOOM: vũng sáng ấm phủ trên khu nhiều đèn, hiện dần về tối (rẻ, không filter) */}
+      <g opacity="0">
+        <animate attributeName="opacity" begin="4s" dur="7s" fill="freeze" values="0;0.8" />
+        <circle className="sc-pulse" cx="250" cy="582" r="142" fill="url(#lg-pool)" />
+        <circle className="sc-pulse" cx="900" cy="612" r="162" fill="url(#lg-pool)" style={{ animationDelay: "1.5s" }} />
+        <circle className="sc-pulse" cx="1360" cy="580" r="132" fill="url(#lg-pool)" style={{ animationDelay: "0.7s" }} />
+      </g>
 
       {/* cần cẩu tháp — dấu ấn "đang phát triển dự án BĐS" */}
       <g className="sc-crane" style={{ transformOrigin: "1360px 200px" }} stroke="#0a1420" strokeWidth="5" fill="none" strokeLinecap="round">
@@ -424,8 +458,12 @@ export function LoginScene() {
 
       {/* phản chiếu toà nhà lộn ngược xuống nước (cùng seed → khớp hàng thật),
           gợn sóng bằng filter cho chân thật */}
-      <g clipPath="url(#lg-water-clip)" filter="url(#lg-ripple)" opacity="0.66" transform={`translate(0 ${2 * (horizon + 8)}) scale(1 -1)`}>
-        {band(37, nearOpts, true)}
+      <g clipPath="url(#lg-water-clip)" opacity="0.66">
+        <g className="sc-water">
+          <g filter="url(#lg-ripple)" transform={`translate(0 ${2 * (horizon + 8)}) scale(1 -1)`}>
+            {band(37, nearOpts, true, true)}
+          </g>
+        </g>
       </g>
       {/* mặt nước phủ lên phản chiếu + lấp lánh */}
       <rect x="0" y={horizon + 8} width={w} height={h - horizon} fill="url(#lg-water)" />
