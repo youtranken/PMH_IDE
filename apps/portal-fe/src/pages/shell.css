@@ -1,0 +1,99 @@
+/* Vỏ immersive cho member: home full-screen + topbar nổi + trang phụ (account,
+   docs). Namespace .pmh-* để không rò rỉ sang admin console (playbook §4). */
+
+.pmh-home {
+  min-height: 100vh;
+  background: #092e2a; /* khớp đáy hero để mép không lộ */
+}
+
+/* ---- Topbar ---- */
+.pmh-topbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 20;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(16px, 3vw, 34px);
+}
+.pmh-topbar--light {
+  position: sticky;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #eef0f2;
+}
+.pmh-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.pmh-topbar__brandname {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.3px;
+}
+.pmh-topbar--over-dark .pmh-topbar__brandname {
+  color: #ffffff;
+}
+.pmh-topbar--light .pmh-topbar__brandname {
+  color: #16211f;
+}
+
+.pmh-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.pmh-avatar:hover {
+  transform: translateY(-1px);
+}
+.pmh-avatar--over-dark {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  box-shadow: 0 0 0 1.5px rgba(230, 207, 149, 0.7);
+}
+.pmh-avatar--over-dark:hover {
+  box-shadow: 0 0 0 2px #c9a24b;
+}
+.pmh-avatar--light {
+  background: #0e4d45;
+  color: #ffffff;
+}
+
+/* ---- Trang phụ nền sáng (account, docs) ---- */
+.pmh-page {
+  min-height: 100vh;
+  background: #f3f5f3;
+}
+.pmh-page__body {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(16px, 2.5vw, 28px);
+}
+.pmh-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  color: #0e4d45;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.pmh-page__back:hover {
+  color: #0a3c36;
+}

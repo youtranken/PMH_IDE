@@ -1,0 +1,87 @@
+/* Animation cho scene SVG ĐỘNG (inline trong DOM → CSS keyframes chạy; nếu dùng
+   làm background-image thì KHÔNG chạy). Namespace .sc-*. */
+.sc-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.sc-scene * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.sc-twinkle { animation: scTwinkle 3.4s ease-in-out infinite; }
+@keyframes scTwinkle { 0%, 100% { opacity: 0.18; } 50% { opacity: 0.95; } }
+
+.sc-sweep { animation: scSweep 6.5s linear infinite; }
+@keyframes scSweep { 0% { transform: translateY(-45%); } 100% { transform: translateY(150%); } }
+
+.sc-drift { animation: scDrift 9s ease-in-out infinite alternate; }
+@keyframes scDrift { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+
+.sc-orbit { animation: scOrbit 12s linear infinite; }
+@keyframes scOrbit { to { transform: rotate(360deg); } }
+
+.sc-slide { animation: scSlide 5.5s ease-in-out infinite; }
+@keyframes scSlide { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(16px); } }
+
+.sc-float1 { animation: scFloat 7s ease-in-out infinite; }
+.sc-float2 { animation: scFloat 9s ease-in-out infinite 1.1s; }
+.sc-float3 { animation: scFloat 8s ease-in-out infinite 0.6s; }
+@keyframes scFloat {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-20px); opacity: 0.95; }
+}
+
+.sc-pulse { animation: scPulse 4s ease-in-out infinite; }
+@keyframes scPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
+
+/* ---- Login scene: parallax, tia đèn, mặt trăng, tàn lửa ---- */
+.sc-para { animation: scPara 48s ease-in-out infinite alternate; }
+@keyframes scPara { from { transform: translateX(-16px); } to { transform: translateX(16px); } }
+.sc-para2 { animation: scPara2 34s ease-in-out infinite alternate; }
+@keyframes scPara2 { from { transform: translateX(12px); } to { transform: translateX(-12px); } }
+
+.sc-beam { transform-origin: 50% 0%; animation: scBeam 13s ease-in-out infinite alternate; }
+@keyframes scBeam { from { transform: rotate(-9deg); opacity: 0.45; } to { transform: rotate(9deg); opacity: 0.85; } }
+.sc-beam2 { transform-origin: 50% 0%; animation: scBeam2 17s ease-in-out infinite alternate; }
+@keyframes scBeam2 { from { transform: rotate(7deg); opacity: 0.3; } to { transform: rotate(-11deg); opacity: 0.62; } }
+
+.sc-moon { animation: scMoon 42s ease-in-out infinite alternate; }
+@keyframes scMoon { from { transform: translate(0, 0); } to { transform: translate(34px, 20px); } }
+
+.sc-rise1 { animation: scRise 9s ease-in infinite; }
+.sc-rise2 { animation: scRise 12s ease-in infinite 2.4s; }
+.sc-rise3 { animation: scRise 11s ease-in infinite 4.8s; }
+.sc-rise4 { animation: scRise 13s ease-in infinite 1.4s; }
+@keyframes scRise {
+  0% { transform: translateY(0); opacity: 0; }
+  14% { opacity: 0.85; }
+  100% { transform: translateY(-260px); opacity: 0; }
+}
+
+.sc-crane { animation: scCrane 18s ease-in-out infinite alternate; }
+@keyframes scCrane { from { transform: rotate(-1.6deg); } to { transform: rotate(1.6deg); } }
+
+.sc-cloud1 { animation: scCloud 72s linear infinite; }
+.sc-cloud2 { animation: scCloud 96s linear infinite; }
+@keyframes scCloud { from { transform: translateX(-260px); } to { transform: translateX(1860px); } }
+
+.sc-bird { animation: scBird 30s linear infinite; }
+.sc-bird2 { animation: scBird 38s linear infinite 6s; }
+@keyframes scBird { from { transform: translate(-120px, 40px); } to { transform: translate(1760px, -60px); } }
+
+.sc-shimmer { animation: scShimmer 5s ease-in-out infinite; }
+@keyframes scShimmer { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.5; } }
+
+.sc-balloon { animation: scBalloon 66s linear infinite; }
+@keyframes scBalloon {
+  0% { transform: translate(-200px, 0); }
+  50% { transform: translate(820px, -34px); }
+  100% { transform: translate(1860px, 10px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-scene * { animation: none !important; }
+}

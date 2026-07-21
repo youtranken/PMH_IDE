@@ -1,6 +1,7 @@
 import { Alert, Button, Checkbox, Form, Input, List } from "antd";
 import { CheckCircleTwoTone, CloseCircleTwoTone, LockOutlined, UserOutlined } from "@ant-design/icons";
-import { Brand, BRAND, SkylineMotif } from "../ui";
+import { Brand, BRAND } from "../ui";
+import { LoginScene } from "../scenes";
 import { useEffect, useState } from "react";
 import {
   checkPassword,
@@ -10,22 +11,26 @@ import {
 
 /** CSS màn đăng nhập: gradient mesh + glass card + hero + animation vào trang. */
 const authCss = `
-.pmh-auth{position:fixed;inset:0;overflow:auto;background:
-  radial-gradient(52% 46% at 14% 16%, rgba(201,162,75,.24), transparent 60%),
-  radial-gradient(50% 44% at 86% 86%, rgba(31,132,110,.42), transparent 62%),
-  radial-gradient(40% 36% at 78% 8%, rgba(255,255,255,.10), transparent 55%),
-  linear-gradient(155deg,#082b27 0%,#0E4D45 52%,#0a3a34 100%);}
-.pmh-auth__skyline{position:absolute;left:0;right:0;bottom:0;height:48%;opacity:.55;pointer-events:none;}
+.pmh-auth{position:fixed;inset:0;overflow:auto;isolation:isolate;background:#082b27;}
+/* Ảnh phối cảnh full-bleed + Ken Burns zoom chậm (thay bằng ảnh render thật sau) */
+.pmh-auth__bg{position:absolute;inset:0;z-index:0;}
+/* Lớp phủ tối để khung login + chữ nổi rõ trên scene động */
+.pmh-auth__overlay{position:absolute;inset:0;z-index:1;background:
+  linear-gradient(110deg, rgba(9,16,30,.8) 0%, rgba(9,16,30,.18) 44%, rgba(8,14,26,.48) 64%, rgba(8,14,26,.8) 100%);}
+.pmh-auth__eyebrow{font-size:12.5px;letter-spacing:2.5px;text-transform:uppercase;color:#C9A24B;font-weight:600;margin-bottom:20px;}
+.pmh-auth__logo{display:inline-block;}
+.pmh-auth__logo img{height:62px;display:block;filter:drop-shadow(0 2px 10px rgba(0,0,0,.55));}
 .pmh-auth__wrap{position:relative;z-index:2;min-height:100%;box-sizing:border-box;display:flex;
   align-items:center;justify-content:center;gap:72px;max-width:1080px;margin:0 auto;padding:48px 32px;}
 .pmh-auth__hero{flex:1 1 0;max-width:460px;color:#fff;animation:pmhUp .6s cubic-bezier(.2,.7,.2,1) both;}
 .pmh-auth__brand{display:flex;align-items:center;gap:12px;font-size:22px;font-weight:700;letter-spacing:.4px;}
-.pmh-auth__hero h1{margin:40px 0 0;font-size:clamp(30px,3.4vw,46px);font-weight:800;line-height:1.12;letter-spacing:-1.2px;}
+.pmh-auth__hero h1{margin:22px 0 0;font-size:clamp(30px,3.4vw,46px);font-weight:800;line-height:1.12;letter-spacing:-1.2px;}
+.pmh-auth__hero h1 em{font-style:normal;color:#e6cf95;}
 .pmh-auth__hero p{margin:18px 0 0;max-width:400px;font-size:16px;line-height:1.65;color:rgba(255,255,255,.74);}
 .pmh-auth__rule{margin-top:28px;height:3px;width:64px;border-radius:3px;background:#C9A24B;}
 .pmh-card{position:relative;width:100%;max-width:404px;box-sizing:border-box;padding:36px 32px;border-radius:22px;
-  background:rgba(255,255,255,.94);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
-  border:1px solid rgba(255,255,255,.65);box-shadow:0 34px 70px -24px rgba(0,0,0,.55),0 4px 14px rgba(0,0,0,.12);
+  background:rgba(236,230,220,.9);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+  border:1px solid rgba(255,255,255,.4);box-shadow:0 34px 74px -22px rgba(0,0,0,.62),0 4px 14px rgba(0,0,0,.16);
   animation:pmhUp .6s cubic-bezier(.2,.7,.2,1) .08s both;}
 .pmh-card__brand{display:none;align-items:center;justify-content:center;gap:10px;margin-bottom:22px;font-size:19px;font-weight:700;color:#16211F;}
 .pmh-card__title{margin:0;font-size:24px;font-weight:700;color:#16211F;letter-spacing:-.3px;}
@@ -183,21 +188,24 @@ export default function InteractionLogin({ uid }: { uid: string }) {
   return (
     <div className="pmh-auth">
       <style>{authCss}</style>
-      <div className="pmh-auth__skyline">
-        <SkylineMotif />
+      <div className="pmh-auth__bg">
+        <LoginScene />
       </div>
+      <div className="pmh-auth__overlay" />
       <div className="pmh-auth__wrap">
         <div className="pmh-auth__hero">
-          <div className="pmh-auth__brand">
-            <Brand size={40} on="dark" />
-            <span>PMH ID</span>
+          <div className="pmh-auth__logo">
+            <img src="/logo-phu-my-hung.png" alt="Phú Mỹ Hưng" />
+          </div>
+          <div className="pmh-auth__eyebrow" style={{ marginTop: 30 }}>
+            Phòng thiết kế dự án · Bất động sản
           </div>
           <h1>
-            Một tài khoản,<br />mọi hệ thống của công ty.
+            Một tài khoản,<br />mọi <em>dự án</em> của công ty.
           </h1>
           <p>
             Cổng đăng nhập chung của PMH — an toàn, tập trung. Đăng nhập một lần,
-            dùng khắp các ứng dụng nội bộ.
+            mở mọi phối cảnh, hồ sơ và ứng dụng nội bộ.
           </p>
           <div className="pmh-auth__rule" />
         </div>

@@ -1,0 +1,317 @@
+/* Launcher "wow" — coverflow 3D các dự án BĐS. Mọi class namespace .pmh-launch*
+   để không rò rỉ ra phần còn lại của portal (playbook §4: không selector trần). */
+
+.pmh-launch {
+  position: relative;
+}
+
+/* ---- Hero: panel xanh lục thẫm, glow vàng đồng chuyển động, motif skyline ---- */
+.pmh-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: clamp(30px, 4vw, 52px) 0 clamp(30px, 3vw, 44px);
+  background: radial-gradient(130% 150% at 12% -10%, #12564d 0%, #0e4d45 42%, #092e2a 100%);
+  box-shadow: 0 24px 70px rgba(9, 46, 42, 0.32);
+  isolation: isolate;
+}
+/* Quầng sáng vàng đồng trôi nhẹ — "ánh nắng qua phối cảnh" */
+.pmh-hero::before {
+  content: "";
+  position: absolute;
+  width: 560px;
+  height: 560px;
+  top: -190px;
+  right: -90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 162, 75, 0.24), transparent 66%);
+  filter: blur(18px);
+  z-index: -1;
+  animation: pmhGlow 16s ease-in-out infinite;
+}
+@keyframes pmhGlow {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.65; }
+  50% { transform: translate(-46px, 34px) scale(1.16); opacity: 1; }
+}
+/* Nền morph theo thẻ đang active — crossfade khi vuốt (prototype bằng màu theme;
+   sau này thay backgroundImage = ảnh phối cảnh thật của dự án). */
+.pmh-hero__bg {
+  position: absolute;
+  inset: -8%;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  /* Blur mạnh + tối → ảnh thành "wash" màu của dự án, chữ/thẻ vẫn nổi. Ken Burns
+     zoom chậm cho sống. */
+  filter: blur(46px) saturate(1.15) brightness(0.5);
+  transform: scale(1.18);
+  animation: pmhBgIn 0.9s ease both, pmhKen 26s ease-in-out infinite alternate;
+}
+@keyframes pmhBgIn {
+  from { opacity: 0; }
+  to { opacity: 0.95; }
+}
+@keyframes pmhKen {
+  from { transform: scale(1.18) translate(0, 0); }
+  to { transform: scale(1.28) translate(1.5%, -1.5%); }
+}
+.pmh-hero__stage {
+  position: relative;
+  z-index: 2;
+}
+
+/* Motif skyline nét vàng dưới đáy hero */
+.pmh-hero__skyline {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 150px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* Immersive full-screen (member, không sidebar) */
+.pmh-hero--fill {
+  border-radius: 0;
+  min-height: 100vh;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: 92px;
+  padding-bottom: 40px;
+}
+
+.pmh-hero__head {
+  text-align: center;
+  padding: 0 20px 22px;
+  color: #eaf1ee;
+}
+.pmh-hero__eyebrow {
+  font-size: 12.5px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #c9a24b;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.pmh-hero__title {
+  font-size: clamp(26px, 3.4vw, 38px);
+  font-weight: 800;
+  line-height: 1.12;
+  margin: 0;
+  color: #ffffff;
+}
+.pmh-hero__title em {
+  font-style: normal;
+  color: #e6cf95;
+}
+.pmh-hero__sub {
+  margin-top: 10px;
+  font-size: 14.5px;
+  color: rgba(234, 241, 238, 0.78);
+}
+
+/* ---- Swiper coverflow ---- */
+.pmh-swiper {
+  padding: 12px 0 8px;
+  width: 100%;
+}
+.pmh-slide {
+  width: 300px;
+  /* Swiper đặt width auto theo slide; cố định để coverflow căn giữa đẹp */
+}
+.pmh-swiper .swiper-slide {
+  transition: filter 0.35s ease, opacity 0.35s ease;
+  opacity: 0.55;
+  filter: saturate(0.85);
+}
+.pmh-swiper .swiper-slide-active {
+  opacity: 1;
+  filter: none;
+}
+
+/* ---- Thẻ dự án (phối cảnh BĐS) ---- */
+.pmh-card {
+  width: 300px;
+  height: 384px;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 20px 44px rgba(9, 46, 42, 0.3);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  outline: none;
+}
+.pmh-card:focus-visible {
+  box-shadow: 0 0 0 3px #c9a24b, 0 20px 44px rgba(9, 46, 42, 0.3);
+}
+.pmh-card__top {
+  position: relative;
+  height: 218px;
+  background: #0e4d45 center / cover no-repeat;
+  overflow: hidden;
+}
+/* Ảnh phối cảnh THẬT (khi có image_url) — đè lên scene động */
+.pmh-card__img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+/* Lớp phủ tối nhẹ để badge/nội dung nổi trên ảnh */
+.pmh-card__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.34) 0%, transparent 34%, transparent 66%, rgba(0, 0, 0, 0.22) 100%);
+  pointer-events: none;
+}
+.pmh-card__initials {
+  position: relative;
+  z-index: 2;
+  font-size: 58px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #e6cf95;
+  text-shadow: 0 3px 22px rgba(0, 0, 0, 0.35);
+}
+.pmh-card__env {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  z-index: 3;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #eaf1ee;
+  border: 1px solid rgba(230, 207, 149, 0.5);
+  backdrop-filter: blur(4px);
+}
+.pmh-card__env--prod {
+  background: rgba(201, 162, 75, 0.9);
+  color: #16211f;
+  border-color: transparent;
+}
+.pmh-card__body {
+  flex: 1;
+  padding: 17px 19px 18px;
+  display: flex;
+  flex-direction: column;
+}
+.pmh-card__name {
+  font-size: 19px;
+  font-weight: 700;
+  color: #16211f;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmh-card__host {
+  margin-top: 3px;
+  font-size: 13px;
+  color: #5f716c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmh-card__cta {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #0e4d45;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.pmh-card:hover .pmh-card__cta {
+  background: #0a3c36;
+}
+.pmh-card__cta .pmh-arrow {
+  transition: transform 0.22s ease;
+}
+.pmh-card:hover .pmh-card__cta .pmh-arrow {
+  transform: translateX(4px);
+}
+
+/* Chấm phân trang Swiper — vàng đồng */
+.pmh-swiper .swiper-pagination {
+  position: static;
+  margin-top: 14px;
+}
+.pmh-swiper .swiper-pagination-bullet {
+  background: rgba(234, 241, 238, 0.45);
+  opacity: 1;
+  width: 8px;
+  height: 8px;
+  transition: width 0.25s ease, background 0.25s ease;
+}
+.pmh-swiper .swiper-pagination-bullet-active {
+  background: #c9a24b;
+  width: 22px;
+  border-radius: 999px;
+}
+
+/* ---- Trạng thái rỗng / tải ---- */
+.pmh-state {
+  padding: 40px 20px 8px;
+  text-align: center;
+  color: rgba(234, 241, 238, 0.9);
+}
+.pmh-state__ico {
+  font-size: 34px;
+  color: #c9a24b;
+}
+.pmh-state__title {
+  margin-top: 8px;
+  font-weight: 700;
+  font-size: 17px;
+  color: #ffffff;
+}
+.pmh-state__sub {
+  margin-top: 6px;
+  font-size: 14px;
+  color: rgba(234, 241, 238, 0.72);
+}
+
+/* Bộ thẻ giả lúc tải */
+.pmh-skel {
+  display: flex;
+  gap: 22px;
+  justify-content: center;
+  padding: 12px 0;
+}
+.pmh-skel__card {
+  width: 300px;
+  height: 384px;
+  border-radius: 22px;
+  background: linear-gradient(100deg, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.16) 50%, rgba(255,255,255,0.08) 70%);
+  background-size: 200% 100%;
+  animation: pmhShimmer 1.4s ease-in-out infinite;
+}
+.pmh-skel__card:nth-child(1), .pmh-skel__card:nth-child(3) { opacity: 0.5; transform: scale(0.9); }
+@keyframes pmhShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (max-width: 560px) {
+  .pmh-slide, .pmh-card { width: 264px; }
+  .pmh-card { height: 356px; }
+  .pmh-skel__card { width: 264px; height: 356px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmh-hero::before, .pmh-skel__card { animation: none; }
+}

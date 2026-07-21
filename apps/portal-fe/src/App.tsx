@@ -1,6 +1,7 @@
-import { ApartmentOutlined, AppstoreOutlined, AuditOutlined, BookOutlined, MenuOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
-import { App as AntApp, Avatar, Button, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Result, Spin } from "antd";
-import { useEffect, useState } from "react";
+import { ApartmentOutlined, ArrowLeftOutlined, AuditOutlined, BookOutlined, HomeOutlined, MenuOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
+import { App as AntApp, Button, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Result, Spin } from "antd";
+import "./pages/shell.css";
+import { type ReactNode, useEffect, useState } from "react";
 import { Brand, BRAND, initials } from "./ui";
 import InteractionLogin from "./pages/InteractionLogin";
 import Launcher from "./pages/Launcher";
@@ -176,25 +177,180 @@ function Root() {
 
   const isAdmin = profile.roles.length > 0;
   const isDev = profile.groups.some((g) => g.toLowerCase() === "developers");
+  const adminRoutes = ["/admin/users", "/admin/groups", "/admin/workspace", "/audit", "/settings"];
+
+  // Admin console (chrome sidebar) — CHỈ khi vào mục quản trị.
+  if (isAdmin && adminRoutes.includes(path)) {
+    return (
+      <AdminConsole
+        profile={profile}
+        path={path}
+        nav={nav}
+        mobile={mobile}
+        drawer={drawer}
+        setDrawer={setDrawer}
+        setProfile={setProfile}
+        isDev={isDev}
+      />
+    );
+  }
+
+  // Trang tài khoản / tài liệu — nền sáng, có topbar, KHÔNG sidebar.
+  if (path === "/account") {
+    return (
+      <MemberPage profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev}>
+        <SelfService profile={profile} onProfile={setProfile} />
+      </MemberPage>
+    );
+  }
+  if (path === "/docs" && isDev) {
+    return (
+      <MemberPage profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev}>
+        <Docs />
+      </MemberPage>
+    );
+  }
+
+  // Mặc định: TRANG CHỦ immersive — coverflow 3D full-screen, không sidebar.
+  return (
+    <div className="pmh-home">
+      <TopBar variant="over-dark" profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} showHome={false} />
+      <Launcher greeting={profile.full_name} fill />
+    </div>
+  );
+}
+
+/** Avatar tròn + menu tài khoản. variant = over-dark (trên hero tối) | light. */
+function AvatarMenu({
+  profile,
+  nav,
+  isAdmin,
+  isDev,
+  variant,
+  showHome = true,
+}: {
+  profile: Profile;
+  nav: (p: string) => void;
+  isAdmin: boolean;
+  isDev: boolean;
+  variant: "over-dark" | "light";
+  showHome?: boolean;
+}) {
   const items = [
-    { key: "/", icon: <AppstoreOutlined />, label: "Ứng dụng" },
+    { key: "email", label: profile.email, disabled: true },
+    { type: "divider" as const },
+    ...(showHome ? [{ key: "/", icon: <HomeOutlined />, label: "Trang chủ" }] : []),
     { key: "/account", icon: <UserOutlined />, label: "Tài khoản" },
     ...(isDev ? [{ key: "/docs", icon: <BookOutlined />, label: "Tài liệu" }] : []),
-    ...(isAdmin
-      ? [
-          { type: "divider" as const },
-          { key: "/admin/users", icon: <TeamOutlined />, label: "Người dùng" },
-          { key: "/admin/groups", icon: <ApartmentOutlined />, label: "Nhóm" },
-          { key: "/admin/workspace", icon: <ProjectOutlined />, label: "Dự án & Ứng dụng" },
-          { key: "/audit", icon: <AuditOutlined />, label: "Nhật ký" },
-          ...(profile.isSsa ? [{ key: "/settings", icon: <SettingOutlined />, label: "Cấu hình" }] : []),
-        ]
-      : []),
+    ...(isAdmin ? [{ key: "/admin/users", icon: <ProjectOutlined />, label: "Bảng quản trị" }] : []),
+    { type: "divider" as const },
+    { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true },
   ];
-  const selected = allowedRoutes(profile).includes(path) ? path : "/";
+  return (
+    <Dropdown
+      trigger={["click"]}
+      placement="bottomRight"
+      menu={{
+        items,
+        onClick: ({ key }) => {
+          if (key === "logout") logout();
+          else if (key.startsWith("/")) nav(key);
+        },
+      }}
+    >
+      <button className={`pmh-avatar pmh-avatar--${variant}`} aria-label="Tài khoản" title={profile.full_name}>
+        {initials(profile.full_name)}
+      </button>
+    </Dropdown>
+  );
+}
 
+/** Thanh trên cùng (brand trái, avatar phải). over-dark = nổi trên hero tối. */
+function TopBar({
+  variant,
+  profile,
+  nav,
+  isAdmin,
+  isDev,
+  showHome = true,
+}: {
+  variant: "over-dark" | "light";
+  profile: Profile;
+  nav: (p: string) => void;
+  isAdmin: boolean;
+  isDev: boolean;
+  showHome?: boolean;
+}) {
+  const dark = variant === "over-dark";
+  return (
+    <div className={`pmh-topbar pmh-topbar--${variant}`}>
+      <div className="pmh-topbar__brand" onClick={() => nav("/")}>
+        <Brand size={26} on={dark ? "dark" : "light"} />
+        <span className="pmh-topbar__brandname">PMH ID</span>
+      </div>
+      <AvatarMenu profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} variant={variant} showHome={showHome} />
+    </div>
+  );
+}
+
+/** Trang phụ nền sáng (Tài khoản/Tài liệu) — topbar + nút về Trang chủ. */
+function MemberPage({
+  profile,
+  nav,
+  isAdmin,
+  isDev,
+  children,
+}: {
+  profile: Profile;
+  nav: (p: string) => void;
+  isAdmin: boolean;
+  isDev: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="pmh-page">
+      <TopBar variant="light" profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} />
+      <div className="pmh-page__body">
+        <button className="pmh-page__back" onClick={() => nav("/")}>
+          <ArrowLeftOutlined /> Trang chủ
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Bảng quản trị — chrome sidebar cũ (chỉ admin, chỉ khi vào mục quản trị). */
+function AdminConsole({
+  profile,
+  path,
+  nav,
+  mobile,
+  drawer,
+  setDrawer,
+  setProfile,
+  isDev,
+}: {
+  profile: Profile;
+  path: string;
+  nav: (p: string) => void;
+  mobile: boolean;
+  drawer: boolean;
+  setDrawer: (v: boolean) => void;
+  setProfile: (p: Profile) => void;
+  isDev: boolean;
+}) {
+  const items = [
+    { key: "/", icon: <HomeOutlined />, label: "Trang chủ" },
+    { type: "divider" as const },
+    { key: "/admin/users", icon: <TeamOutlined />, label: "Người dùng" },
+    { key: "/admin/groups", icon: <ApartmentOutlined />, label: "Nhóm" },
+    { key: "/admin/workspace", icon: <ProjectOutlined />, label: "Dự án & Ứng dụng" },
+    { key: "/audit", icon: <AuditOutlined />, label: "Nhật ký" },
+    ...(profile.isSsa ? [{ key: "/settings", icon: <SettingOutlined />, label: "Cấu hình" }] : []),
+  ];
   const logo = (
-    <div style={{ height: 60, display: "flex", alignItems: "center", gap: 10, paddingInline: 20 }}>
+    <div style={{ height: 60, display: "flex", alignItems: "center", gap: 10, paddingInline: 20, cursor: "pointer" }} onClick={() => nav("/")}>
       <Brand size={26} />
       <span style={{ fontWeight: 700, fontSize: 17, color: BRAND.ink, letterSpacing: 0.3 }}>PMH ID</span>
     </div>
@@ -202,7 +358,7 @@ function Root() {
   const menu = (
     <Menu
       mode="inline"
-      selectedKeys={[selected]}
+      selectedKeys={[path]}
       items={items}
       style={{ borderInlineEnd: 0, paddingInline: 8 }}
       onClick={({ key }) => {
@@ -225,41 +381,21 @@ function Root() {
           {mobile && (
             <>
               <MenuOutlined style={{ fontSize: 18, cursor: "pointer" }} onClick={() => setDrawer(true)} />
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => nav("/")}>
                 <Brand size={22} />
                 <span style={{ fontWeight: 700, color: BRAND.ink }}>PMH ID</span>
               </div>
             </>
           )}
           <div style={{ flex: 1 }} />
-          <Dropdown
-            trigger={["click"]}
-            menu={{
-              items: [
-                { key: "email", label: profile.email, disabled: true },
-                { type: "divider" },
-                { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true },
-              ],
-              onClick: ({ key }) => key === "logout" && logout(),
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <Avatar style={{ background: BRAND.green, verticalAlign: "middle" }} size={32}>
-                {initials(profile.full_name)}
-              </Avatar>
-              {!mobile && <span style={{ fontWeight: 600, color: BRAND.ink }}>{profile.full_name}</span>}
-            </div>
-          </Dropdown>
+          <AvatarMenu profile={profile} nav={nav} isAdmin isDev={isDev} variant="light" />
         </Header>
         <Content style={{ padding: mobile ? 16 : 28, maxWidth: 1120, width: "100%", margin: "0 auto" }}>
-          {selected === "/" && <Launcher greeting={profile.full_name} />}
-          {selected === "/account" && <SelfService profile={profile} onProfile={setProfile} />}
-          {selected === "/docs" && <Docs />}
-          {selected === "/admin/users" && <AdminUsers isSsa={profile.isSsa} />}
-          {selected === "/admin/groups" && <AdminGroups isSsa={profile.isSsa} />}
-          {selected === "/admin/workspace" && <AdminWorkspace isSsa={profile.isSsa} />}
-          {selected === "/audit" && <Audit isSsa={profile.isSsa} />}
-          {selected === "/settings" && <Settings />}
+          {path === "/admin/users" && <AdminUsers isSsa={profile.isSsa} />}
+          {path === "/admin/groups" && <AdminGroups isSsa={profile.isSsa} />}
+          {path === "/admin/workspace" && <AdminWorkspace isSsa={profile.isSsa} />}
+          {path === "/audit" && <Audit isSsa={profile.isSsa} />}
+          {path === "/settings" && <Settings />}
         </Content>
       </Layout>
       <Drawer open={drawer} onClose={() => setDrawer(false)} placement="left" width={224} title={logo} styles={{ header: { padding: 0, borderBottom: "1px solid #eef0f2" }, body: { padding: 0 } }}>
