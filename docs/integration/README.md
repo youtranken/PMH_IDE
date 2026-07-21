@@ -276,6 +276,8 @@ docker exec pmh-id-sso-server-1 sh -c \
 
 Dùng khi app cần danh sách user **không phụ thuộc việc họ đã đăng nhập chưa** (ví dụ: gán tài sản cho một nhân viên). Xác thực bằng **client-credentials** (machine-to-machine).
 
+> 📖 **Tài liệu API tương tác (OpenAPI/Swagger):** `https://id.pmh.com.vn/api/directory-docs` — xem đầy đủ endpoint, tham số, thử trực tiếp. Spec JSON: `.../api/directory-docs-json`.
+
 ```bash
 # 1. Lấy token M2M
 curl -X POST https://id.pmh.com.vn/oidc/token \
