@@ -81,6 +81,37 @@
 .sc-ray { animation: scRay 9s ease-in-out infinite alternate; }
 @keyframes scRay { from { opacity: 0.7; } to { opacity: 1; } }
 
+/* ---- Bàn Kính Lam: mực lam TỰ DỰNG (draw-once, giữ) + đường kích thước ĐỎ ---- */
+.sc-ink { stroke-dasharray: 1; stroke-dashoffset: 1; animation: scInk 2.2s ease-out forwards; }
+.sc-dim { stroke-dasharray: 1; stroke-dashoffset: 1; animation: scInk 0.7s ease-out 1.5s both; }
+@keyframes scInk { to { stroke-dashoffset: 0; } }
+
+/* ---- Asset scene: tia thẩm định quét thân tháp, đường tăng trưởng, thẻ giá bay ---- */
+.sc-scan { animation: scScan 4.6s ease-in-out infinite; }
+@keyframes scScan {
+  0% { transform: translateY(158px); opacity: 0; }
+  12% { opacity: 0.85; }
+  88% { opacity: 0.85; }
+  100% { transform: translateY(-6px); opacity: 0; }
+}
+.sc-draw { stroke-dasharray: 344; animation: scDraw 6s ease-in-out infinite; }
+@keyframes scDraw {
+  0% { stroke-dashoffset: 344; opacity: 0; }
+  10% { opacity: 1; }
+  56% { stroke-dashoffset: 0; opacity: 1; }
+  90% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+.sc-tag1 { animation: scTag 6s ease-in-out infinite; }
+.sc-tag2 { animation: scTag 7.6s ease-in-out infinite 1.5s; }
+.sc-tag3 { animation: scTag 6.7s ease-in-out infinite 0.8s; }
+@keyframes scTag {
+  0% { transform: translateY(12px); opacity: 0; }
+  20% { opacity: 0.96; }
+  80% { opacity: 0.9; }
+  100% { transform: translateY(-48px); opacity: 0; }
+}
+
 .sc-balloon { animation: scBalloon 66s linear infinite; }
 @keyframes scBalloon {
   0% { transform: translate(-200px, 0); }
@@ -90,4 +121,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sc-scene * { animation: none !important; }
+  /* nét mực phải HIỆN đầy đủ (không kẹt ở trạng thái chưa vẽ) */
+  .sc-ink, .sc-dim { stroke-dashoffset: 0 !important; }
 }

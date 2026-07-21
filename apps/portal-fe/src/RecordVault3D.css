@@ -1,0 +1,226 @@
+/* FLOW HỒ SƠ 4 TRẠM — CSS thuần. Palette: lục bảo trên nền rêu thẫm;
+   trạm A trắng → B cyan → C vàng → D lục bảo (màu = thứ tự flow). */
+.rec3 {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 50% 46%, #0e2b28 0%, #081918 60%, #050f0f 100%);
+}
+
+/* sân khấu 3D */
+.rec3-stage { position: absolute; left: 50%; top: 56%; width: 0; height: 0; perspective: 620px; }
+.rec3-tilt { position: absolute; transform-style: preserve-3d; transform: rotateX(14deg); }
+
+/* ===== trục flow + mũi tên ===== */
+.rec3-track {
+  position: absolute; left: -92px; top: 15px; width: 180px; height: 0;
+  border-top: 1.5px dashed rgba(88, 230, 184, 0.22);
+}
+.rec3-arr {
+  position: absolute; top: 11px; width: 0; height: 0;
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  border-left: 6px solid rgba(88, 230, 184, 0.4);
+}
+
+/* ===== 4 bệ trạm ===== */
+.rec3-pad {
+  position: absolute; left: -15px; top: -15px; width: 30px; height: 30px;
+  border-radius: 50%; border: 1.5px solid;
+}
+.rec3-pad::after {
+  content: ""; position: absolute; inset: -6px; border-radius: 50%;
+  background: radial-gradient(circle, currentColor, transparent 70%);
+  opacity: 0;
+}
+.rec3-pad--a { transform: translate3d(-88px, 16px, 0) rotateX(90deg);
+  color: #ebf5f0; border-color: rgba(235, 245, 240, 0.5); }
+.rec3-pad--b { transform: translate3d(-32px, 16px, 0) rotateX(90deg);
+  color: #7fd4ff; border-color: rgba(127, 212, 255, 0.55); }
+.rec3-pad--c { transform: translate3d(26px, 16px, 0) rotateX(90deg);
+  color: #f0d79a; border-color: rgba(240, 215, 154, 0.55); }
+.rec3-pad--d { transform: translate3d(82px, 16px, 0) rotateX(90deg);
+  color: #34d399; border-color: rgba(52, 211, 153, 0.55); }
+/* bệ sáng khi tờ đến + vệt chạy đuổi A→B→C→D lúc nghỉ */
+.rec3-pad--a::after { animation: rec3PadA 14s linear infinite; }
+.rec3-pad--b::after { animation: rec3PadB 14s linear infinite; }
+.rec3-pad--c::after { animation: rec3PadC 14s linear infinite; }
+.rec3-pad--d::after { animation: rec3PadD 14s linear infinite; }
+@keyframes rec3PadA {
+  0%, 6% { opacity: 0.55; } 10%, 71% { opacity: 0; }
+  74% { opacity: 0.5; } 78%, 100% { opacity: 0; }
+}
+@keyframes rec3PadB {
+  0%, 8% { opacity: 0; } 12%, 26% { opacity: 0.55; } 30%, 76% { opacity: 0; }
+  79% { opacity: 0.5; } 83%, 100% { opacity: 0; }
+}
+@keyframes rec3PadC {
+  0%, 30% { opacity: 0; } 34%, 44% { opacity: 0.55; } 48%, 81% { opacity: 0; }
+  84% { opacity: 0.5; } 88%, 100% { opacity: 0; }
+}
+@keyframes rec3PadD {
+  0%, 48% { opacity: 0; } 52%, 62% { opacity: 0.55; } 66%, 86% { opacity: 0; }
+  89% { opacity: 0.5; } 93%, 100% { opacity: 0; }
+}
+
+/* ===== A — khay tiếp nhận ===== */
+.rec3-tray {
+  position: absolute; left: -108px; top: -1px; width: 40px; height: 26px;
+  transform: translate3d(0, 14px, 0) rotateX(90deg);
+  border: 1.5px solid rgba(235, 245, 240, 0.4); border-radius: 3px;
+  background: rgba(235, 245, 240, 0.05);
+}
+.rec3-sheet {
+  position: absolute; border-radius: 1.5px;
+  border: 1px solid rgba(235, 245, 240, 0.55); background: rgba(235, 245, 240, 0.1);
+}
+.rec3-sheet--1 { left: 5px; top: 4px; width: 28px; height: 17px; }
+.rec3-sheet--2 { left: 8px; top: 7px; width: 28px; height: 17px; transform: rotate(-5deg); }
+
+/* ===== tờ hồ sơ chạy A→B→C→D ===== */
+.rec3-fly { position: absolute; transform-style: preserve-3d; animation: rec3Fly 14s ease-in-out infinite; }
+@keyframes rec3Fly {
+  0%, 2%  { transform: translate3d(-88px, 8px, 0); opacity: 0; }
+  6%      { transform: translate3d(-88px, -30px, 0); opacity: 1; }
+  10%     { transform: translate3d(-32px, -30px, 0); }
+  26%     { transform: translate3d(-32px, -30px, 0); }
+  30%     { transform: translate3d(26px, -30px, 0); }
+  44%     { transform: translate3d(26px, -30px, 0); }
+  48%     { transform: translate3d(82px, -34px, 0); }
+  54%     { transform: translate3d(82px, -8px, 0); }
+  58%     { transform: translate3d(82px, -2px, 0); opacity: 1; }
+  62%     { transform: translate3d(82px, 0, 0); opacity: 0; }
+  66%, 100% { transform: translate3d(-88px, 8px, 0); opacity: 0; }
+}
+/* tờ giấy: trống → điền nội dung (B) → duyệt viền lục bảo (C) → nằm phẳng vào tủ (D) */
+.rec3-page {
+  position: absolute; left: -14px; top: -19px; width: 28px; height: 38px;
+  border-radius: 2px;
+  border: 1.5px solid rgba(235, 245, 240, 0.85);
+  background: rgba(235, 245, 240, 0.06);
+  animation: rec3Page 14s ease-in-out infinite;
+}
+@keyframes rec3Page {
+  0%      { transform: rotateY(-8deg); border-color: rgba(235, 245, 240, 0.85); box-shadow: none; }
+  8%      { transform: rotateY(6deg); }
+  20%     { transform: rotateY(-3deg); }
+  32%     { transform: rotateY(0); border-color: rgba(235, 245, 240, 0.85); }
+  37%     { border-color: rgba(52, 211, 153, 1); box-shadow: 0 0 18px rgba(52, 211, 153, 0.8); }
+  44%     { border-color: rgba(52, 211, 153, 0.9); box-shadow: 0 0 6px rgba(52, 211, 153, 0.35); }
+  47%     { transform: rotateX(0); } /* giữ ĐỨNG hết trạm C, chỉ ngả khi rời đi */
+  52%, 100% { transform: rotateX(82deg); border-color: rgba(52, 211, 153, 0.9); box-shadow: none; }
+}
+/* nội dung tự điền dần ở trạm B (cao dần từ trên xuống) */
+.rec3-page::before {
+  content: ""; position: absolute; left: 4px; right: 4px; top: 5px; height: 0;
+  background: repeating-linear-gradient(0deg, rgba(235, 245, 240, 0.35) 0 1px, transparent 1px 5px);
+  animation: rec3Lines 14s linear infinite;
+}
+@keyframes rec3Lines {
+  0%, 10% { height: 0; }
+  24%, 60% { height: 28px; }
+  64%, 100% { height: 0; }
+}
+/* chấm mộc sau phê duyệt (C) */
+.rec3-page::after {
+  content: ""; position: absolute; right: 3px; top: 3px; width: 6px; height: 6px;
+  border-radius: 50%; border: 1.5px solid #f0d79a;
+  box-shadow: 0 0 6px rgba(240, 215, 154, 0.7);
+  opacity: 0; animation: rec3SealDot 14s linear infinite;
+}
+@keyframes rec3SealDot {
+  0%, 36% { opacity: 0; }
+  39%, 58% { opacity: 1; }
+  62%, 100% { opacity: 0; }
+}
+
+/* ===== B — vòng xử lý quay trên tờ ===== */
+.rec3-proc {
+  position: absolute; left: -39px; top: -64px; width: 14px; height: 14px;
+  border-radius: 50%; border: 2px solid transparent;
+  border-top-color: #7fd4ff; border-right-color: rgba(127, 212, 255, 0.35);
+  opacity: 0;
+  animation: rec3ProcSpin 1.1s linear infinite, rec3ProcFade 14s linear infinite;
+}
+@keyframes rec3ProcSpin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes rec3ProcFade {
+  0%, 9% { opacity: 0; }
+  12%, 25% { opacity: 1; }
+  28%, 100% { opacity: 0; }
+}
+
+/* ===== C — con dấu vàng ===== */
+.rec3-stamp {
+  position: absolute; left: 16px; top: -82px; width: 20px; height: 20px;
+  border-radius: 50%; border: 2px solid #f0d79a;
+  opacity: 0; animation: rec3Stamp 14s ease-in-out infinite;
+}
+.rec3-stamp::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px;
+  transform: translate(-50%, -50%); border-radius: 50%; background: #f0d79a;
+}
+@keyframes rec3Stamp {
+  0%, 31% { transform: translateY(0) scale(1); opacity: 0; box-shadow: none; }
+  33%     { opacity: 1; }
+  36%     { transform: translateY(24px) scale(1); opacity: 1; }
+  38%     { transform: translateY(24px) scale(1.3); box-shadow: 0 0 20px rgba(240, 215, 154, 0.9); opacity: 1; }
+  43%     { transform: translateY(20px) scale(1); opacity: 0; box-shadow: none; }
+  100%    { opacity: 0; }
+}
+
+/* ===== D — tủ lưu trữ 3 ngăn ===== */
+.rec3-cab { position: absolute; transform: translate3d(82px, 0, 0); transform-style: preserve-3d; }
+.rec3-slot {
+  position: absolute; left: -24px; width: 48px; height: 32px;
+  border: 1.5px solid rgba(88, 230, 184, 0.4); border-radius: 3px;
+  background: rgba(88, 230, 184, 0.04);
+}
+.rec3-slot--1 { top: -40px; transform: translateY(-25px) rotateX(90deg); }
+.rec3-slot--2 { top: -16px; transform: rotateX(90deg); }
+.rec3-slot--3 { top: 8px;  transform: translateY(25px) rotateX(90deg); }
+/* ngăn giữa sáng lên khi nhận hồ sơ */
+.rec3-slot--2::after {
+  content: ""; position: absolute; inset: 2px; border-radius: 2px;
+  background: rgba(52, 211, 153, 0.35); box-shadow: 0 0 12px rgba(52, 211, 153, 0.6);
+  opacity: 0; animation: rec3Recv 14s linear infinite;
+}
+@keyframes rec3Recv {
+  0%, 52% { opacity: 0; }
+  57% { opacity: 0.9; }
+  66%, 100% { opacity: 0; }
+}
+/* hồ sơ đã lưu (ngăn 1 + 3) — thở nhẹ */
+.rec3-file {
+  display: block; position: absolute; left: 4px; top: 4px; width: 38px; height: 22px;
+  border: 1.5px solid rgba(235, 245, 240, 0.5); border-radius: 2px;
+  background: rgba(235, 245, 240, 0.08);
+  animation: rec3Breath 4.8s ease-in-out infinite;
+}
+.rec3-slot--3 .rec3-file { animation-delay: 2.4s; }
+@keyframes rec3Breath {
+  0%, 100% { box-shadow: 0 0 3px rgba(88, 230, 184, 0.15); }
+  50% { box-shadow: 0 0 10px rgba(88, 230, 184, 0.45); }
+}
+.rec3-post {
+  position: absolute; top: -37px; width: 1.5px; height: 60px;
+  background: linear-gradient(180deg, transparent, rgba(88, 230, 184, 0.45) 20%, rgba(88, 230, 184, 0.45) 85%, transparent);
+}
+.rec3-post--l { left: -27px; }
+.rec3-post--r { left: 25px; }
+
+/* hạt dữ liệu trôi */
+.rec3-bit {
+  position: absolute; width: 2.5px; height: 2.5px; border-radius: 50%;
+  background: #58e6b8; box-shadow: 0 0 6px #58e6b8; opacity: 0.5;
+  animation: rec3Bit 6s ease-in-out infinite;
+}
+@keyframes rec3Bit {
+  0%, 100% { transform: translateY(0); opacity: 0.2; }
+  50% { transform: translateY(-9px); opacity: 0.7; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec3-fly, .rec3-page, .rec3-page::before, .rec3-page::after, .rec3-stamp,
+  .rec3-proc, .rec3-pad::after, .rec3-slot--2::after, .rec3-file, .rec3-bit { animation: none; }
+  .rec3-fly { opacity: 1; transform: translate3d(-32px, -30px, 0); }
+  .rec3-page::before { height: 28px; }
+}

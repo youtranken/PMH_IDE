@@ -7,7 +7,11 @@ import "swiper/css/effect-coverflow";
 import "swiper/css/pagination";
 import { api } from "../auth";
 import { SkylineMotif } from "../ui";
-import { ProjectScene } from "../scenes";
+import { ProjectScene, sceneKindFor } from "../scenes";
+import AssetHolo3D from "../AssetHolo3D";
+import LoanDock3D from "../LoanDock3D";
+import RecordVault3D from "../RecordVault3D";
+import SupplyBox3D from "../SupplyBox3D";
 import "./Launcher.css";
 
 interface AppItem {
@@ -25,6 +29,16 @@ const hostOf = (url: string) => {
     return url;
   }
 };
+
+/** Scene 3D theo loại dự án (null = dùng ProjectScene SVG). */
+function scene3DFor(name: string) {
+  const kind = sceneKindFor(name);
+  if (kind === "assets") return <AssetHolo3D />;
+  if (kind === "devices") return <LoanDock3D />;
+  if (kind === "records") return <RecordVault3D />;
+  if (kind === "supplies") return <SupplyBox3D />;
+  return null;
+}
 
 function AppCard({ app }: { app: AppItem }) {
   const open = () => window.open(app.app_url, "_blank", "noopener");
@@ -47,7 +61,7 @@ function AppCard({ app }: { app: AppItem }) {
         {app.image_url ? (
           <div className="pmh-card__img" style={{ backgroundImage: `url("${app.image_url}")` }} />
         ) : (
-          <ProjectScene name={app.name} seed={app.client_id || app.name} />
+          scene3DFor(app.name) ?? <ProjectScene name={app.name} seed={app.client_id || app.name} />
         )}
         <div className="pmh-card__scrim" />
         <span className={`pmh-card__env${isProd ? " pmh-card__env--prod" : ""}`}>
@@ -88,11 +102,16 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
       <div className={`pmh-hero${fill ? " pmh-hero--fill" : ""}`}>
         {/* Nền MORPH theo thẻ đang chọn — vuốt tới đâu nền ngập màu dự án đó */}
         {activeApp && (
-          <div className="pmh-hero__bg" key={activeApp.client_id}>
+          <div
+            className={`pmh-hero__bg${!activeApp.image_url && scene3DFor(activeApp.name) ? " pmh-hero__bg--3d" : ""}`}
+            key={activeApp.client_id}
+          >
             {activeApp.image_url ? (
               <div className="pmh-card__img" style={{ backgroundImage: `url("${activeApp.image_url}")` }} />
             ) : (
-              <ProjectScene name={activeApp.name} seed={activeApp.client_id || activeApp.name} />
+              scene3DFor(activeApp.name) ?? (
+                <ProjectScene name={activeApp.name} seed={activeApp.client_id || activeApp.name} ghost />
+              )
             )}
           </div>
         )}
@@ -146,7 +165,7 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
               slidesPerView="auto"
               loop={loop}
               initialSlide={loop ? 0 : Math.min(1, n - 1)}
-              coverflowEffect={{ rotate: 34, stretch: 0, depth: 150, modifier: 1, slideShadows: true }}
+              coverflowEffect={{ rotate: 26, stretch: 0, depth: 110, modifier: 1, slideShadows: false }}
               keyboard={{ enabled: true }}
               mousewheel={{ forceToAxis: true }}
               pagination={{ clickable: true }}

@@ -11,49 +11,93 @@
   overflow: hidden;
   border-radius: 24px;
   padding: clamp(30px, 4vw, 52px) 0 clamp(30px, 3vw, 44px);
-  background: radial-gradient(130% 150% at 12% -10%, #12564d 0%, #0e4d45 42%, #092e2a 100%);
-  box-shadow: 0 24px 70px rgba(9, 46, 42, 0.32);
+  /* MẶT BÀN KÍNH LAM phát sáng từ dưới — sáng ở tâm (nơi tờ đang chọn), tối ra rìa */
+  background: radial-gradient(115% 88% at 50% 66%, #1a5273 0%, #10395c 42%, #0a2135 100%);
+  box-shadow: 0 24px 70px rgba(6, 20, 34, 0.4);
   isolation: isolate;
 }
-/* Quầng sáng vàng đồng trôi nhẹ — "ánh nắng qua phối cảnh" */
+/* ĐÈN BÀN: quầng sáng lam-trắng lạnh rọi lên tờ giấy can đang ở giữa */
 .pmh-hero::before {
   content: "";
   position: absolute;
-  width: 560px;
-  height: 560px;
-  top: -190px;
-  right: -90px;
+  width: 900px;
+  height: 620px;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(201, 162, 75, 0.24), transparent 66%);
-  filter: blur(18px);
+  background: radial-gradient(circle, rgba(150, 205, 235, 0.22), rgba(150, 205, 235, 0.08) 42%, transparent 70%);
+  filter: blur(14px);
   z-index: -1;
-  animation: pmhGlow 16s ease-in-out infinite;
+  animation: pmhGlow 12s ease-in-out infinite;
 }
 @keyframes pmhGlow {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.65; }
-  50% { transform: translate(-46px, 34px) scale(1.16); opacity: 1; }
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+/* Lưới toạ độ mờ trên mặt kính (blueprint) */
+.pmh-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(150, 205, 235, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 205, 235, 0.06) 1px, transparent 1px);
+  background-size: 46px 46px;
+  pointer-events: none;
 }
 /* Nền morph theo thẻ đang active — crossfade khi vuốt (prototype bằng màu theme;
    sau này thay backgroundImage = ảnh phối cảnh thật của dự án). */
 .pmh-hero__bg {
   position: absolute;
-  inset: -8%;
+  inset: -4%;
   z-index: 0;
   background-size: cover;
   background-position: center;
-  /* Blur mạnh + tối → ảnh thành "wash" màu của dự án, chữ/thẻ vẫn nổi. Ken Burns
-     zoom chậm cho sống. */
-  filter: blur(46px) saturate(1.15) brightness(0.5);
-  transform: scale(1.18);
-  animation: pmhBgIn 0.9s ease both, pmhKen 26s ease-in-out infinite alternate;
+  /* Bokeh NHẸ → hiệu ứng động của thẻ (cửa sổ nhấp nháy, tia quét, chart vẽ,
+     chim/khinh khí cầu…) hiện SẮC ở nền, chỉ mềm rìa như ống kính xóa phông.
+     Ken Burns zoom chậm cho sống. */
+  filter: blur(2px) saturate(1.1) brightness(1.15);
+  transform: scale(1.06);
+  animation: pmhBgIn 1s ease both, pmhKen 34s ease-in-out infinite alternate;
+}
+/* Nền 3D (thành phố) — SẮC NÉT, không blur, phủ trọn (không Ken Burns) */
+.pmh-hero__bg--3d {
+  filter: none;
+  transform: none;
+  opacity: 1;
+  inset: 0;
+  animation: pmhBgIn3d 0.9s ease both;
+}
+.pmh-hero__bg--3d::after { display: none; }
+/* Phóng to hologram ở nền để phủ rõ màn hình (không còn "1 màu") */
+.pmh-hero__bg--3d .holo3,
+.pmh-hero__bg--3d .loan3,
+.pmh-hero__bg--3d .rec3,
+.pmh-hero__bg--3d .sup3 { transform: scale(1.7); transform-origin: center 48%; }
+@keyframes pmhBgIn3d {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Vignette độ-sâu-trường-ảnh: giữa (sau thẻ) trong, tối dần ra rìa + đậm trên
+   (cho chữ chào) và dưới (neo thẻ/chấm trang) → vật thể lớn phía sau thành chủ ý. */
+.pmh-hero__bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(6, 20, 16, 0.5) 0%, rgba(6, 20, 16, 0.1) 30%, rgba(6, 20, 16, 0.18) 60%, rgba(6, 20, 16, 0.74) 100%),
+    radial-gradient(122% 92% at 50% 46%, rgba(6, 20, 16, 0) 0%, rgba(6, 20, 16, 0.58) 84%);
 }
 @keyframes pmhBgIn {
   from { opacity: 0; }
-  to { opacity: 0.95; }
+  to { opacity: 0.68; }
 }
 @keyframes pmhKen {
-  from { transform: scale(1.18) translate(0, 0); }
-  to { transform: scale(1.28) translate(1.5%, -1.5%); }
+  from { transform: scale(1.06) translate(0, 0); }
+  to { transform: scale(1.14) translate(1.2%, -1.2%); }
 }
 .pmh-hero__stage {
   position: relative;
@@ -135,10 +179,11 @@
 .pmh-card {
   width: 300px;
   height: 384px;
-  border-radius: 22px;
+  border-radius: 10px;
   overflow: hidden;
-  background: #ffffff;
-  box-shadow: 0 20px 44px rgba(9, 46, 42, 0.3);
+  /* TỜ GIẤY CAN trên bàn kính */
+  background: #efe6d2;
+  box-shadow: 0 22px 48px rgba(6, 20, 34, 0.42);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -146,12 +191,12 @@
   outline: none;
 }
 .pmh-card:focus-visible {
-  box-shadow: 0 0 0 3px #c9a24b, 0 20px 44px rgba(9, 46, 42, 0.3);
+  box-shadow: 0 0 0 3px #e5533d, 0 22px 48px rgba(6, 20, 34, 0.42);
 }
 .pmh-card__top {
   position: relative;
   height: 218px;
-  background: #0e4d45 center / cover no-repeat;
+  background: #e7d9bd center / cover no-repeat;
   overflow: hidden;
 }
 /* Ảnh phối cảnh THẬT (khi có image_url) — đè lên scene động */
@@ -165,7 +210,7 @@
 .pmh-card__scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.34) 0%, transparent 34%, transparent 66%, rgba(0, 0, 0, 0.22) 100%);
+  background: linear-gradient(180deg, rgba(43, 48, 56, 0.06) 0%, transparent 24%);
   pointer-events: none;
 }
 .pmh-card__initials {
@@ -186,16 +231,16 @@
   font-weight: 700;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  color: #eaf1ee;
-  border: 1px solid rgba(230, 207, 149, 0.5);
-  backdrop-filter: blur(4px);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  background: rgba(244, 235, 215, 0.85);
+  color: #3f7fa6;
+  border: 1px solid rgba(63, 127, 166, 0.55);
 }
 .pmh-card__env--prod {
-  background: rgba(201, 162, 75, 0.9);
-  color: #16211f;
+  background: rgba(201, 162, 75, 0.92);
+  color: #22272e;
   border-color: transparent;
 }
 .pmh-card__body {
@@ -207,7 +252,7 @@
 .pmh-card__name {
   font-size: 19px;
   font-weight: 700;
-  color: #16211f;
+  color: #22272e;
   line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
@@ -215,8 +260,9 @@
 }
 .pmh-card__host {
   margin-top: 3px;
-  font-size: 13px;
-  color: #5f716c;
+  font-size: 12.5px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: #6a6152;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -228,15 +274,15 @@
   justify-content: space-between;
   gap: 8px;
   padding: 10px 14px;
-  border-radius: 12px;
-  background: #0e4d45;
-  color: #ffffff;
+  border-radius: 8px;
+  background: #10395c;
+  color: #f4ebd7;
   font-weight: 600;
   font-size: 14px;
   transition: background 0.2s ease, transform 0.2s ease;
 }
 .pmh-card:hover .pmh-card__cta {
-  background: #0a3c36;
+  background: #0a2a45;
 }
 .pmh-card__cta .pmh-arrow {
   transition: transform 0.22s ease;
