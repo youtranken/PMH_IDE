@@ -38,7 +38,7 @@ interface Project { id: string; name: string; description: string | null }
 interface Client {
   id: string; project_id: string; client_id: string; name: string; env: string;
   redirect_uris: string[]; app_url: string | null; allow_all_groups: boolean; disabled: boolean;
-  backchannel_logout_uri: string | null; created_at: string;
+  m2m_enabled: boolean; backchannel_logout_uri: string | null; created_at: string;
 }
 type Secret = { title: string; secret: string; note?: string };
 
@@ -97,6 +97,17 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
     await api(`/api/admin/clients/${c.id}/${c.disabled ? "enable" : "disable"}`, { method: "POST" });
     load();
   };
+  const toggleM2m = (c: Client) => modal.confirm({
+    title: c.m2m_enabled ? `Tắt API danh bạ (M2M) cho "${c.name}"?` : `Bật API danh bạ (M2M) cho "${c.name}"?`,
+    content: c.m2m_enabled
+      ? "Ứng dụng sẽ KHÔNG lấy được token M2M mới; token đang sống cũng bị chặn ngay. Chỉ tắt nếu app không dùng Directory API."
+      : "Cho phép ứng dụng dùng client_credentials để kéo danh bạ user (trong phạm vi nhóm được gán). Chỉ bật khi app thực sự cần.",
+    okText: c.m2m_enabled ? "Tắt M2M" : "Bật M2M", okType: c.m2m_enabled ? "danger" : "primary", cancelText: "Hủy",
+    onOk: async () => {
+      try { await api(`/api/admin/clients/${c.id}/m2m`, { method: "POST", body: { enabled: !c.m2m_enabled } }); message.success(c.m2m_enabled ? "Đã tắt M2M" : "Đã bật M2M"); load(); }
+      catch (e) { message.error((e as Error).message); }
+    },
+  });
   const rotate = async (c: Client) => {
     const r = await api<{ secret: string; graceHours: number }>(`/api/admin/clients/${c.id}/rotate-secret`, { method: "POST" });
     setSecret({ title: `Secret mới · ${c.client_id}`, secret: r.secret, note: `Secret cũ còn hiệu lực thêm ${r.graceHours} giờ (ân hạn).` });
@@ -127,6 +138,7 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
         items: [
           { key: "groups", label: "Nhóm được vào", onClick: () => setGroupsFor(c) },
           { key: "webhook", label: "Webhook", onClick: () => setWebhookFor(c) },
+          ...(isSsa ? [{ key: "m2m", label: c.m2m_enabled ? "Tắt API danh bạ (M2M)" : "Bật API danh bạ (M2M)", onClick: () => toggleM2m(c) }] : []),
           { key: "rotate", label: "Xoay secret", onClick: () => rotate(c) },
           { key: "edit", label: "Sửa", onClick: () => setEditing(c) },
           { type: "divider" },
@@ -188,6 +200,11 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
                 <Text code style={{ fontSize: 11.5 }}>{a.client_id}</Text>
                 <Tag color={a.env === "prod" ? "green" : "default"} style={{ textTransform: "uppercase", fontSize: 10.5, lineHeight: "16px", marginInlineStart: 2 }}>{a.env}</Tag>
                 {a.disabled && <Tag color="red" style={{ fontSize: 10.5, lineHeight: "16px" }}>Đã tắt</Tag>}
+                {clientsById[a.id]?.m2m_enabled && (
+                  <Tooltip title="Ứng dụng được phép dùng client_credentials để kéo danh bạ (Directory API M2M).">
+                    <Tag color="blue" style={{ fontSize: 10.5, lineHeight: "16px" }}>M2M</Tag>
+                  </Tooltip>
+                )}
                 {!a.app_url && (
                   <Tooltip title="Chưa đặt App URL → app KHÔNG hiện ở màn Ứng dụng (Launcher). Đăng nhập OIDC vẫn chạy bình thường.">
                     <Tag style={{ fontSize: 10.5, lineHeight: "16px" }}>Ẩn ở Launcher</Tag>

@@ -60,6 +60,9 @@ class GroupDto {
 class AllowAllDto {
   @IsBoolean() allowAll!: boolean;
 }
+class M2mDto {
+  @IsBoolean() enabled!: boolean;
+}
 class WebhookDto {
   @IsUrl({ require_tld: false, require_protocol: true, protocols: ["https"] })
   webhookUrl!: string;
@@ -203,6 +206,18 @@ export class ClientsController {
     @Req() req: Request,
   ) {
     return this.clients.setAllowAll(id, dto.allowAll, admin, req.ip ?? null);
+  }
+
+  // Chỉ SSA: bật/tắt Directory API (M2M) — quyền đọc danh bạ, cấp hệ thống.
+  @Roles("ssa")
+  @Post(":id/m2m")
+  setM2m(
+    @Param("id") id: string,
+    @Body() dto: M2mDto,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.clients.setM2m(id, dto.enabled, admin, req.ip ?? null);
   }
 
   @Put(":id/webhook")

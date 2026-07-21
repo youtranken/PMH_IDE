@@ -26,12 +26,13 @@ export interface ClientRow {
   app_url: string | null;
   allow_all_groups: boolean;
   disabled: boolean;
+  m2m_enabled: boolean;
   backchannel_logout_uri: string | null;
   created_at: Date;
 }
 
 const CLIENT_COLS =
-  "id, project_id, client_id, name, env, redirect_uris, app_url, allow_all_groups, disabled, backchannel_logout_uri, created_at";
+  "id, project_id, client_id, name, env, redirect_uris, app_url, allow_all_groups, disabled, m2m_enabled, backchannel_logout_uri, created_at";
 
 /**
  * client_id dành riêng cho client TĨNH của provider (demo-app, pmh-portal). Tạo
@@ -488,6 +489,34 @@ export class ClientsService {
       ip,
       detail: { group_id: groupId },
     });
+  }
+
+  /**
+   * Bật/tắt M2M — client_credentials (Directory API). Tắt = adapter bỏ grant khỏi
+   * client (không lấy token mới) VÀ DirectoryGuard chặn token còn sống (M3). Đây
+   * là cấp quyền đọc danh bạ → chỉ SSA (controller gác @Roles("ssa")).
+   */
+  async setM2m(
+    id: string,
+    enabled: boolean,
+    admin: AdminContext,
+    ip: string | null,
+  ): Promise<ClientRow> {
+    const c = await this.getScoped(id, admin);
+    const { rows } = await this.pool.query<ClientRow>(
+      `UPDATE clients SET m2m_enabled = $2 WHERE id = $1 RETURNING ${CLIENT_COLS}`,
+      [id, enabled],
+    );
+    await this.audit.record({
+      actorUserId: admin.userId,
+      action: enabled ? "client.m2m_enabled" : "client.m2m_disabled",
+      targetType: "client",
+      targetId: id,
+      projectId: c.project_id,
+      ip,
+      detail: { m2m_enabled: enabled },
+    });
+    return rows[0];
   }
 
   /** Bật/tắt allow_all_groups — nới quyền LOGIN, KHÔNG nới scope Directory (AD-11). */

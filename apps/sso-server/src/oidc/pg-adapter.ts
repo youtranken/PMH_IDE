@@ -62,8 +62,9 @@ async function findClient(clientId: string): Promise<OidcPayload | undefined> {
     redirect_uris: string[];
     app_url: string | null;
     backchannel_logout_uri: string | null;
+    m2m_enabled: boolean;
   }>(
-    `SELECT client_id, redirect_uris, app_url, backchannel_logout_uri
+    `SELECT client_id, redirect_uris, app_url, backchannel_logout_uri, m2m_enabled
      FROM clients WHERE client_id = $1 AND disabled = false`,
     [clientId],
   );
@@ -77,7 +78,11 @@ async function findClient(clientId: string): Promise<OidcPayload | undefined> {
     grantTypes.push("authorization_code", "refresh_token");
     responseTypes.push("code");
   }
-  grantTypes.push("client_credentials");
+  // M3: chỉ cấp M2M (Directory API) cho client được bật cờ — không mặc định mở
+  // cho mọi client có secret.
+  if (c.m2m_enabled) {
+    grantTypes.push("client_credentials");
+  }
 
   const meta: OidcPayload = {
     client_id: c.client_id,

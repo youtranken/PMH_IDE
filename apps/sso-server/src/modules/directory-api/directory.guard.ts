@@ -34,12 +34,15 @@ export class DirectoryGuard implements CanActivate {
       throw new UnauthorizedException("thiếu Bearer token");
     }
     const clientId = this.tokens.verifyM2M(auth.slice(7));
+    // Chặn NGAY cả token M2M còn sống khi SSA vừa tắt m2m_enabled (M3) — không
+    // chờ token hết hạn.
     const { rows } = await this.pool.query<{ id: string }>(
-      `SELECT id FROM clients WHERE client_id = $1 AND disabled = false`,
+      `SELECT id FROM clients
+       WHERE client_id = $1 AND disabled = false AND m2m_enabled = true`,
       [clientId],
     );
     if (rows.length === 0) {
-      throw new UnauthorizedException("client không hợp lệ hoặc đã tắt");
+      throw new UnauthorizedException("client không hợp lệ hoặc chưa bật M2M");
     }
     (req as Request & { dirClient: DirClient }).dirClient = {
       pk: rows[0].id,
