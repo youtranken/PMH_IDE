@@ -16,6 +16,8 @@ PMH ID là hệ thống đăng nhập tập trung (SSO) theo chuẩn **OpenID Co
 
 Bạn **không tự đăng ký** — admin cấp `client_id`/`client_secret` và secret chỉ hiện **một lần**, giữ kỹ.
 
+> 🆕 **Project mới lần đầu?** Xem [`onboarding-project-moi.md`](./onboarding-project-moi.md) — phiếu đăng ký (bạn điền, gửi admin) + phiếu bàn giao (admin trả lại).
+
 ---
 
 ## 2. Hai luồng đăng nhập (hiểu trước khi code)
