@@ -6,6 +6,7 @@ import {
   type PmhIdTokenClaims,
 } from "@pmh/shared";
 import { Pool } from "pg";
+import { Agent } from "undici";
 import { SettingsService } from "../config/settings.service";
 import { isClientLoginAllowed } from "../modules/auth-oidc/login.service";
 import { assertEgressAllowed } from "../modules/notifications/egress.util";
@@ -296,8 +297,33 @@ export async function createOidcProvider(
       const { dispatcher: _drop, ...rest } = options ?? {};
       const allowlist =
         (await settings.get("webhook_allowlist_cidr", "")) ?? "";
-      await assertEgressAllowed(String(url), allowlist); // ném nếu đích bị chặn
-      return globalThis.fetch(url as string, rest);
+      // Validate + PIN IP (M2): assertEgressAllowed trả IP đã kiểm; ta ép mọi
+      // kết nối vào đúng IP đó nên request THẬT không resolve DNS lại (chống
+      // rebinding giữa validate và gửi, như webhook-worker). SNI/Host giữ
+      // hostname → TLS + routing vẫn đúng.
+      const pin = await assertEgressAllowed(String(url), allowlist);
+      const dispatcher = new Agent({
+        connect: {
+          lookup: (_h, o: { all?: boolean } | undefined, cb) =>
+            o?.all
+              ? cb(null, [{ address: pin.address, family: pin.family }])
+              : cb(null, pin.address, pin.family),
+        },
+      });
+      // Đọc TRỌN body rồi mới đóng dispatcher, trả Response mới — tránh đóng sớm
+      // cắt stream (body BCL/JWKS nhỏ nên buffer an toàn).
+      const init: Record<string, unknown> = { ...rest, dispatcher };
+      try {
+        const res = await globalThis.fetch(url as string, init);
+        const body = await res.arrayBuffer();
+        return new Response(body, {
+          status: res.status,
+          statusText: res.statusText,
+          headers: res.headers,
+        });
+      } finally {
+        void dispatcher.close();
+      }
     },
 
     // Endpoint khớp hợp đồng docs tích hợp
