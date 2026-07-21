@@ -1,0 +1,178 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/users": {
+      "get": {
+        "operationId": "DirectoryController_users",
+        "summary": "Danh bạ user trong scope client",
+        "description": "Trả user thuộc các group được gán cho client (client_groups). KHÔNG có password. Phân trang bằng limit/offset.",
+        "parameters": [
+          {
+            "name": "include_deleted",
+            "required": false,
+            "in": "query",
+            "description": "true → gồm user đã xóa mềm",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Số dòng tối đa (mặc định 100)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Bỏ qua N dòng đầu (mặc định 0)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Directory API (M2M)"
+        ],
+        "security": [
+          {
+            "client-credentials": []
+          }
+        ]
+      }
+    },
+    "/api/v1/users/{id}": {
+      "get": {
+        "operationId": "DirectoryController_user",
+        "summary": "Chi tiết một user theo id nội bộ",
+        "description": "404 đồng nhất 'ngoài phạm vi hoặc không tồn tại' (chống dò).",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_deleted",
+            "required": false,
+            "in": "query",
+            "description": "true → cho phép đọc user đã xóa mềm",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Directory API (M2M)"
+        ],
+        "security": [
+          {
+            "client-credentials": []
+          }
+        ]
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "operationId": "DirectoryController_events",
+        "summary": "Feed sự kiện user (khóa/xóa/đổi nhóm) để đồng bộ tăng dần",
+        "description": "Trả sự kiện có id > since (cursor). Giữ 90 ngày; cursor quá cũ → 410 (resync toàn bộ).",
+        "parameters": [
+          {
+            "name": "since",
+            "required": false,
+            "in": "query",
+            "description": "Cursor: chỉ lấy sự kiện id lớn hơn (mặc định 0)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Số sự kiện tối đa (mặc định 100)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Directory API (M2M)"
+        ],
+        "security": [
+          {
+            "client-credentials": []
+          }
+        ]
+      }
+    },
+    "/api/v1/groups": {
+      "get": {
+        "operationId": "DirectoryController_groups",
+        "summary": "Các group được gán cho client này",
+        "description": "Dùng để biết scope danh bạ mà client được phép đọc.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Directory API (M2M)"
+        ],
+        "security": [
+          {
+            "client-credentials": []
+          }
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "PMH ID — Directory API (M2M)",
+    "description": "API danh bạ cho project tích hợp. Xác thực: client_credentials → Bearer access_token. OIDC (authorize/token/jwks) xem Discovery: /oidc/.well-known/openid-configuration",
+    "version": "1",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [
+    {
+      "url": "https://id.pmh.com.vn",
+      "description": "Production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "client-credentials": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "access_token từ client_credentials grant"
+      }
+    },
+    "schemas": {}
+  }
+}

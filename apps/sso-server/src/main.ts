@@ -182,29 +182,31 @@ async function bootstrap() {
     new ValidationPipe({ whitelist: true, transform: true }),
   );
 
-  // OpenAPI/Swagger CHỈ cho Directory API (M2M) — bề mặt integrator gọi. KHÔNG
-  // include module admin (không lộ bản đồ API quản trị). OIDC endpoints tự tả
-  // qua Discovery (/oidc/.well-known/openid-configuration) nên không đưa vào đây.
-  // UI: /api/directory-docs · JSON: /api/directory-docs-json (đều qua edge /api/).
-  const openapi = new DocumentBuilder()
-    .setTitle("PMH ID — Directory API (M2M)")
-    .setDescription(
-      "API danh bạ cho project tích hợp. Xác thực: client_credentials → Bearer access_token. " +
-        "OIDC (authorize/token/jwks) xem Discovery: /oidc/.well-known/openid-configuration",
-    )
-    .setVersion("1")
-    // Path trong spec đã gồm global-prefix /api (vd /api/v1/users) → server là
-    // GỐC domain, không thêm /api nữa (tránh nhân đôi thành /api/api/...).
-    .addServer("https://id.pmh.com.vn", "Production")
-    .addBearerAuth(
-      { type: "http", scheme: "bearer", description: "access_token từ client_credentials grant" },
-      "client-credentials",
-    )
-    .build();
-  const doc = SwaggerModule.createDocument(app, openapi, {
-    include: [DirectoryApiModule],
-  });
-  SwaggerModule.setup("api/directory-docs", app, doc);
+  // OpenAPI/Swagger CHỈ cho Directory API (M2M). KHÔNG include module admin.
+  // KHÔNG phơi UI ra PROD (public không auth = lộ bản đồ API) — chỉ mount ở
+  // dev/staging để test. Integrator nhận spec TĨNH docs/integration/
+  // directory-api.openapi.json lúc onboarding. OIDC tự tả qua Discovery.
+  if (process.env.NODE_ENV !== "production") {
+    const openapi = new DocumentBuilder()
+      .setTitle("PMH ID — Directory API (M2M)")
+      .setDescription(
+        "API danh bạ cho project tích hợp. Xác thực: client_credentials → Bearer access_token. " +
+          "OIDC (authorize/token/jwks) xem Discovery: /oidc/.well-known/openid-configuration",
+      )
+      .setVersion("1")
+      // Path trong spec đã gồm global-prefix /api → server là GỐC domain (tránh
+      // nhân đôi /api/api/...).
+      .addServer("https://id.pmh.com.vn", "Production")
+      .addBearerAuth(
+        { type: "http", scheme: "bearer", description: "access_token từ client_credentials grant" },
+        "client-credentials",
+      )
+      .build();
+    const doc = SwaggerModule.createDocument(app, openapi, {
+      include: [DirectoryApiModule],
+    });
+    SwaggerModule.setup("api/directory-docs", app, doc);
+  }
 
   const port = Number.parseInt(process.env.PORT ?? "3000", 10);
   await app.listen(port, "0.0.0.0");
