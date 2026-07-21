@@ -1,5 +1,8 @@
 # PMH ID — EDGE & luồng hoạt động
 
+> 📎 **Tài liệu tham khảo nội bộ** (không bắt buộc để tích hợp). Giúp hiểu PMH ID
+> vận hành thế nào phía sau; muốn tích hợp thì `README.md` là đủ.
+
 Tài liệu giải thích **pmh-edge** (cổng vào chung) và ba luồng chính: **đăng nhập OIDC**, **webhook**, **đăng xuất toàn hệ (BCL)**.
 
 ---
