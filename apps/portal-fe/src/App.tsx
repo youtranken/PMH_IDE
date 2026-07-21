@@ -27,6 +27,12 @@ export interface Profile {
   isSsa: boolean;
 }
 
+/** Trang chủ theo vai. SSA + break-glass (cả hai đều có isSsa) VÀO THẲNG bảng
+ *  quản trị khi đăng nhập; member/project_admin về trang chủ coverflow. */
+function homeFor(p: Profile): string {
+  return p.isSsa ? "/admin/users" : "/";
+}
+
 /** Các route hợp lệ theo quyền của user (dùng chung cho redirect + chọn trang). */
 function allowedRoutes(p: Profile): string[] {
   const isAdmin = p.roles.length > 0;
@@ -135,8 +141,11 @@ function Root() {
         if (p) {
           setProfile(p);
           // Dọn URL sau /auth/callback VÀ chặn URL không được phép, nhưng GIỮ
-          // deep-link hợp lệ (vd F5 trên /admin/users không bị đá về "/").
-          if (!allowedRoutes(p).includes(window.location.pathname)) nav("/");
+          // deep-link hợp lệ (vd F5 trên /admin/groups không bị đá đi). SSA/
+          // break-glass mặc định vào thẳng bảng quản trị (kể cả khi đáp "/").
+          const home = homeFor(p);
+          const here = window.location.pathname;
+          if (here !== home && (here === "/" || !allowedRoutes(p).includes(here))) nav(home);
         }
       })
       .catch((e) => {

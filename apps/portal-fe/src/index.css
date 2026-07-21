@@ -1,0 +1,8 @@
+/* Reset tối thiểu toàn cục. Trình duyệt mặc định cho body margin 8px → lộ viền
+   trắng 4 mép ở trang immersive full-screen. Bỏ margin; mỗi trang tự phủ nền
+   của nó (playbook §4: không đặt màu nền trần ở đây để khỏi rò sang admin/login). */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
