@@ -8,6 +8,7 @@ import * as argon2 from "argon2";
 import cookieParser from "cookie-parser";
 import type { NextFunction, Request, Response } from "express";
 import { Pool } from "pg";
+import { AllExceptionsFilter } from "./common/all-exceptions.filter";
 import { KekService } from "./common/kek.service";
 import { PG_POOL } from "./database/database.module";
 import { AppModule } from "./app.module";
@@ -181,6 +182,9 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );
+  // Bắt lỗi toàn cục cho /api: che 500 nội bộ + gắn X-Request-Id (chỉ phủ Nest
+  // router; /oidc mount trước nên không đụng).
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // OpenAPI/Swagger CHỈ cho Directory API (M2M). KHÔNG include module admin.
   // KHÔNG phơi UI ra PROD (public không auth = lộ bản đồ API) — chỉ mount ở
