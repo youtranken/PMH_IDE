@@ -196,6 +196,19 @@
   flex-direction: column;
   position: relative;
   outline: none;
+  text-decoration: none; /* thẻ là <a> — bỏ gạch chân + kế thừa màu chữ */
+  color: inherit;
+}
+
+/* HIỆU NĂNG: chỉ scene ở thẻ ĐANG CHỌN chạy; thẻ cạnh (đang mờ) đóng băng
+   animation để không ghim GPU/pin khi có nhiều dự án. animation-play-state chỉ
+   ảnh hưởng @keyframes, KHÔNG đụng transform coverflow do Swiper đặt inline. */
+.pmh-swiper .swiper-slide:not(.swiper-slide-active) * {
+  animation-play-state: paused !important;
+}
+/* Tab ẩn (chuyển tab/thu nhỏ) → dừng mọi animation, đỡ hao pin/nhiệt vô ích. */
+.pmh-launch.is-hidden * {
+  animation-play-state: paused !important;
 }
 .pmh-card:focus-visible {
   /* Vàng brand (trước đây đỏ #e5533d lệch hệ màu) — nổi rõ trên nền cảnh tối */
@@ -384,6 +397,20 @@
   .pmh-slide, .pmh-card { width: 264px; }
   .pmh-card { height: 356px; }
   .pmh-skel__card { width: 264px; height: 356px; }
+}
+
+/* Màn THẤP (điện thoại xoay ngang, cửa sổ nhỏ): bỏ khóa 100vh + cho cuộn — nếu
+   không, card 384px + lời chào vượt chiều cao viewport và bị cắt cả trên lẫn dưới,
+   không bấm được nút "Mở dự án"/chấm phân trang. */
+@media (max-height: 620px) {
+  .pmh-hero--fill {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+    justify-content: flex-start;
+    padding-top: 84px;
+    padding-bottom: 40px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -41,21 +41,16 @@ function scene3DFor(name: string) {
 }
 
 function AppCard({ app }: { app: AppItem }) {
-  const open = () => window.open(app.app_url, "_blank", "noopener");
   const isProd = app.env === "prod";
   return (
-    <div
+    // <a> thật thay cho div role=button: mở tab giữa/chuột phải/copy link hoạt
+    // động, Enter sẵn có, screen-reader đọc đúng "liên kết".
+    <a
       className="pmh-card"
-      role="button"
-      tabIndex={0}
+      href={app.app_url}
+      target="_blank"
+      rel="noopener noreferrer"
       aria-label={`Mở ${app.name}`}
-      onClick={open}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          open();
-        }
-      }}
     >
       <div className="pmh-card__top">
         {app.image_url ? (
@@ -78,7 +73,7 @@ function AppCard({ app }: { app: AppItem }) {
           </svg>
         </div>
       </div>
-    </div>
+    </a>
   );
 }
 
@@ -88,6 +83,14 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
   const [apps, setApps] = useState<AppItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(0);
+  const [pageHidden, setPageHidden] = useState(false);
+
+  // Tab ẩn → gắn class .is-hidden để CSS đóng băng animation (đỡ hao pin/GPU).
+  useEffect(() => {
+    const onVis = () => setPageHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   const load = () => {
     setApps(null);
@@ -105,7 +108,7 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="pmh-launch">
+    <div className={`pmh-launch${pageHidden ? " is-hidden" : ""}`}>
       <div className={`pmh-hero${fill ? " pmh-hero--fill" : ""}`}>
         {/* Nền MORPH theo thẻ đang chọn — vuốt tới đâu nền ngập màu dự án đó */}
         {activeApp && (
