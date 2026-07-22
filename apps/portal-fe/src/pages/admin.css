@@ -370,7 +370,15 @@
   .pmh-admin *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
+    /* PHẢI reset cả delay: pmhRowIn dùng animation-delay theo --pmh-i + fill:both,
+       không reset thì hàng vẫn stagger + giữ opacity:0 (nháy trắng) khi giảm-chuyển-động. */
+    animation-delay: 0.001ms !important;
     transition-duration: 0.001ms !important;
+    transition-delay: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  /* Ngoại lệ: spinner tải là TÍN HIỆU chức năng (không phải trang trí) → giữ quay. */
+  .pmh-admin .ant-spin-dot {
+    animation-duration: 1s !important;
   }
 }

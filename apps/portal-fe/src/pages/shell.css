@@ -73,6 +73,11 @@
   outline: 2px solid #c9a24b;
   outline-offset: 2px;
 }
+/* Nền SÁNG: vàng #c9a24b tương phản < 3:1 (WCAG 1.4.11) → xanh brand cho rõ. */
+.pmh-topbar--light .pmh-topbar__brand:focus-visible,
+.pmh-avatar--light:focus-visible {
+  outline-color: #0e4d45;
+}
 .pmh-avatar--over-dark {
   background: rgba(255, 255, 255, 0.14);
   color: #ffffff;

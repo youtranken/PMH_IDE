@@ -406,7 +406,7 @@ function ChangePasswordForm({
   const allOk = Object.values(checks).every(Boolean);
   const match = pw.length > 0 && pw === pw2;
   return (
-    <Form layout="vertical" onFinish={() => onFinish({ newPassword: pw })} requiredMark={false}>
+    <Form layout="vertical" onFinish={() => { if (allOk && match) onFinish({ newPassword: pw }); }} requiredMark={false}>
       <Alert
         type="info"
         message="Bạn cần đặt mật khẩu mới trước khi tiếp tục"
@@ -531,6 +531,7 @@ function MfaEnrollForm({ uid }: { uid: string }) {
   }, [uid]);
 
   const submit = async () => {
+    if (!code || busy) return; // Enter bỏ qua disabled của nút → chặn mã rỗng/gửi trùng
     setBusy(true);
     setErr(null);
     const r = await postJson(`/api/interaction/${uid}/mfa-enroll`, { code });
@@ -649,6 +650,9 @@ export function ResetPassword() {
   const match = pw.length > 0 && pw === pw2;
 
   const submit = async () => {
+    // Nút disabled khi chưa đủ điều kiện, nhưng Enter bỏ qua disabled → chặn ở đây
+    // (nếu không, Enter khi ô "Nhập lại" trống/lệch vẫn đặt MK theo pw).
+    if (!allOk || !match) return;
     setBusy(true);
     setErr(null);
     try {
