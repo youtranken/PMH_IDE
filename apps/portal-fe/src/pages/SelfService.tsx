@@ -24,10 +24,10 @@ import {
   type PasswordChecks,
 } from "@pmh/shared";
 import { api, logout } from "../auth";
-import { BRAND, deviceName, initials, relativeTime } from "../ui";
+import { BRAND, deviceName, initials, PageHeader, relativeTime } from "../ui";
 import type { Profile } from "../App";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface Session {
   oidc_session_uid: string;
@@ -432,12 +432,7 @@ export default function SelfService({ profile, embedded }: { profile: Profile; o
     <div style={embedded ? { width: "100%" } : { maxWidth: 780, margin: "0 auto", width: "100%" }}>
       {/* embedded = mở trong Drawer popup (đã có tiêu đề Drawer) → bỏ tiêu đề trang. */}
       {!embedded && (
-        <>
-          <Title level={3} style={{ marginBottom: 2 }}>Tài khoản</Title>
-          <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
-            Quản lý thông tin cá nhân và bảo mật đăng nhập.
-          </Text>
-        </>
+        <PageHeader title="Tài khoản" sub="Quản lý thông tin cá nhân và bảo mật đăng nhập." />
       )}
 
       {/* Identity hero */}

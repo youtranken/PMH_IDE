@@ -1,9 +1,9 @@
 import { Alert, Skeleton, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../auth";
-import { BRAND } from "../ui";
+import { BRAND, PageHeader } from "../ui";
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 /**
  * Cổng tài liệu tích hợp (E8-S1). Nội dung do BE trả (gate Developers) — FE chỉ
@@ -34,7 +34,8 @@ export default function Docs() {
   }
   if (md === null)
     return (
-      <div style={{ maxWidth: 820, margin: "0 auto" }}>
+      // Cùng bề rộng 1040 với nội dung thật → không nhảy layout khi tải xong.
+      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
         <Skeleton active paragraph={{ rows: 10 }} title={{ width: "40%" }} />
       </div>
     );
@@ -52,10 +53,10 @@ export default function Docs() {
 
   return (
     <div style={{ maxWidth: 1040, margin: "0 auto", width: "100%" }}>
-      <Title level={3} style={{ marginBottom: 2 }}>Tài liệu tích hợp</Title>
-      <Text type="secondary" style={{ display: "block", marginBottom: 20 }}>
-        Hướng dẫn kết nối ứng dụng với PMH ID (OIDC, Directory API, webhook).
-      </Text>
+      <PageHeader
+        title="Tài liệu tích hợp"
+        sub="Hướng dẫn kết nối ứng dụng với PMH ID (OIDC, Directory API, webhook)."
+      />
 
       <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
         <article

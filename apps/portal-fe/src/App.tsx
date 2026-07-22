@@ -124,6 +124,17 @@ function boot(): Promise<Profile | null> {
   return bootPromise;
 }
 
+const ROUTE_TITLES: Record<string, string> = {
+  "/": "PMH ID — Trang chủ",
+  "/account": "PMH ID — Tài khoản",
+  "/docs": "PMH ID — Tài liệu tích hợp",
+  "/admin/users": "PMH ID — Người dùng",
+  "/admin/groups": "PMH ID — Nhóm",
+  "/admin/workspace": "PMH ID — Dự án & Ứng dụng",
+  "/audit": "PMH ID — Nhật ký",
+  "/settings": "PMH ID — Cấu hình",
+};
+
 function Root() {
   const [path, nav] = usePath();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -135,6 +146,12 @@ function Root() {
 
   const interaction = path.match(/^\/interaction\/([^/]+)$/);
   const resetPw = path === "/reset-password";
+
+  // Tab title theo trang (SPA không tự đổi) — giữ mặc định cho màn login/đặt lại MK.
+  useEffect(() => {
+    if (interaction || resetPw) return;
+    document.title = ROUTE_TITLES[path] ?? "PMH ID";
+  }, [path, interaction, resetPw]);
 
   useEffect(() => {
     if (interaction || resetPw) return; // login SSO + đặt lại MK: route công khai, không cần auth portal

@@ -165,32 +165,35 @@
 }
 
 /* ---- PageHeader (primitive dùng chung, thay khối copy-paste 5 trang) ---- */
+/* Fallback var(): PageHeader dùng được CẢ ngoài .pmh-admin (member SelfService/
+   Docs) — token --a-* chỉ có trong scope admin, fallback = đúng giá trị token nên
+   admin không đổi hình, member có header y hệt (bỏ 2 hệ tiêu-đề lệch nhau). */
 .pmh-ph {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--a-3);
-  margin-bottom: var(--a-5);
+  gap: var(--a-3, 12px);
+  margin-bottom: var(--a-5, 24px);
 }
 .pmh-ph__title {
   margin: 0;
-  font-size: var(--a-fs-xl);
+  font-size: var(--a-fs-xl, 22px);
   font-weight: 700;
   letter-spacing: -0.3px;
-  color: var(--a-ink);
+  color: var(--a-ink, #16211f);
   line-height: 1.2;
 }
 .pmh-ph__sub {
   margin: 4px 0 0;
-  color: var(--a-ink-2);
-  font-size: var(--a-fs-md);
+  color: var(--a-ink-2, #5f716c);
+  font-size: var(--a-fs-md, 14px);
   max-width: 60ch;
 }
 .pmh-ph__actions {
   display: flex;
   align-items: center;
-  gap: var(--a-2);
+  gap: var(--a-2, 8px);
   flex-wrap: wrap;
 }
 
