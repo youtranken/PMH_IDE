@@ -1,4 +1,4 @@
-import { Alert, Button, Checkbox, Form, Input, List, Spin } from "antd";
+import { Alert, Button, Checkbox, Form, Input, List, Space, Spin } from "antd";
 import { CheckCircleFilled, LockOutlined, MinusCircleOutlined, UserOutlined } from "@ant-design/icons";
 import { Brand, BRAND } from "../ui";
 import { LoginScene } from "../scenes";
@@ -71,6 +71,8 @@ const authCss = `
 /** Checklist quy tắc mật khẩu (dùng chung cho bước đổi MK bắt buộc và màn đặt lại MK). */
 function PasswordChecklist({ pw }: { pw: string }) {
   const checks = checkPassword(pw);
+  // Chỉ hiện khi người dùng BẮT ĐẦU nhập — tránh "dội" 5 dòng ngay khi mở màn.
+  if (pw.length === 0) return null;
   return (
     <div className="pmh-checks">
       {(Object.keys(checks) as (keyof PasswordChecks)[]).map((k) => (
@@ -233,6 +235,13 @@ export default function InteractionLogin({ uid }: { uid: string }) {
           )}
           {step === "mfa" && <MfaForm loading={loading} onFinish={onMfa} />}
           {step === "mfa_enroll" && <MfaEnrollForm uid={uid} />}
+          {(step === "change_password" || step === "mfa") && (
+            <div className="pmh-authcard__backrow" style={{ marginTop: 14 }}>
+              <button type="button" className="pmh-authcard__back" onClick={() => (window.location.href = "/")}>
+                ← Đăng nhập lại
+              </button>
+            </div>
+          )}
         </>
       )}
     </>
@@ -392,8 +401,10 @@ function ChangePasswordForm({
   onFinish: (v: { newPassword: string }) => void;
 }) {
   const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
   const checks = checkPassword(pw);
   const allOk = Object.values(checks).every(Boolean);
+  const match = pw.length > 0 && pw === pw2;
   return (
     <Form layout="vertical" onFinish={() => onFinish({ newPassword: pw })} requiredMark={false}>
       <Alert
@@ -412,7 +423,19 @@ function ChangePasswordForm({
         />
       </Form.Item>
       <PasswordChecklist pw={pw} />
-      <Button type="primary" htmlType="submit" size="large" block loading={loading} disabled={!allOk}>
+      <Form.Item
+        label="Nhập lại mật khẩu"
+        validateStatus={pw2 && !match ? "error" : undefined}
+        help={pw2 && !match ? "Mật khẩu nhập lại không khớp" : undefined}
+      >
+        <Input.Password
+          size="large"
+          autoComplete="new-password"
+          value={pw2}
+          onChange={(e) => setPw2(e.target.value)}
+        />
+      </Form.Item>
+      <Button type="primary" htmlType="submit" size="large" block loading={loading} disabled={!allOk || !match}>
         Đặt mật khẩu & tiếp tục
       </Button>
     </Form>
@@ -436,7 +459,14 @@ function MfaForm({
         showIcon
       />
       <Form.Item name="code" rules={[{ required: true, message: "Nhập mã" }]}>
-        <Input size="large" autoFocus autoComplete="one-time-code" placeholder={recovery ? "XXXXX-XXXXX" : "123456"} />
+        <Input
+          size="large"
+          autoFocus
+          autoComplete="one-time-code"
+          inputMode={recovery ? "text" : "numeric"}
+          aria-label={recovery ? "Recovery code" : "Mã xác thực 6 số"}
+          placeholder={recovery ? "XXXXX-XXXXX" : "123456"}
+        />
       </Form.Item>
       <Form.Item>
         <Checkbox checked={recovery} onChange={(e) => setRecovery(e.target.checked)}>
@@ -459,6 +489,25 @@ function MfaEnrollForm({ uid }: { uid: string }) {
   const [busy, setBusy] = useState(false);
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [redirectTo, setRedirectTo] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const copyRecovery = () => {
+    if (!recovery) return;
+    navigator.clipboard?.writeText(recovery.join("\n")).then(
+      () => setCopied(true),
+      () => setCopied(false),
+    );
+  };
+  const downloadRecovery = () => {
+    if (!recovery) return;
+    const blob = new Blob([recovery.join("\n") + "\n"], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pmh-id-recovery-codes.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Trước đây effect nuốt lỗi (setQr(null) khi 410/lỗi) → màn còn trơ ô nhập
   // không QR, không lời giải thích = ngõ cụt câm. Nay phân biệt lỗi + có lối thoát.
@@ -511,6 +560,12 @@ function MfaEnrollForm({ uid }: { uid: string }) {
             <List.Item style={{ fontFamily: "monospace" }}>{c}</List.Item>
           )}
         />
+        <Space style={{ marginTop: 10 }}>
+          <Button size="small" onClick={copyRecovery}>
+            {copied ? "Đã sao chép ✓" : "Sao chép tất cả"}
+          </Button>
+          <Button size="small" onClick={downloadRecovery}>Tải .txt</Button>
+        </Space>
         <Button
           type="primary"
           block
@@ -538,7 +593,7 @@ function MfaEnrollForm({ uid }: { uid: string }) {
   }
 
   return (
-    <>
+    <Form layout="vertical" onFinish={submit} requiredMark={false}>
       <Alert
         type="info"
         showIcon
@@ -559,20 +614,21 @@ function MfaEnrollForm({ uid }: { uid: string }) {
           <span>Đang tạo mã QR…</span>
         </div>
       )}
-      <Input
-        size="large"
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-        placeholder="123456"
-        inputMode="numeric"
-        aria-label="Mã xác thực 6 số"
-        autoComplete="one-time-code"
-        style={{ marginBottom: 12 }}
-      />
-      <Button type="primary" size="large" block loading={busy} disabled={!code || !qr} onClick={submit}>
+      <Form.Item style={{ marginBottom: 12 }}>
+        <Input
+          size="large"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="123456"
+          inputMode="numeric"
+          aria-label="Mã xác thực 6 số"
+          autoComplete="one-time-code"
+        />
+      </Form.Item>
+      <Button type="primary" htmlType="submit" size="large" block loading={busy} disabled={!code || !qr}>
         Xác nhận bật MFA
       </Button>
-    </>
+    </Form>
   );
 }
 
