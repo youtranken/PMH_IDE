@@ -9,12 +9,10 @@ import {
   SafetyOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
-import { App as AntApp, Button, Card, Input, Skeleton, Tooltip, Typography } from "antd";
+import { App as AntApp, Button, Card, Input, Skeleton, Tooltip } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../auth";
-import { BRAND } from "../ui";
-
-const { Title, Text } = Typography;
+import { BRAND, PageHeader } from "../ui";
 
 interface Setting {
   key: string;
@@ -99,7 +97,7 @@ function GroupIcon({ children }: { children: ReactNode }) {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#e8f0ed",
+        background: "var(--a-chip)",
         color: BRAND.green,
         fontSize: 15,
       }}
@@ -214,14 +212,14 @@ export default function Settings() {
   };
 
   return (
-    <div style={{ maxWidth: 860, margin: "0 auto", width: "100%" }}>
-      <Title level={3} style={{ marginBottom: 2 }}>Cấu hình hệ thống</Title>
-      <Text type="secondary" style={{ display: "block", marginBottom: 20 }}>
-        Tham số vận hành áp dụng ngay (không cần khởi động lại). Mật khẩu SMTP lưu mã hóa, chỉ nhập được — không hiển thị lại.
-      </Text>
+    <div>
+      <PageHeader
+        title="Cấu hình hệ thống"
+        sub="Tham số vận hành áp dụng ngay (không cần khởi động lại). Mật khẩu SMTP lưu mã hóa, chỉ nhập được — không hiển thị lại."
+      />
 
       {loading && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="pmh-set-grid">
           {[0, 1, 2].map((i) => (
             <Card key={i}>
               <Skeleton active paragraph={{ rows: 3 }} title={{ width: "30%" }} />
@@ -229,7 +227,7 @@ export default function Settings() {
           ))}
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="pmh-set-grid">
         {!loading && groups.map((g) => (
           <Card
             key={g.title}

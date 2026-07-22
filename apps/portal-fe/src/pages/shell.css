@@ -85,15 +85,20 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   color: #0e4d45;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
+  background: #ffffff;
+  border: 1px solid #e5eae7;
+  border-radius: 999px;
+  padding: 5px 13px 5px 10px;
+  box-shadow: 0 1px 2px rgba(16, 33, 31, 0.04);
+  transition: border-color 0.12s ease, transform 0.12s ease, background 0.12s ease;
 }
 .pmh-page__back:hover {
   color: #0a3c36;
+  border-color: #cdd8d3;
+  transform: translateX(-2px);
 }

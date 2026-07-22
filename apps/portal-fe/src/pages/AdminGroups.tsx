@@ -12,13 +12,10 @@ import {
   Select,
   Space,
   Table,
-  Typography,
 } from "antd";
 import { useEffect, useState } from "react";
 import { api } from "../auth";
-import { BRAND, initials } from "../ui";
-
-const { Title, Text } = Typography;
+import { BRAND, initials, PageHeader } from "../ui";
 
 interface GroupRow {
   id: string;
@@ -79,26 +76,37 @@ export default function AdminGroups({ isSsa }: { isSsa: boolean }) {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", width: "100%" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
-        <div>
-          <Title level={3} style={{ marginBottom: 2 }}>Nhóm</Title>
-          <Text type="secondary">Nhóm quyết định user được vào ứng dụng nào và phạm vi danh bạ.</Text>
-        </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo nhóm</Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Nhóm"
+        sub="Nhóm quyết định user được vào ứng dụng nào và phạm vi danh bạ."
+        actions={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo nhóm</Button>}
+      />
 
+      <div className="pmh-admin__card">
       <Table<GroupRow>
         rowKey="id"
         loading={loading}
         dataSource={rows}
         pagination={false}
+        locale={{
+          emptyText: (
+            <div style={{ padding: "36px 0" }}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Chưa có nhóm nào — tạo nhóm để mở quyền vào ứng dụng."
+              >
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo nhóm</Button>
+              </Empty>
+            </div>
+          ),
+        }}
         columns={[
           {
             title: "Nhóm",
             render: (_, g) => (
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Avatar shape="square" style={{ background: "#e8f0ed", color: BRAND.green, borderRadius: 10, flex: "0 0 auto" }} icon={<TeamOutlined />} />
+                <Avatar shape="square" style={{ background: "var(--a-chip)", color: BRAND.green, borderRadius: 10, flex: "0 0 auto" }} icon={<TeamOutlined />} />
                 <div>
                   <div style={{ fontWeight: 600, color: BRAND.ink }}>{g.name}</div>
                   {g.description && <div style={{ color: BRAND.muted, fontSize: 13 }}>{g.description}</div>}
@@ -119,6 +127,7 @@ export default function AdminGroups({ isSsa }: { isSsa: boolean }) {
           },
         ]}
       />
+      </div>
 
       <Modal
         open={formOpen}
@@ -222,7 +231,7 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
             actions={[<Button key="r" type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(m.user_id)} />]}
           >
             <List.Item.Meta
-              avatar={<Avatar style={{ background: "#e8f0ed", color: BRAND.green, fontWeight: 700 }}>{initials(m.full_name)}</Avatar>}
+              avatar={<Avatar style={{ background: "var(--a-chip)", color: BRAND.green, fontWeight: 700 }}>{initials(m.full_name)}</Avatar>}
               title={m.full_name}
               description={m.email}
             />

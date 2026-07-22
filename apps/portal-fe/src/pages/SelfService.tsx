@@ -314,9 +314,11 @@ function ChangePassword() {
   const [open, setOpen] = useState(false);
   const [curPw, setCurPw] = useState("");
   const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
   const [saving, setSaving] = useState(false);
   const checks = checkPassword(pw);
   const allOk = Object.values(checks).every(Boolean);
+  const mismatch = pw2.length > 0 && pw !== pw2;
 
   const changePassword = async () => {
     setSaving(true);
@@ -326,6 +328,7 @@ function ChangePassword() {
         body: { currentPassword: curPw, newPassword: pw },
       });
       setPw("");
+      setPw2("");
       setCurPw("");
       setOpen(false);
       message.success(`Đã đổi mật khẩu — hủy ${r.revoked} phiên khác, giữ phiên hiện tại`);
@@ -367,7 +370,22 @@ function ChangePassword() {
             autoComplete="new-password"
             onChange={(e) => setPw(e.target.value)}
           />
-          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 18 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: BRAND.ink }}>Xác nhận mật khẩu mới</label>
+          <Input.Password
+            size="large"
+            status={mismatch ? "error" : undefined}
+            style={{ margin: "6px 0 6px" }}
+            value={pw2}
+            autoComplete="new-password"
+            onChange={(e) => setPw2(e.target.value)}
+            onPressEnter={() => allOk && curPw && !mismatch && pw2 && changePassword()}
+          />
+          {mismatch && (
+            <div style={{ color: "var(--a-danger, #c0392b)", fontSize: 13, marginBottom: 12 }}>
+              Mật khẩu nhập lại chưa khớp.
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, margin: "12px 0 18px" }}>
             {(Object.keys(checks) as (keyof PasswordChecks)[]).map((k) => (
               <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
                 {checks[k] ? (
@@ -381,7 +399,7 @@ function ChangePassword() {
               </div>
             ))}
           </div>
-          <Button type="primary" disabled={!allOk || !curPw} loading={saving} onClick={changePassword}>
+          <Button type="primary" disabled={!allOk || !curPw || !pw2 || mismatch} loading={saving} onClick={changePassword}>
             Cập nhật mật khẩu
           </Button>
         </div>
@@ -391,7 +409,7 @@ function ChangePassword() {
 }
 
 /** Self-service (E6-S2, FR-10/05): thông tin + group, quản phiên, MFA, đổi mật khẩu. */
-export default function SelfService({ profile }: { profile: Profile; onProfile: (p: Profile) => void }) {
+export default function SelfService({ profile, embedded }: { profile: Profile; onProfile: (p: Profile) => void; embedded?: boolean }) {
   const { message } = AntApp.useApp();
   const [sessions, setSessions] = useState<Session[]>([]);
 
@@ -408,14 +426,19 @@ export default function SelfService({ profile }: { profile: Profile; onProfile: 
   };
 
   return (
-    <div style={{ maxWidth: 780, margin: "0 auto", width: "100%" }}>
-      <Title level={3} style={{ marginBottom: 2 }}>Tài khoản</Title>
-      <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
-        Quản lý thông tin cá nhân và bảo mật đăng nhập.
-      </Text>
+    <div style={embedded ? { width: "100%" } : { maxWidth: 780, margin: "0 auto", width: "100%" }}>
+      {/* embedded = mở trong Drawer popup (đã có tiêu đề Drawer) → bỏ tiêu đề trang. */}
+      {!embedded && (
+        <>
+          <Title level={3} style={{ marginBottom: 2 }}>Tài khoản</Title>
+          <Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+            Quản lý thông tin cá nhân và bảo mật đăng nhập.
+          </Text>
+        </>
+      )}
 
       {/* Identity hero */}
-      <Panel style={{ padding: 24, display: "flex", alignItems: "center", gap: 18, marginTop: 16 }}>
+      <Panel style={{ padding: 24, display: "flex", alignItems: "center", gap: 18, marginTop: embedded ? 0 : 16 }}>
         <Avatar size={64} style={{ background: BRAND.green, fontSize: 24, fontWeight: 700, flex: "0 0 auto" }}>
           {initials(profile.full_name)}
         </Avatar>

@@ -22,7 +22,10 @@ const authCss = `
 .pmh-card::before{content:"";position:absolute;top:0;left:26px;right:26px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#C9A24B,transparent);}
 .pmh-card .ant-btn-primary{transition:transform .16s ease, box-shadow .16s ease;}
 .pmh-card .ant-btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(14,77,69,.34);}
-.pmh-card .ant-input-affix-wrapper-focused,.pmh-card .ant-input:focus,.pmh-card .ant-input-affix-wrapper:focus-within{box-shadow:0 0 0 3px rgba(201,162,75,.2)!important;}
+/* Focus ĐỒNG NHẤT: viền + quầng cùng vàng đồng (trước đây viền xanh của antd đá
+   nhau với quầng vàng → trông "sai lệch"). Hover cũng ngả vàng nhẹ. */
+.pmh-card .ant-input-affix-wrapper:hover,.pmh-card .ant-input:hover{border-color:#C9A24B!important;}
+.pmh-card .ant-input-affix-wrapper-focused,.pmh-card .ant-input-affix-wrapper:focus-within,.pmh-card .ant-input:focus{border-color:#C9A24B!important;box-shadow:0 0 0 3px rgba(201,162,75,.22)!important;}
 /* Lớp phủ tối để khung login + chữ nổi rõ trên scene động */
 .pmh-auth__overlay{position:absolute;inset:0;z-index:1;background:
   linear-gradient(110deg, rgba(9,16,30,.8) 0%, rgba(9,16,30,.18) 44%, rgba(8,14,26,.48) 64%, rgba(8,14,26,.8) 100%);}

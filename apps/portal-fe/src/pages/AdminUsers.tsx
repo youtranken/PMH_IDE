@@ -1,7 +1,16 @@
 import {
+  DeleteOutlined,
   DownloadOutlined,
+  EditOutlined,
+  FieldTimeOutlined,
+  KeyOutlined,
+  LockOutlined,
+  LogoutOutlined,
   MoreOutlined,
   PlusOutlined,
+  SafetyCertificateOutlined,
+  UnlockOutlined,
+  UndoOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import {
@@ -10,22 +19,24 @@ import {
   Button,
   Checkbox,
   Dropdown,
+  Empty,
   Form,
   Input,
   Modal,
   Select,
+  Skeleton,
   Space,
   Table,
   Tag,
   Typography,
   Upload,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, ApiError, apiText } from "../auth";
-import { BRAND, initials } from "../ui";
+import { BRAND, initials, PageHeader } from "../ui";
 import { Avatar } from "antd";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface UserRow {
   id: string;
@@ -47,7 +58,7 @@ function roleTags(u: UserRow) {
   for (const name of u.admin_projects ?? []) {
     tags.push(<Tag key={name} color="green">QTDA: {name}</Tag>);
   }
-  return tags.length ? <span>{tags}</span> : <span style={{ color: "#c0c9c5" }}>Nhân viên</span>;
+  return tags.length ? <span>{tags}</span> : <span style={{ color: "var(--a-faint)" }}>Nhân viên</span>;
 }
 
 interface RowResult {
@@ -217,7 +228,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
 
   // `ok` = thông báo thành công (thì quá khứ). `confirmTitle` (nếu có) = câu hỏi
   // xác nhận mệnh lệnh — KHÔNG tái dùng `ok` làm tiêu đề (thành "Đã khóa?" tối nghĩa).
-  const act = async (u: UserRow, path: string, ok: string, confirmTitle?: string) => {
+  const act = async (u: UserRow, path: string, ok: string, confirm?: { title: string; okText: string }) => {
     const run = async () => {
       try {
         const r = await api<{ revoked?: number }>(`/api/admin/users/${u.id}/${path}`, { method: "POST" });
@@ -227,8 +238,9 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
         message.error((e as Error).message);
       }
     };
-    if (confirmTitle) {
-      modal.confirm({ title: confirmTitle, content: `${u.full_name} (${u.email})`, okButtonProps: { danger: true }, onOk: run });
+    // Nút xác nhận NÊU RÕ hành động ("Khóa tài khoản") thay vì "Đồng ý" chung chung.
+    if (confirm) {
+      modal.confirm({ title: confirm.title, content: `${u.full_name} (${u.email})`, okText: confirm.okText, cancelText: "Hủy", okButtonProps: { danger: true }, onOk: run });
     } else run();
   };
 
@@ -291,27 +303,27 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
   };
 
   const menuFor = (u: UserRow) => {
-    const items: { key: string; label: string; danger?: boolean; onClick: () => void }[] = [
-      { key: "edit", label: "Sửa thông tin", onClick: () => openEdit(u) },
-      { key: "reset", label: "Reset mật khẩu", onClick: () => resetPassword(u) },
+    const items: { key: string; label: string; icon: ReactNode; danger?: boolean; onClick: () => void }[] = [
+      { key: "edit", label: "Sửa thông tin", icon: <EditOutlined />, onClick: () => openEdit(u) },
+      { key: "reset", label: "Reset mật khẩu", icon: <KeyOutlined />, onClick: () => resetPassword(u) },
     ];
     if (isSsa) {
       if (u.deleted_at) {
-        items.push({ key: "reactivate", label: "Khôi phục user", onClick: () => act(u, "reactivate", "Đã khôi phục") });
+        items.push({ key: "reactivate", label: "Khôi phục user", icon: <UndoOutlined />, onClick: () => act(u, "reactivate", "Đã khôi phục") });
       } else {
-        items.push({ key: "expiry", label: "Đặt hạn tài khoản", onClick: () => { setExpiryFor(u); setExpiryVal(u.expires_at ? u.expires_at.slice(0, 10) : ""); } });
+        items.push({ key: "expiry", label: "Đặt hạn tài khoản", icon: <FieldTimeOutlined />, onClick: () => { setExpiryFor(u); setExpiryVal(u.expires_at ? u.expires_at.slice(0, 10) : ""); } });
         items.push(
           u.status === "locked"
-            ? { key: "unlock", label: "Mở khóa", onClick: () => act(u, "unlock", "Đã mở khóa") }
-            : { key: "lock", label: "Khóa tài khoản", danger: true, onClick: () => act(u, "lock", "Đã khóa", "Khóa tài khoản này?") },
+            ? { key: "unlock", label: "Mở khóa", icon: <UnlockOutlined />, onClick: () => act(u, "unlock", "Đã mở khóa") }
+            : { key: "lock", label: "Khóa tài khoản", icon: <LockOutlined />, danger: true, onClick: () => act(u, "lock", "Đã khóa", { title: "Khóa tài khoản này?", okText: "Khóa tài khoản" }) },
         );
-        items.push({ key: "revoke", label: "Hủy mọi phiên", onClick: () => act(u, "revoke-sessions", "Đã hủy phiên") });
+        items.push({ key: "revoke", label: "Hủy mọi phiên", icon: <LogoutOutlined />, onClick: () => act(u, "revoke-sessions", "Đã hủy phiên") });
         items.push(
           u.is_ssa
-            ? { key: "ssa-revoke", label: "Gỡ quyền SSA", danger: true, onClick: () => toggleSsa(u, false) }
-            : { key: "ssa-grant", label: "Bổ nhiệm SSA", onClick: () => toggleSsa(u, true) },
+            ? { key: "ssa-revoke", label: "Gỡ quyền SSA", icon: <SafetyCertificateOutlined />, danger: true, onClick: () => toggleSsa(u, false) }
+            : { key: "ssa-grant", label: "Bổ nhiệm SSA", icon: <SafetyCertificateOutlined />, onClick: () => toggleSsa(u, true) },
         );
-        items.push({ key: "delete", label: "Xóa user", danger: true, onClick: () => act(u, "delete", "Đã xóa user", "Xóa user này?") });
+        items.push({ key: "delete", label: "Xóa user", icon: <DeleteOutlined />, danger: true, onClick: () => act(u, "delete", "Đã xóa user", { title: "Xóa user này?", okText: "Xóa user" }) });
       }
     }
     return items;
@@ -331,15 +343,41 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
     }
   };
 
+  // Bộ lọc đang bật? → trạng thái rỗng phân biệt "không khớp lọc" vs "chưa có ai".
+  const hasFilter = !!q || statusFilter !== "all" || groupFilter !== "all";
+  const clearFilters = () => { setQ(""); setStatusFilter("all"); setGroupFilter("all"); };
+
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", width: "100%" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
-        <div>
-          <Title level={3} style={{ marginBottom: 2 }}>Người dùng</Title>
-          <Text type="secondary">Quản lý tài khoản nhân viên, nhóm quyền và mật khẩu.</Text>
+    <div>
+      <PageHeader
+        title="Người dùng"
+        sub="Quản lý tài khoản nhân viên, nhóm quyền và mật khẩu."
+        actions={
+          <Space>
+            <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>Nhập CSV</Button>
+            <Button icon={<DownloadOutlined />} onClick={exportCsv}>Xuất CSV</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo user</Button>
+          </Space>
+        }
+      />
+
+      {selectedKeys.length > 0 && (
+        <div className="pmh-admin__bulk">
+          <Text strong>Đã chọn {selectedKeys.length} user</Text>
+          <Button type="primary" size="small" onClick={() => setBulkOpen(true)}>Gán vào nhóm</Button>
+          <Button type="text" size="small" onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
         </div>
-        <Space wrap>
-          <Input.Search placeholder="Tìm tên, email, mã NV" allowClear style={{ width: 220 }} onChange={(e) => setQ(e.target.value)} />
+      )}
+
+      {loading && rows.length === 0 ? (
+        <div className="pmh-admin__card pmh-admin__card--pad">
+          <Skeleton active paragraph={{ rows: 8 }} />
+        </div>
+      ) : (
+      <div className="pmh-admin__card">
+        <div className="pmh-admin__toolbar">
+          <Input.Search placeholder="Tìm tên, email, mã NV" allowClear value={q} style={{ width: 240 }} onChange={(e) => setQ(e.target.value)} />
+          <div className="pmh-admin__toolbar-spacer" />
           <Select
             value={statusFilter}
             onChange={setStatusFilter}
@@ -359,26 +397,29 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
             optionFilterProp="label"
             options={[{ value: "all", label: "Mọi nhóm" }, ...groups.map((g) => ({ value: g.name, label: g.name }))]}
           />
-          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>Nhập CSV</Button>
-          <Button icon={<DownloadOutlined />} onClick={exportCsv}>Xuất CSV</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo user</Button>
-        </Space>
-      </div>
-
-      {selectedKeys.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, padding: "8px 14px", background: "#e8f0ed", borderRadius: 10 }}>
-          <Text strong>Đã chọn {selectedKeys.length} user</Text>
-          <Button type="primary" size="small" onClick={() => setBulkOpen(true)}>Gán vào nhóm</Button>
-          <Button type="text" size="small" onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
         </div>
-      )}
-
-      <Table<UserRow>
+        <Table<UserRow>
         rowKey="id"
         loading={loading}
         dataSource={filtered}
         pagination={{ pageSize: 15, showTotal: (t) => `${t} người dùng` }}
         scroll={{ x: 820 }}
+        locale={{
+          emptyText: (
+            <div style={{ padding: "36px 0" }}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={hasFilter ? "Không có người dùng khớp bộ lọc" : "Chưa có người dùng nào"}
+              >
+                {hasFilter ? (
+                  <Button size="small" onClick={clearFilters}>Xóa bộ lọc</Button>
+                ) : (
+                  <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo user</Button>
+                )}
+              </Empty>
+            </div>
+          ),
+        }}
         rowSelection={{
           selectedRowKeys: selectedKeys,
           onChange: (keys) => setSelectedKeys(keys as string[]),
@@ -389,7 +430,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
             title: "Nhân viên",
             render: (_, u) => (
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Avatar style={{ background: "#e8f0ed", color: BRAND.green, fontWeight: 700, flex: "0 0 auto" }}>
+                <Avatar style={{ background: "var(--a-chip)", color: BRAND.green, fontWeight: 700, flex: "0 0 auto" }}>
                   {initials(u.full_name)}
                 </Avatar>
                 <div style={{ minWidth: 0 }}>
@@ -411,7 +452,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
                   {u.groups.length > 3 && <Tag style={{ marginInlineEnd: 0 }}>+{u.groups.length - 3}</Tag>}
                 </Space>
               ) : (
-                <span style={{ color: "#c0c9c5" }}>—</span>
+                <span style={{ color: "var(--a-faint)" }}>—</span>
               ),
           },
           { title: "Trạng thái", render: (_, u) => statusTag(u), width: 120 },
@@ -420,13 +461,15 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
             title: "",
             width: 48,
             render: (_, u) => (
-              <Dropdown trigger={["click"]} menu={{ items: menuFor(u).map((i) => ({ key: i.key, label: i.label, danger: i.danger, onClick: i.onClick })) }}>
+              <Dropdown trigger={["click"]} menu={{ items: menuFor(u).map((i) => ({ key: i.key, label: i.label, icon: i.icon, danger: i.danger, onClick: i.onClick })) }}>
                 <Button type="text" icon={<MoreOutlined />} />
               </Dropdown>
             ),
           },
         ]}
-      />
+        />
+      </div>
+      )}
 
       {/* Tạo / sửa */}
       <Modal

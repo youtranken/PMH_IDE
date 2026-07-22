@@ -1,8 +1,7 @@
-import { App as AntApp, Button, Card, Empty, Input, Select, Space, Table, Tag, Typography } from "antd";
+import { App as AntApp, Button, Card, Empty, Input, Select, Space, Table, Tag } from "antd";
 import { useEffect, useState } from "react";
 import { api } from "../auth";
-
-const { Title, Text } = Typography;
+import { PageHeader } from "../ui";
 
 interface AuditRow {
   id: number;
@@ -65,11 +64,8 @@ export default function Audit({ isSsa }: { isSsa: boolean }) {
   }, []);
 
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <div>
-        <Title level={3} style={{ marginBottom: 2 }}>Nhật ký hệ thống</Title>
-        <Text type="secondary">Đăng nhập và thao tác quản trị, theo phạm vi bạn quản lý.</Text>
-      </div>
+    <div>
+      <PageHeader title="Nhật ký hệ thống" sub="Đăng nhập và thao tác quản trị, theo phạm vi bạn quản lý." />
       <Card>
         <Space wrap style={{ marginBottom: 16 }}>
           <Input.Search
@@ -108,6 +104,6 @@ export default function Audit({ isSsa }: { isSsa: boolean }) {
           locale={{ emptyText: <Empty description="Chưa có nhật ký phù hợp" /> }}
         />
       </Card>
-    </Space>
+    </div>
   );
 }

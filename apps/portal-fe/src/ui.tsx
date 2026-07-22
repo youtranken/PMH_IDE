@@ -96,6 +96,31 @@ export function deviceName(ua: string | null): string {
   return os ? `${br} · ${os}` : br;
 }
 
+/**
+ * PageHeader — primitive dùng chung cho MỌI trang quản trị (playbook §4: thay
+ * khối tiêu-đề + mô-tả + hành-động vốn bị copy-paste 5 nơi bằng inline style).
+ * Style ở .pmh-ph* trong admin.css.
+ */
+export function PageHeader({
+  title,
+  sub,
+  actions,
+}: {
+  title: string;
+  sub?: string;
+  actions?: import("react").ReactNode;
+}) {
+  return (
+    <div className="pmh-ph">
+      <div>
+        <h1 className="pmh-ph__title">{title}</h1>
+        {sub && <p className="pmh-ph__sub">{sub}</p>}
+      </div>
+      {actions && <div className="pmh-ph__actions">{actions}</div>}
+    </div>
+  );
+}
+
 /** Chữ cái đầu cho avatar. */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

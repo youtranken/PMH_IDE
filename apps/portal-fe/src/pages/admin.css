@@ -1,0 +1,314 @@
+/* ============================================================================
+   Admin console — hệ thiết kế "Rail xanh PMH".
+   Playbook §3/§4: token NGỮ NGHĨA + thang hữu hạn, namespace .pmh-admin để KHÔNG
+   rò sang member/login. antd lo HÀNH VI (focus/scroll-lock/aria); file này chỉ STYLE.
+   Mọi giá trị lặp lại có hệ thống → token; one-off (width nút 1 chỗ) → để literal.
+   ========================================================================== */
+.pmh-admin {
+  /* Màu ngữ nghĩa */
+  --a-canvas: #eef1ef;      /* nền đá lạnh của cả console */
+  --a-surface: #ffffff;     /* thẻ, header, bảng */
+  --a-surface-2: #f6f8f7;   /* hàng sọc / vùng phụ */
+  --a-rail: #0e4d45;        /* rail xanh lục thẫm — bản sắc PMH */
+  --a-rail-2: #0a3a34;      /* đáy rail (gradient) */
+  --a-ink: #16211f;         /* chữ chính */
+  --a-ink-2: #5f716c;       /* chữ phụ */
+  --a-ink-3: #9aa8a2;       /* chữ mờ / placeholder */
+  --a-border: #e5eae7;      /* viền thẻ/bảng */
+  --a-border-2: #eef1f0;    /* viền nhạt (chia hàng) */
+  --a-primary: #0e4d45;     /* nhấn chính (nút, link) */
+  --a-gold: #c9a24b;        /* vàng đồng — dấu nhấn active */
+  --a-gold-soft: #e6cf95;
+  --a-gold-tint: rgba(201, 162, 75, 0.16);
+  --a-chip: #e8f0ed;        /* nền avatar-vuông xanh nhạt */
+  --a-faint: #c0c9c5;       /* chữ mờ / dấu "—" placeholder */
+  --a-danger: #c0392b;
+
+  /* Thang spacing (hữu hạn, THEO) */
+  --a-1: 4px; --a-2: 8px; --a-3: 12px; --a-4: 16px; --a-5: 24px; --a-6: 32px;
+  /* Cỡ chữ */
+  --a-fs-xs: 12px; --a-fs-sm: 13px; --a-fs-md: 14px; --a-fs-lg: 16px; --a-fs-xl: 22px;
+  /* Bo góc */
+  --a-r-sm: 8px; --a-r: 10px; --a-r-lg: 14px;
+  /* Bóng */
+  --a-shadow: 0 1px 2px rgba(16, 33, 31, 0.04), 0 8px 24px rgba(16, 33, 31, 0.05);
+  /* Khung nội dung — MỘT bề rộng chuẩn cho MỌI trang (thay 1000/900/960/860) */
+  --a-page-max: 1080px;
+
+  min-height: 100vh;
+  background: var(--a-canvas);
+}
+
+/* ---- Rail (sidebar) ---------------------------------------------------- */
+.pmh-admin__sider {
+  background: linear-gradient(180deg, var(--a-rail) 0%, var(--a-rail-2) 100%) !important;
+  border-right: none !important;
+}
+.pmh-admin__brand {
+  height: 62px;
+  display: flex;
+  align-items: center;
+  gap: var(--a-3);
+  padding-inline: var(--a-5);
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pmh-admin__brand-name {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.3px;
+  color: #fff;
+}
+.pmh-admin__brand-name em {
+  font-style: normal;
+  color: var(--a-gold-soft);
+}
+/* Nhãn "phân hệ quản trị" nhỏ dưới brand */
+.pmh-admin__rail-tag {
+  margin: var(--a-4) var(--a-5) var(--a-2);
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+}
+/* Chân rail — mã phiên bản / môi trường */
+.pmh-admin__rail-foot {
+  margin-top: auto;
+  padding: var(--a-4) var(--a-5);
+  font-size: var(--a-fs-xs);
+  color: rgba(255, 255, 255, 0.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pmh-admin__sider-inner {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Menu trên rail: chữ sáng, active = thanh vàng bên trái + chữ vàng (signature) */
+.pmh-admin__nav.ant-menu {
+  background: transparent;
+  padding-inline: var(--a-3);
+  border-inline-end: none;
+}
+.pmh-admin__nav.ant-menu .ant-menu-item {
+  margin-inline: 0;
+  width: 100%;
+}
+.pmh-admin__nav.ant-menu .ant-menu-item-selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--a-gold);
+}
+
+/* ---- Header (top bar trong vùng nội dung) ------------------------------ */
+.pmh-admin__header.ant-layout-header {
+  background: var(--a-surface);
+  border-bottom: 1px solid var(--a-border);
+  height: 62px;
+  line-height: normal;
+  display: flex;
+  align-items: center;
+  gap: var(--a-3);
+  padding-inline: var(--a-5);
+}
+.pmh-admin__header-title {
+  font-weight: 600;
+  font-size: var(--a-fs-lg);
+  color: var(--a-ink);
+}
+.pmh-admin__crumb {
+  font-size: var(--a-fs-sm);
+  color: var(--a-ink-3);
+  letter-spacing: 0.2px;
+}
+/* Chỉ dấu môi trường (theo hostname) — điền chỗ trống header + cảnh báo prod. */
+.pmh-env {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill, 999px);
+  line-height: 18px;
+}
+.pmh-env--prod { color: #0e7a5f; background: #e6f4ee; }
+.pmh-env--warn { color: #9a6400; background: #fbf0d9; }
+
+/* ---- Toolbar (bộ lọc/tìm) gắn TRÊN bảng, trong thẻ ---------------------- */
+.pmh-admin__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--a-2);
+  flex-wrap: wrap;
+  padding: var(--a-3) var(--a-4);
+  border-bottom: 1px solid var(--a-border);
+}
+.pmh-admin__toolbar-spacer { flex: 1 1 auto; min-width: 8px; }
+
+/* ---- Canvas + khung trang --------------------------------------------- */
+.pmh-admin__content.ant-layout-content {
+  padding: var(--a-6);
+  background: var(--a-canvas);
+}
+/* Nội dung lấp ĐẦY vùng giữa rail và mép (không cap 1080 gây khoảng trống 2 bên).
+   Trang dạng FORM tự đặt max-width riêng bên trong (vd Settings 880). */
+.pmh-admin__page {
+  width: 100%;
+}
+
+/* ---- PageHeader (primitive dùng chung, thay khối copy-paste 5 trang) ---- */
+.pmh-ph {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--a-3);
+  margin-bottom: var(--a-5);
+}
+.pmh-ph__title {
+  margin: 0;
+  font-size: var(--a-fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--a-ink);
+  line-height: 1.2;
+}
+.pmh-ph__sub {
+  margin: 4px 0 0;
+  color: var(--a-ink-2);
+  font-size: var(--a-fs-md);
+  max-width: 60ch;
+}
+.pmh-ph__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--a-2);
+  flex-wrap: wrap;
+}
+
+/* ---- Thẻ mặt phẳng (bọc bảng/danh sách cho đồng nhất) ------------------ */
+.pmh-admin__card {
+  background: var(--a-surface);
+  border: 1px solid var(--a-border);
+  border-radius: var(--a-r-lg);
+  box-shadow: var(--a-shadow);
+  overflow: hidden; /* bo góc ôm lấy header bảng; menu/tooltip antd portal ra body nên không bị cắt */
+}
+.pmh-admin__card--pad { padding: var(--a-5); }
+/* Bảng trong thẻ: bỏ nền/viền thừa, cho phân trang thở lề */
+.pmh-admin__card .ant-table { background: transparent; }
+.pmh-admin__card .ant-pagination { padding-inline: var(--a-4); }
+
+/* ---- Cấu hình: 2 cột masonry lấp đầy bề ngang (thay 1 cột 880 lệch trái) -- */
+.pmh-set-grid { columns: 2; column-gap: var(--a-4); }
+.pmh-set-grid > * { break-inside: avoid; margin-bottom: var(--a-4); }
+@media (max-width: 1100px) { .pmh-set-grid { columns: 1; } }
+
+/* ---- Chip avatar-vuông (thay pattern #e8f0ed lặp 4 nơi) ---------------- */
+.pmh-chip {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--a-chip);
+  color: var(--a-primary);
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+/* ---- Thanh chọn hàng loạt (bulk bar) ---------------------------------- */
+.pmh-admin__bulk {
+  display: flex;
+  align-items: center;
+  gap: var(--a-3);
+  margin-bottom: var(--a-3);
+  padding: var(--a-2) var(--a-4);
+  background: var(--a-chip);
+  border-radius: var(--a-r);
+}
+
+/* ---- Dự án: lưới thẻ → chi tiết drill-in ------------------------------ */
+.pmh-ws__grid {
+  display: grid;
+  /* auto-FIT (không fill) → ít thẻ vẫn giãn lấp đầy hàng, không chừa cột trống. */
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--a-4);
+}
+.pmh-ws__card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--a-surface);
+  border: 1px solid var(--a-border);
+  border-radius: var(--a-r-lg);
+  box-shadow: var(--a-shadow);
+  padding: var(--a-5);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.pmh-ws__card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(16, 33, 31, 0.09);
+  border-color: #d6e0db;
+}
+.pmh-ws__card-top { display: flex; align-items: center; gap: var(--a-3); margin-bottom: var(--a-3); }
+.pmh-ws__card-name { font-weight: 700; color: var(--a-ink); font-size: var(--a-fs-lg); }
+.pmh-ws__card-desc { color: var(--a-ink-2); font-size: var(--a-fs-sm); margin-top: 2px; }
+.pmh-ws__card-meta { color: var(--a-ink-2); font-size: var(--a-fs-sm); }
+.pmh-ws__warn { color: var(--a-danger); }
+.pmh-ws__card-open { margin-top: var(--a-4); color: var(--a-primary); font-weight: 600; font-size: var(--a-fs-sm); display: flex; align-items: center; gap: 6px; }
+
+.pmh-ws__back {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px 5px 9px;
+  border: 1px solid var(--a-border);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--a-surface);
+  color: var(--a-ink-2);
+  font-size: var(--a-fs-sm); font-weight: 500;
+  cursor: pointer;
+  margin-bottom: var(--a-3);
+  box-shadow: var(--a-shadow);
+  transition: color 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+.pmh-ws__back:hover { color: var(--a-primary); border-color: #cdd8d3; transform: translateX(-2px); }
+.pmh-ws__back .anticon { font-size: 12px; }
+.pmh-ws__detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--a-3); flex-wrap: wrap; margin-bottom: var(--a-4); }
+.pmh-ws__detail-title { margin: 0; font-size: var(--a-fs-xl); font-weight: 700; letter-spacing: -0.3px; color: var(--a-ink); }
+.pmh-ws__detail-sub { margin: 4px 0 0; color: var(--a-ink-2); font-size: var(--a-fs-md); }
+
+.pmh-ws__app-row {
+  display: flex; align-items: center; gap: var(--a-3); flex-wrap: wrap;
+  padding: var(--a-3) var(--a-4);
+  border: 1px solid var(--a-border);
+  border-radius: var(--a-r);
+  background: var(--a-surface);
+  cursor: pointer;
+  margin-bottom: var(--a-2);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.pmh-ws__app-row:hover { border-color: var(--a-primary); background: var(--a-surface-2); }
+.pmh-ws__dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.pmh-ws__dot--on { background: #3aa76d; }
+.pmh-ws__dot--off { background: #c0c9c5; }
+
+/* Section trong Drawer cấu hình app */
+.pmh-ws__sec { margin-bottom: var(--a-6); padding-bottom: var(--a-5); border-bottom: 1px solid var(--a-border-2); }
+.pmh-ws__sec:last-child { border-bottom: none; }
+.pmh-ws__sec-h { margin: 0 0 var(--a-2); font-size: var(--a-fs-md); color: var(--a-ink); font-weight: 600; }
+.pmh-ws__sec-note { color: var(--a-ink-2); font-size: var(--a-fs-sm); display: block; margin-bottom: var(--a-3); }
+.pmh-ws__danger-row { display: flex; align-items: center; justify-content: space-between; gap: var(--a-3); padding: var(--a-3) 0; border-top: 1px solid var(--a-border-2); }
+
+@media (max-width: 991px) {
+  .pmh-admin__content.ant-layout-content { padding: var(--a-4); }
+}
