@@ -40,13 +40,19 @@ const authCss = `
 .pmh-auth__hero h1 em{font-style:normal;color:#e6cf95;}
 .pmh-auth__hero p{margin:18px 0 0;max-width:400px;font-size:16px;line-height:1.65;color:rgba(255,255,255,.74);}
 .pmh-auth__rule{margin-top:28px;height:3px;width:64px;border-radius:3px;background:#C9A24B;}
-.pmh-card{position:relative;width:100%;max-width:404px;box-sizing:border-box;padding:36px 32px 44px;border-radius:22px;
+.pmh-card{position:relative;width:100%;max-width:404px;box-sizing:border-box;padding:38px 34px 52px;border-radius:22px;
   background:rgba(236,230,220,.9);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
   border:1px solid rgba(255,255,255,.4);box-shadow:0 34px 74px -22px rgba(0,0,0,.62),0 4px 14px rgba(0,0,0,.16);
   animation:pmhUp .6s cubic-bezier(.2,.7,.2,1) .08s both;}
 .pmh-card__brand{display:none;align-items:center;justify-content:center;gap:10px;margin-bottom:22px;font-size:19px;font-weight:700;color:#16211F;}
 .pmh-card__title{margin:0;font-size:24px;font-weight:700;color:#16211F;letter-spacing:-.3px;}
 .pmh-card__sub{margin:6px 0 22px;color:#5f716c;}
+/* Nút "Quay lại đăng nhập" — text mờ, hover thành pill xanh nhạt (thay link trần thô) */
+.pmh-card__back{display:inline-flex;align-items:center;gap:6px;color:#5f716c;font-size:13.5px;font-weight:600;
+  background:none;border:none;cursor:pointer;padding:7px 14px;border-radius:999px;
+  transition:color .15s ease, background .15s ease;}
+.pmh-card__back:hover{color:#0E4D45;background:rgba(14,77,69,.07);}
+.pmh-card__backrow{text-align:center;margin-top:14px;}
 @media (max-width:820px){
   .pmh-auth__hero{display:none;}
   .pmh-card__brand{display:flex;}
@@ -326,12 +332,10 @@ function ForgotForm({ onBack }: { onBack: () => void }) {
           type="success"
           showIcon
           message="Đã gửi yêu cầu"
-          description="Nếu email khớp một tài khoản đang hoạt động, mật khẩu đã được gửi qua Email. Đăng nhập rồi đổi mật khẩu mới."
+          description="Mật khẩu đã được gửi qua Email. Đăng nhập rồi đổi mật khẩu mới."
         />
-        <div style={{ textAlign: "center", marginTop: 16 }}>
-          <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={onBack}>
-            ← Quay lại đăng nhập
-          </Button>
+        <div className="pmh-card__backrow" style={{ marginTop: 16 }}>
+          <button type="button" className="pmh-card__back" onClick={onBack}>← Quay lại đăng nhập</button>
         </div>
       </div>
     );
@@ -348,10 +352,8 @@ function ForgotForm({ onBack }: { onBack: () => void }) {
       <Button type="primary" htmlType="submit" size="large" block loading={busy}>
         Gửi
       </Button>
-      <div style={{ textAlign: "center", marginTop: 12 }}>
-        <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={onBack}>
-          ← Quay lại đăng nhập
-        </Button>
+      <div className="pmh-card__backrow">
+        <button type="button" className="pmh-card__back" onClick={onBack}>← Quay lại đăng nhập</button>
       </div>
     </Form>
   );
