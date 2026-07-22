@@ -51,6 +51,17 @@ openssl rand -base64 24                 # → BACKUP_PASSPHRASE=...
 
 ### 4. Compose prod
 - [ ] Xoá dòng `ports:` của service **postgres** trong `deploy/docker-compose.yml` (không mở DB ra host — file đã ghi chú "chỉ dev; prod bỏ dòng này").
+- [ ] **Khóa ký — CHẶN GO-LIVE (host trắng):** nếu đây là host TRẮNG chưa có backup để
+  restore, phải tạo khóa ký ĐẦU TIÊN **trước khi** sso-server phục vụ (prod fail-fast khi
+  thiếu `jwks.json`). Build image rồi provision vào volume `signing_keys`:
+  ```bash
+  docker compose --env-file .env -f deploy/docker-compose.yml \
+    -f deploy/docker-compose.prod.yml build sso-server
+  docker compose --env-file .env -f deploy/docker-compose.yml \
+    -f deploy/docker-compose.prod.yml run --rm sso-server node scripts/rotate-key.js init
+  ```
+  Khóa ghi dạng mã hóa KEK (`enc:v1:`). Đường RESTORE thì BỎ QUA bước này — `jwks.json`
+  khôi phục từ backup (runbook §2).
 - [ ] Lên bằng override prod (FE build tĩnh, tắt mailpit). **Phải có `--env-file .env`**
   — compose tìm `.env` cạnh file compose (`deploy/.env`, không tồn tại), không phải
   thư mục đang đứng; thiếu cờ này thì `DATABASE_URL` nội suy rỗng và container chết
