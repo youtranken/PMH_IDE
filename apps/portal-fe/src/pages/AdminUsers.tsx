@@ -416,6 +416,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
         dataSource={filtered}
         pagination={{ pageSize: 15, showTotal: (t) => `${t} người dùng` }}
         scroll={{ x: 820 }}
+        onRow={(_, i) => ({ style: { "--pmh-i": Math.min(i ?? 0, 14) } as import("react").CSSProperties })}
         locale={{
           emptyText: error ? (
             <ListEmpty error={error} onRetry={load} description="" />

@@ -101,6 +101,7 @@ export default function Audit({ isSsa }: { isSsa: boolean }) {
           size="small"
           pagination={{ pageSize: 20 }}
           scroll={{ x: 720 }}
+          onRow={(_, i) => ({ style: { "--pmh-i": Math.min(i ?? 0, 14) } as import("react").CSSProperties })}
           locale={{ emptyText: <Empty description="Chưa có nhật ký phù hợp" /> }}
         />
       </Card>

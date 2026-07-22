@@ -93,6 +93,7 @@ export default function AdminGroups({ isSsa }: { isSsa: boolean }) {
         loading={loading}
         dataSource={rows}
         pagination={false}
+        onRow={(_, i) => ({ style: { "--pmh-i": Math.min(i ?? 0, 14) } as import("react").CSSProperties })}
         locale={{
           emptyText: (
             <ListEmpty
