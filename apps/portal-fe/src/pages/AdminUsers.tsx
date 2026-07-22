@@ -147,6 +147,10 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
     });
   }, [rows, q, statusFilter, groupFilter]);
 
+  // Đổi bộ lọc/tìm kiếm → BỎ CHỌN: nếu không, thanh bulk giữ user đã bị ẩn khỏi
+  // bảng và "Gán vào nhóm" tác động lên người không còn thấy.
+  useEffect(() => { setSelectedKeys([]); }, [q, statusFilter, groupFilter]);
+
   // Gán NHIỀU user đã chọn vào NHIỀU nhóm cùng lúc (bỏ qua ai đã ở nhóm đó).
   const bulkAssign = async () => {
     setBulkBusy(true);
@@ -177,6 +181,9 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
   };
   const openEdit = (u: UserRow) => {
     setEditing(u);
+    // resetFields TRƯỚC khi set — nếu không, nhóm đã chọn ở form "Tạo user" (bị
+    // preserve) còn dính và rò vào PATCH sửa user.
+    form.resetFields();
     form.setFieldsValue({ email: u.email, employeeCode: u.employee_code, fullName: u.full_name });
     setFormOpen(true);
   };
@@ -186,7 +193,8 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
     setSaving(true);
     try {
       if (editing) {
-        const { password, mustChangePassword, ...edit } = v;
+        // groupIds chỉ dùng khi TẠO mới — loại khỏi body PATCH (chống rò nhóm cũ).
+        const { password, mustChangePassword, groupIds, ...edit } = v;
         await api(`/api/admin/users/${editing.id}`, { method: "PATCH", body: edit });
         message.success("Đã cập nhật");
       } else {
@@ -610,7 +618,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
       <Modal
         open={bulkOpen}
         title={`Gán ${selectedKeys.length} user vào nhóm`}
-        onCancel={() => setBulkOpen(false)}
+        onCancel={() => { setBulkOpen(false); setBulkGroups([]); }}
         onOk={bulkAssign}
         okText="Gán"
         okButtonProps={{ disabled: !bulkGroups.length }}
@@ -647,6 +655,12 @@ function ImportModal({ open, onClose, onDone }: { open: boolean; onClose: () => 
   const [autoGroups, setAutoGroups] = useState(false);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Đóng modal → xóa CSV + báo cáo preview cũ, để lần mở sau không dính lô trước
+  // (trước đây onDone đóng mà không reset → "Ghi N dòng" theo số cũ, ghi nhầm).
+  useEffect(() => {
+    if (!open) { setCsv(""); setReport(null); setAutoGroups(false); }
+  }, [open]);
 
   const call = async (commit: boolean) => {
     setBusy(true);
@@ -687,14 +701,14 @@ function ImportModal({ open, onClose, onDone }: { open: boolean; onClose: () => 
       <Upload
         accept=".csv,text/csv"
         showUploadList={false}
-        beforeUpload={(f) => { f.text().then(setCsv); return false; }}
+        beforeUpload={(f) => { f.text().then((t) => { setCsv(t); setReport(null); }); return false; }}
       >
         <Button size="small" icon={<UploadOutlined />} style={{ margin: "10px 0" }}>Chọn file .csv</Button>
       </Upload>
       <Input.TextArea
         rows={5}
         value={csv}
-        onChange={(e) => setCsv(e.target.value)}
+        onChange={(e) => { setCsv(e.target.value); setReport(null); }}
         placeholder={"employee_code,email,full_name,groups\nNV900,a.tran@pmh.com.vn,Trần Văn A,Kế toán;Sales"}
         style={{ fontFamily: "ui-monospace, monospace", fontSize: 13 }}
       />

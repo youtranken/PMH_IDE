@@ -142,7 +142,12 @@ export default function Settings() {
     try {
       await api("/api/admin/settings", { method: "PUT", body: { key, value: draft[key] } });
       message.success(`Đã lưu ${LABELS[key] ?? key} (áp dụng ngay)`);
-      load();
+      // CHỈ cập nhật đúng key vừa lưu — KHÔNG load() lại toàn bộ (trước đây load()
+      // đổ draft mới cho MỌI key → nuốt các ô khác admin đang gõ dở). Secret: sau
+      // khi lưu, giá trị server thành sentinel "đã đặt" và ô nhập về rỗng.
+      const isSecret = SECRET_KEYS.has(key);
+      setRows((rs) => rs.map((s) => (s.key === key ? { ...s, value: isSecret ? SECRET_SET : draft[key] } : s)));
+      if (isSecret) setDraft((d) => ({ ...d, [key]: "" }));
     } catch (e) {
       message.error((e as Error).message);
     } finally {

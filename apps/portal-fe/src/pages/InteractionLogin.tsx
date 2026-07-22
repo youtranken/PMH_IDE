@@ -226,8 +226,8 @@ export default function InteractionLogin({ uid }: { uid: string }) {
             <Alert type="error" message={error} style={{ marginBottom: 16 }} showIcon />
           )}
           {step === "login" && (forgot
-            ? <ForgotForm onBack={() => setForgot(false)} />
-            : <LoginForm loading={loading} onFinish={onLogin} onForgot={() => setForgot(true)} />)}
+            ? <ForgotForm onBack={() => { setError(null); setForgot(false); }} />
+            : <LoginForm loading={loading} onFinish={onLogin} onForgot={() => { setError(null); setForgot(true); }} />)}
           {step === "change_password" && (
             <ChangePasswordForm loading={loading} onFinish={onChangePassword} />
           )}
