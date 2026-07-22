@@ -23,15 +23,23 @@ export async function isClientLoginAllowed(
   clientId: string,
 ): Promise<boolean> {
   const { rows } = await pool.query<{ allowed: boolean }>(
+    // User phải còn SỐNG + CHƯA hết hạn (H3): chặn ngay cả khi tái dùng phiên SSO
+    // (loadExistingGrant) — không đợi cron auto-lock (≤1h trễ). Hết hạn/khóa/xóa
+    // giữa chừng → không vào được app mới.
     `SELECT (
-       NOT EXISTS (SELECT 1 FROM clients WHERE client_id = $2)
-       OR EXISTS (SELECT 1 FROM clients
-                  WHERE client_id = $2 AND allow_all_groups AND NOT disabled)
-       OR EXISTS (
-         SELECT 1 FROM clients c
-         JOIN client_groups cg ON cg.client_id = c.id
-         JOIN user_groups ug ON ug.group_id = cg.group_id
-         WHERE c.client_id = $2 AND ug.user_id = $1)
+       EXISTS (SELECT 1 FROM users
+               WHERE id = $1 AND deleted_at IS NULL AND status = 'active'
+                 AND (expires_at IS NULL OR expires_at > now()))
+       AND (
+         NOT EXISTS (SELECT 1 FROM clients WHERE client_id = $2)
+         OR EXISTS (SELECT 1 FROM clients
+                    WHERE client_id = $2 AND allow_all_groups AND NOT disabled)
+         OR EXISTS (
+           SELECT 1 FROM clients c
+           JOIN client_groups cg ON cg.client_id = c.id
+           JOIN user_groups ug ON ug.group_id = cg.group_id
+           WHERE c.client_id = $2 AND ug.user_id = $1)
+       )
      ) AS allowed`,
     [userId, clientId],
   );
@@ -64,7 +72,8 @@ export class LoginService {
                  AND temp_password_expires_at < now()) AS temp_password_expired
        FROM users
        WHERE lower(email) = lower($1)
-         AND deleted_at IS NULL AND status = 'active'`,
+         AND deleted_at IS NULL AND status = 'active'
+         AND (expires_at IS NULL OR expires_at > now())`,
       [email.trim()],
     );
 
