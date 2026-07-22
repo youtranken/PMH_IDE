@@ -349,10 +349,10 @@ function TopBar({
   const dark = variant === "over-dark";
   return (
     <div className={`pmh-topbar pmh-topbar--${variant}`}>
-      <div className="pmh-topbar__brand" onClick={() => nav("/")}>
+      <button type="button" className="pmh-topbar__brand" onClick={() => nav("/")} aria-label="Về trang chủ">
         <Brand size={26} on={dark ? "dark" : "light"} />
         <span className="pmh-topbar__brandname">PMH ID</span>
-      </div>
+      </button>
       <AvatarMenu profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} variant={variant} showHome={showHome} onProfile={onProfile} />
     </div>
   );
@@ -434,10 +434,10 @@ function AdminConsole({
   const env = adminEnv();
 
   const brand = (
-    <div className="pmh-admin__brand" onClick={() => nav("/")}>
+    <button type="button" className="pmh-admin__brand" onClick={() => nav("/")} aria-label="Về trang chủ">
       <Brand size={26} on="dark" />
       <span className="pmh-admin__brand-name">PMH ID</span>
-    </div>
+    </button>
   );
   // Menu trên nền xanh: token dark tuỳ biến (chữ sáng, active vàng). ConfigProvider
   // lồng — chỉ ảnh hưởng menu rail, không rò ra header/nội dung.

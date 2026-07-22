@@ -477,7 +477,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
             width: 48,
             render: (_, u) => (
               <Dropdown trigger={["click"]} menu={{ items: menuFor(u).map((i) => ({ key: i.key, label: i.label, icon: i.icon, danger: i.danger, onClick: i.onClick })) }}>
-                <Button type="text" icon={<MoreOutlined />} />
+                <Button type="text" icon={<MoreOutlined />} aria-label={`Tùy chọn cho ${u.full_name}`} />
               </Dropdown>
             ),
           },

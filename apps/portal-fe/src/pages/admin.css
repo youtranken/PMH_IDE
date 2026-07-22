@@ -46,13 +46,23 @@
 }
 .pmh-admin__brand {
   height: 62px;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: var(--a-3);
   padding-inline: var(--a-5);
   cursor: pointer;
   user-select: none;
+  border: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.pmh-admin__brand:focus-visible {
+  outline: 2px solid var(--a-gold);
+  outline-offset: -2px;
 }
 .pmh-admin__brand-name {
   font-weight: 700;
@@ -292,6 +302,10 @@
 
 .pmh-ws__app-row {
   display: flex; align-items: center; gap: var(--a-3); flex-wrap: wrap;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
   padding: var(--a-3) var(--a-4);
   border: 1px solid var(--a-border);
   border-radius: var(--a-r);
@@ -301,6 +315,7 @@
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 .pmh-ws__app-row:hover { border-color: var(--a-primary); background: var(--a-surface-2); }
+.pmh-ws__app-row:focus-visible { outline: 2px solid var(--a-primary); outline-offset: 1px; }
 .pmh-ws__dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .pmh-ws__dot--on { background: #3aa76d; }
 .pmh-ws__dot--off { background: #c0c9c5; }

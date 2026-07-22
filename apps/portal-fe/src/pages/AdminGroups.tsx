@@ -232,7 +232,7 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
         dataSource={members}
         renderItem={(m) => (
           <List.Item
-            actions={[<Button key="r" type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(m.user_id)} />]}
+            actions={[<Button key="r" type="text" danger size="small" icon={<DeleteOutlined />} aria-label={`Gỡ ${m.full_name} khỏi nhóm`} onClick={() => remove(m.user_id)} />]}
           >
             <List.Item.Meta
               avatar={<Avatar style={{ background: "var(--a-chip)", color: BRAND.green, fontWeight: 700 }}>{initials(m.full_name)}</Avatar>}

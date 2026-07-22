@@ -277,7 +277,7 @@ function ProjectDetail({
                 ) : (
                   <>
                     {project.apps.map((a) => (
-                      <div key={a.id} className="pmh-ws__app-row" onClick={() => clientsById[a.id] && onOpenApp(clientsById[a.id])}>
+                      <button type="button" key={a.id} className="pmh-ws__app-row" onClick={() => clientsById[a.id] && onOpenApp(clientsById[a.id])}>
                         <span className={`pmh-ws__dot ${a.disabled ? "pmh-ws__dot--off" : "pmh-ws__dot--on"}`} />
                         <ApiOutlined style={{ color: BRAND.green, fontSize: 15, flex: "0 0 auto" }} />
                         <span style={{ fontWeight: 600, color: BRAND.ink }}>{a.name}</span>
@@ -295,7 +295,7 @@ function ProjectDetail({
                           <Tag color="error" style={{ marginInlineEnd: 0 }}>Chưa gán nhóm</Tag>
                         )}
                         <RightOutlined style={{ color: "var(--a-faint)", fontSize: 12, marginLeft: 4 }} />
-                      </div>
+                      </button>
                     ))}
                     <Button type="dashed" icon={<PlusOutlined />} onClick={onCreateApp} style={{ marginTop: 8 }} block>Tạo ứng dụng</Button>
                   </>

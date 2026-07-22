@@ -47,9 +47,9 @@ function Panel({ children, style }: { children: ReactNode; style?: React.CSSProp
     <div
       style={{
         background: "#fff",
-        border: "1px solid #eceeec",
-        borderRadius: 14,
-        boxShadow: "0 1px 2px rgba(16,33,31,.04), 0 8px 24px rgba(16,33,31,.05)",
+        border: "1px solid var(--pmh-card-border)",
+        borderRadius: "var(--pmh-card-radius)",
+        boxShadow: "var(--pmh-card-shadow)",
         ...style,
       }}
     >
@@ -381,7 +381,7 @@ function ChangePassword() {
             onPressEnter={() => allOk && curPw && !mismatch && pw2 && changePassword()}
           />
           {mismatch && (
-            <div style={{ color: "var(--a-danger, #c0392b)", fontSize: 13, marginBottom: 12 }}>
+            <div style={{ color: "var(--pmh-danger)", fontSize: 13, marginBottom: 12 }}>
               Mật khẩu nhập lại chưa khớp.
             </div>
           )}

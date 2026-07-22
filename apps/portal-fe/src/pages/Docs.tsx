@@ -64,9 +64,9 @@ export default function Docs() {
             flex: 1,
             minWidth: 0,
             background: "#fff",
-            border: "1px solid #eceeec",
-            borderRadius: 14,
-            boxShadow: "0 1px 2px rgba(16,33,31,.04), 0 8px 24px rgba(16,33,31,.05)",
+            border: "1px solid var(--pmh-card-border)",
+            borderRadius: "var(--pmh-card-radius)",
+            boxShadow: "var(--pmh-card-shadow)",
             padding: "12px 32px 28px",
           }}
         >

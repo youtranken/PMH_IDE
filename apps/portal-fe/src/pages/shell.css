@@ -29,6 +29,17 @@
   gap: 10px;
   cursor: pointer;
   user-select: none;
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+}
+.pmh-topbar__brand:focus-visible {
+  outline: 2px solid #c9a24b;
+  outline-offset: 1px;
 }
 .pmh-topbar__brandname {
   font-weight: 700;
