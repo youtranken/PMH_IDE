@@ -276,12 +276,26 @@ export class UsersService {
     admin: AdminContext,
     ip: string | null,
   ): Promise<UserRow> {
-    await this.get(id); // 404 nếu không có
+    const current = await this.get(id); // 404 nếu không có
     // Phạm vi: project_admin chỉ sửa user trong project mình, và KHÔNG được sửa
     // tài khoản quản trị khác (chống đổi email SSA → chiếm qua forgot-password).
     if (!admin.isSsa) {
       await this.assertUserInScope(admin, id);
       await this.assertTargetNotAdmin(id);
+      // C1: đổi ĐỊNH DANH (email/mã NV) là mắt xích quyết định của chiếm tài
+      // khoản — project_admin đổi email nạn nhân (nhân viên thường) sang địa chỉ
+      // của mình rồi dùng "Quên mật khẩu" công khai để nhận MK tạm. Chỉ SSA đổi
+      // được email/mã NV; project_admin chỉ sửa full_name. So với giá trị hiện
+      // tại để form gửi lại email/mã cũ (không đổi) vẫn qua.
+      const emailChanged =
+        input.email !== undefined &&
+        input.email.trim().toLowerCase() !== current.email.toLowerCase();
+      const codeChanged =
+        input.employeeCode !== undefined &&
+        input.employeeCode.trim() !== current.employee_code;
+      if (emailChanged || codeChanged) {
+        throw new ForbiddenException("đổi email/mã nhân viên cần quyền SSA");
+      }
     }
     const sets: string[] = [];
     const vals: unknown[] = [];

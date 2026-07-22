@@ -3,6 +3,7 @@ import { NotificationsModule } from "../notifications/notifications.module";
 import { CsvExportService } from "./csv-export.service";
 import { CsvImportService } from "./csv-import.service";
 import { ExpiryService } from "./expiry.service";
+import { PasswordResetService } from "./password-reset.service";
 import { TempPasswordService } from "./temp-password.service";
 import { UsersController } from "./users.controller";
 import { UsersService } from "./users.service";
@@ -19,10 +20,11 @@ import { UsersService } from "./users.service";
   providers: [
     UsersService,
     TempPasswordService,
+    PasswordResetService,
     CsvImportService,
     CsvExportService,
     ExpiryService,
   ],
-  exports: [UsersService, TempPasswordService],
+  exports: [UsersService, TempPasswordService, PasswordResetService],
 })
 export class UsersModule {}

@@ -453,6 +453,22 @@ export class ClientsService {
       [groupId],
     );
     if (rowCount === 0) throw new NotFoundException("group không tồn tại");
+    // C1: chặn project_admin "chiếm" group đang thuộc project KHÁC để kéo user
+    // ngoài phạm vi vào tầm quản trị (assertUserInScope tính user qua group đang
+    // gán client trong project mình). Group tự do (chưa gắn client nào) hoặc chỉ
+    // gắn client của chính mình thì OK. SSA thiết lập chia sẻ xuyên project.
+    if (!admin.isSsa) {
+      const { rowCount: foreign } = await this.pool.query(
+        `SELECT 1 FROM client_groups cg JOIN clients c2 ON c2.id = cg.client_id
+         WHERE cg.group_id = $1 AND NOT (c2.project_id = ANY($2::uuid[])) LIMIT 1`,
+        [groupId, admin.projectIds],
+      );
+      if (foreign && foreign > 0) {
+        throw new ForbiddenException(
+          "group đang thuộc project khác — cần quyền SSA để gán",
+        );
+      }
+    }
     await this.pool.query(
       `INSERT INTO client_groups (client_id, group_id) VALUES ($1, $2)
        ON CONFLICT DO NOTHING`,
