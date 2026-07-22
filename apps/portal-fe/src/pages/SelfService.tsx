@@ -478,7 +478,11 @@ export default function SelfService({ profile, embedded }: { profile: Profile; o
         {sessions.length === 0 && (
           <div style={{ padding: 20, color: BRAND.muted }}>Chưa có phiên nào.</div>
         )}
-        {sessions.map((s, i) => (
+        {/* Chỉ hiện 5 phiên MỚI NHẤT — phiên cũ nhiều thì không liệt kê hết. */}
+        {[...sessions]
+          .sort((a, b) => +new Date(b.last_activity) - +new Date(a.last_activity))
+          .slice(0, 5)
+          .map((s, i) => (
           <div
             key={s.oidc_session_uid}
             style={{
@@ -509,6 +513,11 @@ export default function SelfService({ profile, embedded }: { profile: Profile; o
           </div>
         ))}
       </Panel>
+      {sessions.length > 5 && (
+        <div style={{ color: BRAND.muted, fontSize: 12.5, marginTop: 8 }}>
+          Hiển thị 5 phiên mới nhất · {sessions.length - 5} phiên cũ hơn sẽ tự hết hạn.
+        </div>
+      )}
     </div>
   );
 }

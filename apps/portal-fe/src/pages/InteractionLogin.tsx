@@ -40,7 +40,7 @@ const authCss = `
 .pmh-auth__hero h1 em{font-style:normal;color:#e6cf95;}
 .pmh-auth__hero p{margin:18px 0 0;max-width:400px;font-size:16px;line-height:1.65;color:rgba(255,255,255,.74);}
 .pmh-auth__rule{margin-top:28px;height:3px;width:64px;border-radius:3px;background:#C9A24B;}
-.pmh-card{position:relative;width:100%;max-width:404px;box-sizing:border-box;padding:36px 32px;border-radius:22px;
+.pmh-card{position:relative;width:100%;max-width:404px;box-sizing:border-box;padding:36px 32px 44px;border-radius:22px;
   background:rgba(236,230,220,.9);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
   border:1px solid rgba(255,255,255,.4);box-shadow:0 34px 74px -22px rgba(0,0,0,.62),0 4px 14px rgba(0,0,0,.16);
   animation:pmhUp .6s cubic-bezier(.2,.7,.2,1) .08s both;}
@@ -79,6 +79,7 @@ export default function InteractionLogin({ uid }: { uid: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dead, setDead] = useState(false);
+  const [forgot, setForgot] = useState(false);
   const bgRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -158,12 +159,13 @@ export default function InteractionLogin({ uid }: { uid: string }) {
   }
 
   const stepTitle =
-    step === "change_password" ? "Đổi mật khẩu"
+    forgot ? "Quên mật khẩu"
+    : step === "change_password" ? "Đổi mật khẩu"
     : step === "mfa" ? "Xác thực 2 lớp"
     : step === "mfa_enroll" ? "Thiết lập bảo mật"
     : "Đăng nhập";
 
-  const showSub = !!clientName && step === "login";
+  const showSub = !!clientName && step === "login" && !forgot;
   const form = (
     <>
       <h2 className="pmh-card__title" style={{ marginBottom: showSub ? 6 : 22 }}>
@@ -196,7 +198,9 @@ export default function InteractionLogin({ uid }: { uid: string }) {
           {error && (
             <Alert type="error" message={error} style={{ marginBottom: 16 }} showIcon />
           )}
-          {step === "login" && <LoginForm loading={loading} onFinish={onLogin} />}
+          {step === "login" && (forgot
+            ? <ForgotForm onBack={() => setForgot(false)} />
+            : <LoginForm loading={loading} onFinish={onLogin} onForgot={() => setForgot(true)} />)}
           {step === "change_password" && (
             <ChangePasswordForm loading={loading} onFinish={onChangePassword} />
           )}
@@ -250,12 +254,12 @@ export default function InteractionLogin({ uid }: { uid: string }) {
 function LoginForm({
   loading,
   onFinish,
+  onForgot,
 }: {
   loading: boolean;
   onFinish: (v: { email: string; password: string }) => void;
+  onForgot: () => void;
 }) {
-  const [forgot, setForgot] = useState(false);
-  if (forgot) return <ForgotForm onBack={() => setForgot(false)} />;
   return (
     <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
       <Form.Item label="Email" name="email" rules={[{ required: true, message: "Nhập email" }]}>
@@ -280,7 +284,7 @@ function LoginForm({
         />
       </Form.Item>
       <div style={{ textAlign: "right", marginBottom: 14 }}>
-        <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={() => setForgot(true)}>
+        <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={onForgot}>
           Quên mật khẩu?
         </Button>
       </div>
@@ -322,29 +326,33 @@ function ForgotForm({ onBack }: { onBack: () => void }) {
           type="success"
           showIcon
           message="Đã gửi yêu cầu"
-          description="Nếu email khớp một tài khoản đang hoạt động, mật khẩu tạm đã được gửi vào hộp thư. Hãy đăng nhập bằng mật khẩu tạm rồi đổi mật khẩu mới."
+          description="Nếu email khớp một tài khoản đang hoạt động, mật khẩu đã được gửi qua Email. Đăng nhập rồi đổi mật khẩu mới."
         />
-        <Button type="link" style={{ padding: 0, marginTop: 14 }} onClick={onBack}>
-          ← Quay lại đăng nhập
-        </Button>
+        <div style={{ textAlign: "center", marginTop: 16 }}>
+          <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={onBack}>
+            ← Quay lại đăng nhập
+          </Button>
+        </div>
       </div>
     );
   }
   return (
     <Form layout="vertical" onFinish={submit} requiredMark={false}>
       <div style={{ color: BRAND.muted, fontSize: 13, marginBottom: 14 }}>
-        Nhập email tài khoản — hệ thống gửi mật khẩu tạm để bạn đăng nhập lại.
+        Nhập email tài khoản — hệ thống gửi mật khẩu qua Email.
       </div>
       {err && <Alert type="warning" showIcon message={err} style={{ marginBottom: 12 }} />}
       <Form.Item label="Email" name="email" rules={[{ required: true, type: "email", message: "Email không hợp lệ" }]}>
         <Input size="large" autoFocus prefix={<UserOutlined style={{ color: BRAND.muted }} />} placeholder="ten@pmh.com.vn" />
       </Form.Item>
       <Button type="primary" htmlType="submit" size="large" block loading={busy}>
-        Gửi mật khẩu tạm
+        Gửi
       </Button>
-      <Button type="link" block style={{ marginTop: 8 }} onClick={onBack}>
-        ← Quay lại đăng nhập
-      </Button>
+      <div style={{ textAlign: "center", marginTop: 12 }}>
+        <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={onBack}>
+          ← Quay lại đăng nhập
+        </Button>
+      </div>
     </Form>
   );
 }
