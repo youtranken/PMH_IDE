@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, MotionConfig } from "framer-motion";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { A11y, EffectCoverflow, Keyboard, Mousewheel, Pagination } from "swiper/modules";
 import "swiper/css";
@@ -86,11 +86,17 @@ function AppCard({ app }: { app: AppItem }) {
  *  fill = chiếm trọn màn hình (immersive, không sidebar) cho member. */
 export default function Launcher({ greeting, fill }: { greeting?: string; fill?: boolean }) {
   const [apps, setApps] = useState<AppItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(0);
 
-  useEffect(() => {
-    api<AppItem[]>("/api/me/apps").then(setApps).catch(() => setApps([]));
-  }, []);
+  const load = () => {
+    setApps(null);
+    setError(null);
+    api<AppItem[]>("/api/me/apps")
+      .then((a) => { setApps(a); setError(null); })
+      .catch((e) => { setApps([]); setError((e as Error).message); });
+  };
+  useEffect(load, []);
 
   const firstName = greeting?.trim().split(/\s+/).pop() ?? "";
   const n = apps?.length ?? 0;
@@ -98,6 +104,7 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
   const activeApp = apps && n ? apps[Math.min(active, n - 1)] : null;
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="pmh-launch">
       <div className={`pmh-hero${fill ? " pmh-hero--fill" : ""}`}>
         {/* Nền MORPH theo thẻ đang chọn — vuốt tới đâu nền ngập màu dự án đó */}
@@ -144,11 +151,20 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
           </div>
         ) : n === 0 ? (
           <div className="pmh-state">
-            <div className="pmh-state__ico">✦</div>
-            <div className="pmh-state__title">Chưa có dự án nào được cấp</div>
-            <div className="pmh-state__sub">
-              Liên hệ quản trị để được thêm vào nhóm dự án phù hợp.
+            <div className="pmh-state__ico">{error ? "!" : "✦"}</div>
+            <div className="pmh-state__title">
+              {error ? "Không tải được danh sách dự án" : "Chưa có dự án nào được cấp"}
             </div>
+            <div className="pmh-state__sub">
+              {error
+                ? "Kiểm tra kết nối mạng rồi thử lại."
+                : "Liên hệ quản trị để được thêm vào nhóm dự án phù hợp."}
+            </div>
+            {error && (
+              <button type="button" className="pmh-state__retry" onClick={load}>
+                Thử lại
+              </button>
+            )}
           </div>
         ) : (
           <motion.div
@@ -183,6 +199,7 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
         </div>
       </div>
     </div>
+    </MotionConfig>
   );
 }
 

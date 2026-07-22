@@ -198,7 +198,8 @@
   outline: none;
 }
 .pmh-card:focus-visible {
-  box-shadow: 0 0 0 3px #e5533d, 0 22px 48px rgba(6, 20, 34, 0.42);
+  /* Vàng brand (trước đây đỏ #e5533d lệch hệ màu) — nổi rõ trên nền cảnh tối */
+  box-shadow: 0 0 0 3px #e6cf95, 0 22px 48px rgba(6, 20, 34, 0.42);
 }
 .pmh-card__top {
   position: relative;
@@ -337,6 +338,26 @@
   font-size: 14px;
   color: rgba(234, 241, 238, 0.72);
 }
+.pmh-state__retry {
+  margin-top: 16px;
+  padding: 8px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 162, 75, 0.55);
+  background: rgba(201, 162, 75, 0.12);
+  color: #e6cf95;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.pmh-state__retry:hover {
+  background: rgba(201, 162, 75, 0.22);
+  border-color: rgba(201, 162, 75, 0.8);
+}
+.pmh-state__retry:focus-visible {
+  outline: 2px solid #e6cf95;
+  outline-offset: 2px;
+}
 
 /* Bộ thẻ giả lúc tải */
 .pmh-skel {
@@ -366,5 +387,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pmh-hero::before, .pmh-skel__card { animation: none; }
+  /* Tắt MỌI chuyển động nền: glow, Ken Burns zoom/trôi, crossfade, shimmer —
+     trước đây chỉ tắt glow + skeleton, còn nền hero vẫn phình/trôi gây chóng mặt.
+     (Các scene 3D con tự tắt trong file CSS riêng của chúng.) */
+  .pmh-hero::before,
+  .pmh-hero__bg,
+  .pmh-hero__bg--3d,
+  .pmh-skel__card { animation: none; }
+  .pmh-slide,
+  .pmh-card,
+  .pmh-card__cta .pmh-arrow,
+  .pmh-swiper .swiper-slide,
+  .pmh-swiper .swiper-pagination-bullet { transition: none; }
 }

@@ -29,7 +29,7 @@ import {
 } from "antd";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api } from "../auth";
-import { BRAND, PageHeader, initials } from "../ui";
+import { BRAND, ListEmpty, PageHeader, initials } from "../ui";
 
 const { Text } = Typography;
 
@@ -63,6 +63,7 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
   const [overview, setOverview] = useState<OverviewProject[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [sel, setSel] = useState<string | null>(null); // dự án đang mở
   const [projForm, setProjForm] = useState<Project | "new" | null>(null);
@@ -77,7 +78,8 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
       api<OverviewProject[]>("/api/admin/projects/overview"),
       api<Client[]>("/api/admin/clients"),
     ])
-      .then(([o, c]) => { setOverview(o); setClients(c); })
+      .then(([o, c]) => { setOverview(o); setClients(c); setError(null); })
+      .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -97,8 +99,13 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
   const drawerClient = appDrawerId ? clientsById[appDrawerId] ?? null : null;
 
   const toggle = async (c: Client) => {
-    await api(`/api/admin/clients/${c.id}/${c.disabled ? "enable" : "disable"}`, { method: "POST" });
-    load();
+    try {
+      await api(`/api/admin/clients/${c.id}/${c.disabled ? "enable" : "disable"}`, { method: "POST" });
+      message.success(c.disabled ? "Đã bật ứng dụng" : "Đã tắt ứng dụng");
+      load();
+    } catch (e) {
+      message.error((e as Error).message);
+    }
   };
   const toggleM2m = (c: Client) => modal.confirm({
     title: c.m2m_enabled ? `Tắt API danh bạ (M2M) cho "${c.name}"?` : `Bật API danh bạ (M2M) cho "${c.name}"?`,
@@ -159,6 +166,10 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
               {[0, 1, 2].map((i) => (
                 <div key={i} className="pmh-admin__card pmh-admin__card--pad"><Skeleton active paragraph={{ rows: 2 }} /></div>
               ))}
+            </div>
+          ) : error ? (
+            <div className="pmh-admin__card pmh-admin__card--pad">
+              <ListEmpty error={error} onRetry={load} description="" />
             </div>
           ) : overview.length === 0 ? (
             <div className="pmh-admin__card pmh-admin__card--pad">

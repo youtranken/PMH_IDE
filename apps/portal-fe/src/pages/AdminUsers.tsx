@@ -33,7 +33,7 @@ import {
 } from "antd";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, ApiError, apiText } from "../auth";
-import { BRAND, initials, PageHeader } from "../ui";
+import { BRAND, initials, ListEmpty, PageHeader } from "../ui";
 import { Avatar } from "antd";
 
 const { Text } = Typography;
@@ -91,6 +91,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
   const { message, modal } = AntApp.useApp();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
 
   const [form] = Form.useForm();
@@ -123,7 +124,10 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
 
   const load = () => {
     setLoading(true);
-    api<UserRow[]>("/api/admin/users").then(setRows).finally(() => setLoading(false));
+    api<UserRow[]>("/api/admin/users")
+      .then((r) => { setRows(r); setError(null); })
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false));
   };
   useEffect(load, []);
   useEffect(() => {
@@ -405,7 +409,9 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
         pagination={{ pageSize: 15, showTotal: (t) => `${t} người dùng` }}
         scroll={{ x: 820 }}
         locale={{
-          emptyText: (
+          emptyText: error ? (
+            <ListEmpty error={error} onRetry={load} description="" />
+          ) : (
             <div style={{ padding: "36px 0" }}>
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}

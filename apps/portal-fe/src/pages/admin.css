@@ -312,3 +312,18 @@
 @media (max-width: 991px) {
   .pmh-admin__content.ant-layout-content { padding: var(--a-4); }
 }
+
+/* Giảm chuyển động (a11y) — NỀN TẢNG cho hiệu ứng động khu quản trị. Tắt mọi
+   transition/animation (kể cả của antd: skeleton shimmer, modal, hover nâng thẻ)
+   khi user bật prefers-reduced-motion. Mọi keyframe/transition MỚI thêm cho admin
+   sẽ tự nằm trong vùng phủ này — không cần khai báo tắt riêng từng cái. */
+@media (prefers-reduced-motion: reduce) {
+  .pmh-admin *,
+  .pmh-admin *::before,
+  .pmh-admin *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

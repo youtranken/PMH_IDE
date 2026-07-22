@@ -1,5 +1,7 @@
 /** Hệ thị giác PMH ID — bản sắc "bất động sản": xanh lục thẫm + vàng đồng + đá. */
 
+import { Button, Empty } from "antd";
+
 export const BRAND = {
   green: "#0E4D45", // xanh lục thẫm — đất/thịnh vượng/bền vững
   greenDeep: "#092e2a", // nền panel đăng nhập
@@ -117,6 +119,50 @@ export function PageHeader({
         {sub && <p className="pmh-ph__sub">{sub}</p>}
       </div>
       {actions && <div className="pmh-ph__actions">{actions}</div>}
+    </div>
+  );
+}
+
+/**
+ * Empty-state dùng chung cho bảng/danh sách — PHÂN BIỆT "lỗi tải" với "chưa có
+ * dữ liệu". Trước đây các load() nuốt lỗi rồi rơi vào empty "Chưa có…", khiến
+ * admin tưởng mất data (không có nút thử lại). Truyền `error` + `onRetry` để
+ * hiện nhánh lỗi; không có lỗi thì hiện `description` như bình thường.
+ */
+export function ListEmpty({
+  error,
+  onRetry,
+  description,
+  children,
+}: {
+  error?: string | null;
+  onRetry?: () => void;
+  description: string;
+  children?: import("react").ReactNode;
+}) {
+  return (
+    <div style={{ padding: "36px 0" }}>
+      {error ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={
+            <span style={{ color: BRAND.muted }}>
+              Không tải được dữ liệu
+              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{error}</div>
+            </span>
+          }
+        >
+          {onRetry && (
+            <Button size="small" onClick={onRetry}>
+              Thử lại
+            </Button>
+          )}
+        </Empty>
+      ) : (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={description}>
+          {children}
+        </Empty>
+      )}
     </div>
   );
 }

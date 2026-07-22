@@ -12,7 +12,7 @@ import {
 import { App as AntApp, Button, Card, Input, Skeleton, Tooltip } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../auth";
-import { BRAND, PageHeader } from "../ui";
+import { BRAND, ListEmpty, PageHeader } from "../ui";
 
 interface Setting {
   key: string;
@@ -114,10 +114,13 @@ export default function Settings() {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = () =>
+  const load = () => {
+    setLoading(true);
     api<Setting[]>("/api/admin/settings")
       .then((r) => {
+        setError(null);
         setRows(r);
         // Ô bí mật luôn khởi tạo RỖNG (không đổ sentinel vào input) → người dùng
         // nhập mới để đổi, để trống thì không gửi.
@@ -127,7 +130,9 @@ export default function Settings() {
           ),
         );
       })
+      .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
+  };
   useEffect(() => {
     load();
   }, []);
@@ -227,8 +232,11 @@ export default function Settings() {
           ))}
         </div>
       )}
+      {!loading && error && (
+        <ListEmpty error={error} onRetry={load} description="" />
+      )}
       <div className="pmh-set-grid">
-        {!loading && groups.map((g) => (
+        {!loading && !error && groups.map((g) => (
           <Card
             key={g.title}
             styles={{ body: { padding: "8px 20px 12px" } }}

@@ -412,9 +412,12 @@ function ChangePassword() {
 export default function SelfService({ profile, embedded }: { profile: Profile; onProfile: (p: Profile) => void; embedded?: boolean }) {
   const { message } = AntApp.useApp();
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessErr, setSessErr] = useState<string | null>(null);
 
   const loadSessions = () =>
-    api<Session[]>("/api/me/sessions").then(setSessions).catch(() => {});
+    api<Session[]>("/api/me/sessions")
+      .then((s) => { setSessions(s); setSessErr(null); })
+      .catch((e) => setSessErr((e as Error).message));
   useEffect(() => {
     loadSessions();
   }, []);
@@ -476,7 +479,16 @@ export default function SelfService({ profile, embedded }: { profile: Profile; o
       </div>
       <Panel>
         {sessions.length === 0 && (
-          <div style={{ padding: 20, color: BRAND.muted }}>Chưa có phiên nào.</div>
+          <div style={{ padding: 20, color: BRAND.muted }}>
+            {sessErr ? (
+              <>
+                Không tải được danh sách phiên.{" "}
+                <Button type="link" size="small" style={{ padding: 0 }} onClick={loadSessions}>Thử lại</Button>
+              </>
+            ) : (
+              "Chưa có phiên nào."
+            )}
+          </div>
         )}
         {/* Chỉ hiện 5 phiên MỚI NHẤT — phiên cũ nhiều thì không liệt kê hết. */}
         {[...sessions]

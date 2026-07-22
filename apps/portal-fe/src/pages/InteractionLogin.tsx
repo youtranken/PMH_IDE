@@ -1,4 +1,4 @@
-import { Alert, Button, Checkbox, Form, Input, List } from "antd";
+import { Alert, Button, Checkbox, Form, Input, List, Spin } from "antd";
 import { CheckCircleFilled, LockOutlined, MinusCircleOutlined, UserOutlined } from "@ant-design/icons";
 import { Brand, BRAND } from "../ui";
 import { LoginScene } from "../scenes";
@@ -453,16 +453,32 @@ function MfaForm({
 /** Ép enroll MFA giữa luồng login (vai bắt buộc MFA mà chưa bật). */
 function MfaEnrollForm({ uid }: { uid: string }) {
   const [qr, setQr] = useState<string | null>(null);
+  const [setupErr, setSetupErr] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [redirectTo, setRedirectTo] = useState("");
 
+  // Trước đây effect nuốt lỗi (setQr(null) khi 410/lỗi) → màn còn trơ ô nhập
+  // không QR, không lời giải thích = ngõ cụt câm. Nay phân biệt lỗi + có lối thoát.
   useEffect(() => {
-    postJson(`/api/interaction/${uid}/mfa-enroll-setup`, {}).then((r) =>
-      setQr(r.data?.qr ?? null),
-    );
+    let alive = true;
+    postJson(`/api/interaction/${uid}/mfa-enroll-setup`, {})
+      .then((r) => {
+        if (!alive) return;
+        if (r.status >= 300 || !r.data?.qr) {
+          setSetupErr(
+            r.status === 410
+              ? "Phiên thiết lập đã hết hạn — vui lòng đăng nhập lại."
+              : r.data?.message ?? "Không tạo được mã QR — vui lòng đăng nhập lại.",
+          );
+          return;
+        }
+        setQr(r.data.qr);
+      })
+      .catch(() => alive && setSetupErr("Không kết nối được máy chủ — thử lại sau."));
+    return () => { alive = false; };
   }, [uid]);
 
   const submit = async () => {
@@ -509,6 +525,18 @@ function MfaEnrollForm({ uid }: { uid: string }) {
     );
   }
 
+  // Setup lỗi → dừng luồng, cho lối đăng nhập lại thay vì để ô nhập vô dụng.
+  if (setupErr) {
+    return (
+      <>
+        <Alert type="error" showIcon style={{ marginBottom: 12 }} message={setupErr} />
+        <Button block size="large" onClick={() => (window.location.href = "/")}>
+          Đăng nhập lại
+        </Button>
+      </>
+    );
+  }
+
   return (
     <>
       <Alert
@@ -516,25 +544,32 @@ function MfaEnrollForm({ uid }: { uid: string }) {
         showIcon
         style={{ marginBottom: 12 }}
         message="Tài khoản của bạn bắt buộc bật MFA"
-        description="Quét QR bằng authenticator app rồi nhập mã 6 số."
+        description="Quét QR bằng ứng dụng xác thực (authenticator) rồi nhập mã 6 số."
       />
       {err && <Alert type="error" message={err} style={{ marginBottom: 12 }} showIcon />}
-      {qr && (
+      {qr ? (
         <img
           src={qr}
-          alt="MFA QR"
+          alt="Mã QR thiết lập MFA"
           style={{ width: 200, height: 200, display: "block", margin: "0 auto 12px" }}
         />
+      ) : (
+        <div style={{ height: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12, color: BRAND.muted }}>
+          <Spin />
+          <span>Đang tạo mã QR…</span>
+        </div>
       )}
       <Input
         size="large"
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="123456"
+        inputMode="numeric"
+        aria-label="Mã xác thực 6 số"
         autoComplete="one-time-code"
         style={{ marginBottom: 12 }}
       />
-      <Button type="primary" size="large" block loading={busy} disabled={!code} onClick={submit}>
+      <Button type="primary" size="large" block loading={busy} disabled={!code || !qr} onClick={submit}>
         Xác nhận bật MFA
       </Button>
     </>

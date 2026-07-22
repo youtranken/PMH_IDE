@@ -58,6 +58,10 @@
 .pmh-avatar:hover {
   transform: translateY(-1px);
 }
+.pmh-avatar:focus-visible {
+  outline: 2px solid #c9a24b;
+  outline-offset: 2px;
+}
 .pmh-avatar--over-dark {
   background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
@@ -101,4 +105,8 @@
   color: #0a3c36;
   border-color: #cdd8d3;
   transform: translateX(-2px);
+}
+.pmh-page__back:focus-visible {
+  outline: 2px solid #0e4d45;
+  outline-offset: 2px;
 }

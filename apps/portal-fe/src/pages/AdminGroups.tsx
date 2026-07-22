@@ -15,7 +15,7 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 import { api } from "../auth";
-import { BRAND, initials, PageHeader } from "../ui";
+import { BRAND, initials, ListEmpty, PageHeader } from "../ui";
 
 interface GroupRow {
   id: string;
@@ -39,6 +39,7 @@ export default function AdminGroups({ isSsa }: { isSsa: boolean }) {
   const { message } = AntApp.useApp();
   const [rows, setRows] = useState<GroupRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [form] = Form.useForm();
   const [editing, setEditing] = useState<GroupRow | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -47,7 +48,10 @@ export default function AdminGroups({ isSsa }: { isSsa: boolean }) {
 
   const load = () => {
     setLoading(true);
-    api<GroupRow[]>("/api/admin/groups").then(setRows).finally(() => setLoading(false));
+    api<GroupRow[]>("/api/admin/groups")
+      .then((r) => { setRows(r); setError(null); })
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
@@ -91,14 +95,13 @@ export default function AdminGroups({ isSsa }: { isSsa: boolean }) {
         pagination={false}
         locale={{
           emptyText: (
-            <div style={{ padding: "36px 0" }}>
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Chưa có nhóm nào — tạo nhóm để mở quyền vào ứng dụng."
-              >
-                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo nhóm</Button>
-              </Empty>
-            </div>
+            <ListEmpty
+              error={error}
+              onRetry={load}
+              description="Chưa có nhóm nào — tạo nhóm để mở quyền vào ứng dụng."
+            >
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Tạo nhóm</Button>
+            </ListEmpty>
           ),
         }}
         columns={[
