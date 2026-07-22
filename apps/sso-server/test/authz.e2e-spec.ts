@@ -86,6 +86,7 @@ beforeAll(() => {
       ('${id.cA}','${id.projA}','${TAG}-cA','${TAG}-cA','dev'),
       ('${id.cB}','${id.projB}','${TAG}-cB','${TAG}-cB','dev');
     INSERT INTO client_groups(client_id,group_id) VALUES('${id.cA}','${id.gA}'),('${id.cB}','${id.gB}');
+    UPDATE clients SET m2m_enabled = true WHERE id IN ('${id.cA}','${id.cB}');
     ${u(id.PA, "admin")}${u(id.UA, "userA")}${u(id.UB, "userB")}${u(id.AA, "adminInScope")}
     INSERT INTO admin_roles(user_id,role) VALUES('${id.PA}','project_admin'),('${id.AA}','project_admin');
     INSERT INTO admin_projects(user_id,project_id) VALUES('${id.PA}','${id.projA}'),('${id.AA}','${id.projB}');
@@ -160,6 +161,94 @@ describe("A01 — PATCH /admin/users/:id (C1 leo thang)", () => {
       .set(bearer(paTok))
       .send({ email: `${TAG}-hack@evil.com` });
     expect(r.status).toBe(403);
+  });
+
+  it("C1a — PA đổi EMAIL user THƯỜNG trong phạm vi = 403 + email nguyên vẹn", async () => {
+    const before = psqlVal(`SELECT email FROM users WHERE id='${id.UA}'`);
+    const r = await api()
+      .patch(`/api/admin/users/${id.UA}`)
+      .set(bearer(paTok))
+      .send({ email: `${TAG}-hijack@evil.com` });
+    expect(r.status).toBe(403);
+    expect(psqlVal(`SELECT email FROM users WHERE id='${id.UA}'`)).toBe(before);
+  });
+
+  it("C1a — PA đổi MÃ NV user trong phạm vi = 403", async () => {
+    const r = await api()
+      .patch(`/api/admin/users/${id.UA}`)
+      .set(bearer(paTok))
+      .send({ employeeCode: `${TAG}-newcode` });
+    expect(r.status).toBe(403);
+  });
+
+  it("C1a — SSA đổi email in-scope vẫn được = 200", async () => {
+    const r = await api()
+      .patch(`/api/admin/users/${id.UA}`)
+      .set(bearer(ssaTok))
+      .send({ email: `${TAG}-userA2@pmh.com.vn` });
+    expect(r.status).toBe(200);
+  });
+});
+
+describe("A01 — client_groups chặn chiếm group project khác (C1b)", () => {
+  it("PA gán group của project KHÁC (gB) vào client mình (cA) = 403", async () => {
+    const r = await api()
+      .post(`/api/admin/clients/${id.cA}/groups`)
+      .set(bearer(paTok))
+      .send({ groupId: id.gB });
+    expect(r.status).toBe(403);
+  });
+
+  it("PA gán group TỰ DO (mới tạo, chưa gắn client) vào cA = 201", async () => {
+    const g = await api()
+      .post("/api/admin/groups")
+      .set(bearer(paTok))
+      .send({ name: `${TAG}-freeG` });
+    expect(g.status).toBe(201);
+    const r = await api()
+      .post(`/api/admin/clients/${id.cA}/groups`)
+      .set(bearer(paTok))
+      .send({ groupId: g.body.id });
+    expect(r.status).toBe(201);
+  });
+
+  it("SSA gán gB vào cA = 201 (thiết lập chia sẻ xuyên project)", async () => {
+    const r = await api()
+      .post(`/api/admin/clients/${id.cA}/groups`)
+      .set(bearer(ssaTok))
+      .send({ groupId: id.gB });
+    expect(r.status).toBe(201);
+    // Dọn NGAY attachment gB→cA (projA): nếu để lại, các describe sau (H2 CSV,
+    // M3 groups) sẽ coi gB in-scope của PA → false-fail. Cô lập test.
+    psqlExec(`DELETE FROM client_groups WHERE client_id='${id.cA}' AND group_id='${id.gB}';`);
+  });
+});
+
+describe("A01 — quên/đặt lại mật khẩu bằng link (C2)", () => {
+  it("forgot-password KHÔNG đổi password_hash + tạo reset token", async () => {
+    const before = psqlVal(
+      `SELECT COALESCE(password_hash,'∅') FROM users WHERE id='${id.UA}'`,
+    );
+    // Lấy email HIỆN TẠI của UA (test C1a-SSA phía trên có thể đã đổi).
+    const email = psqlVal(`SELECT email FROM users WHERE id='${id.UA}'`);
+    const r = await api().post("/api/auth/forgot-password").send({ email });
+    expect(r.status).toBe(201);
+    // MK hiện tại KHÔNG bị đụng (mắt xích DoS/takeover đã cắt).
+    expect(
+      psqlVal(`SELECT COALESCE(password_hash,'∅') FROM users WHERE id='${id.UA}'`),
+    ).toBe(before);
+    // Có phát hành token đặt lại.
+    const cnt = psqlVal(
+      `SELECT count(*) FROM password_reset_tokens WHERE user_id='${id.UA}' AND used_at IS NULL`,
+    );
+    expect(Number(cnt)).toBeGreaterThan(0);
+  });
+
+  it("reset-password với token sai = 400", async () => {
+    const r = await api()
+      .post("/api/auth/reset-password")
+      .send({ token: `deadbeef-${randomUUID()}`, password: "Abcd1234!@#$" });
+    expect(r.status).toBe(400);
   });
 });
 

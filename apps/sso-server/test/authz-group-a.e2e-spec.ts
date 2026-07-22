@@ -76,6 +76,9 @@ const cleanupSql = `
   DELETE FROM email_queue WHERE to_addr LIKE '${TAG}%';
   DELETE FROM users WHERE email LIKE '${TAG}%';
   DELETE FROM projects WHERE name LIKE '${TAG}%';
+  -- Reset counter backoff quên/đặt-lại MK (per-IP tích lũy qua các lần chạy suite
+  -- → false 429). Chỉ là speed-bump ephemeral; xoá an toàn cho cô lập test.
+  DELETE FROM login_attempts WHERE identifier LIKE 'forgot%' OR identifier LIKE 'reset%';
 `;
 
 let paTok = "";
