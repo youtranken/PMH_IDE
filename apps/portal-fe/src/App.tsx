@@ -4,7 +4,7 @@ import "./pages/shell.css";
 import "./pages/admin.css";
 import { type ReactNode, useEffect, useState } from "react";
 import { Brand, initials } from "./ui";
-import InteractionLogin from "./pages/InteractionLogin";
+import InteractionLogin, { ResetPassword } from "./pages/InteractionLogin";
 import Launcher from "./pages/Launcher";
 import SelfService from "./pages/SelfService";
 import Settings from "./pages/Settings";
@@ -134,9 +134,10 @@ function Root() {
   const mobile = !screens.lg;
 
   const interaction = path.match(/^\/interaction\/([^/]+)$/);
+  const resetPw = path === "/reset-password";
 
   useEffect(() => {
-    if (interaction) return; // trang login SSO không cần auth portal
+    if (interaction || resetPw) return; // login SSO + đặt lại MK: route công khai, không cần auth portal
     boot()
       .then((p) => {
         if (p) {
@@ -158,6 +159,9 @@ function Root() {
 
   if (interaction) {
     return <InteractionLogin uid={interaction[1]} />;
+  }
+  if (resetPw) {
+    return <ResetPassword />;
   }
   if (loopErr) {
     return (
