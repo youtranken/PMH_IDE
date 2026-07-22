@@ -107,10 +107,14 @@ services:
       SIGNING_KEYS_DIR: /run/secrets/signing-keys
       ENV_FILE: /secrets/.env
       BACKUP_OUT: /backups
+      ARCHIVE_DIR: /archive
     networks: [pmhid-internal]
     volumes:
       - ../.env:/secrets/.env:ro
       - signing_keys:/run/secrets/signing-keys:ro
+      # Audit log đã archive (>365 ngày) bị XÓA khỏi DB → chỉ còn trên volume này;
+      # phải đưa vào backup, nếu không hỏng đĩa = mất bằng chứng tuân thủ (H1).
+      - audit_archive:/archive:ro
       # Kho backup = THƯ MỤC HOST (BACKUP_DIR), không phải named volume: volume
       # nằm cùng đĩa Docker với pg_data → hỏng đĩa là mất CẢ DB LẪN backup.
       - ${BACKUP_DIR:-../../backup-pmhid}:/backups

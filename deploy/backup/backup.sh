@@ -43,6 +43,17 @@ cp "$ENV_FILE" "$WORK/bundle/.env"
 [ -d "$KEYS_DIR" ] || { echo "[LỖI] không thấy $KEYS_DIR — thiếu khóa ký, hủy"; exit 1; }
 cp -r "$KEYS_DIR" "$WORK/bundle/signing-keys"
 
+# Audit log đã ARCHIVE (>365 ngày) đã bị XÓA khỏi DB (audit-archive.service) → chỉ
+# còn trên volume audit_archive. KHÔNG vào backup = hỏng đĩa mất bằng chứng tuân
+# thủ (H1). Thư mục có thể CHƯA tồn tại tới lần archive hằng tháng đầu → optional.
+ARCHIVE_DIR="${ARCHIVE_DIR:-/archive}"
+if [ -d "$ARCHIVE_DIR" ] && [ -n "$(ls -A "$ARCHIVE_DIR" 2>/dev/null)" ]; then
+  echo "[backup] gom audit archive…"
+  cp -r "$ARCHIVE_DIR" "$WORK/bundle/audit-archive"
+else
+  echo "[backup] (chưa có audit archive — bỏ qua)"
+fi
+
 OUT="$OUT_DIR/pmhid-backup-$STAMP.tar.gz.enc"
 echo "[backup] tar + mã hóa AES-256 → $OUT"
 ( umask 077; tar -czf - -C "$WORK/bundle" . | \
