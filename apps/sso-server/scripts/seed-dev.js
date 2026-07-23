@@ -10,21 +10,28 @@
 const argon2 = require("argon2");
 const { Pool } = require("pg");
 
-// CHẶN CỨNG Ở PROD: script này đặt mật khẩu CÔNG KHAI ("Passw0rd!") cho SSA
-// kiêm break-glass, và upsert ON CONFLICT DO UPDATE nên GHI ĐÈ cả tài khoản đã
-// có. Chạy nhầm ở prod = trao SSA cho bất kỳ ai đọc repo. Dùng
-// scripts/bootstrap-admin.js cho môi trường thật (nó từ chối ghi đè).
-if (process.env.NODE_ENV === "production") {
-  console.error(
-    "[seed-dev] TỪ CHỐI CHẠY: đây là dữ liệu DEV với mật khẩu công khai và sẽ " +
-      "GHI ĐÈ tài khoản hiện có. Ở môi trường thật dùng scripts/bootstrap-admin.js.",
-  );
-  process.exit(1);
-}
-
 const DATABASE_URL =
   process.env.DATABASE_URL ||
   "postgres://pmhid:change_me_dev_only@localhost:5433/pmhid";
+
+// CHẶN CỨNG (fail-closed): script này đặt mật khẩu CÔNG KHAI ("Passw0rd!") cho SSA
+// kiêm break-glass, và upsert ON CONFLICT DO UPDATE nên GHI ĐÈ cả tài khoản đã có
+// (kể cả reset break-glass về mật khẩu cũ). Chỉ dựa vào NODE_ENV là chưa đủ — chuyển
+// VM/quên set env là chạy trúng prod. Đòi ĐỦ 3 điều kiện: NODE_ENV=development +
+// DB localhost + SEED_DEV_CONFIRM=1. Prod dùng scripts/bootstrap-admin.js (vbsec P1-4).
+const dbIsLocal = /@(localhost|127\.0\.0\.1|\[::1\]|::1)[:/]/.test(DATABASE_URL);
+if (
+  process.env.NODE_ENV !== "development" ||
+  !dbIsLocal ||
+  process.env.SEED_DEV_CONFIRM !== "1"
+) {
+  console.error(
+    "[seed-dev] TỪ CHỐI CHẠY: chỉ cho phép khi NODE_ENV=development + DB localhost + " +
+      "SEED_DEV_CONFIRM=1 (đây là dữ liệu DEV mật khẩu công khai, GHI ĐÈ tài khoản hiện có). " +
+      "Ở môi trường thật dùng scripts/bootstrap-admin.js.",
+  );
+  process.exit(1);
+}
 
 async function upsertUser(pool, hash, { email, code, name, breakglass = false }) {
   const { rows } = await pool.query(

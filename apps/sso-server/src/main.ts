@@ -187,10 +187,11 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   // OpenAPI/Swagger CHỈ cho Directory API (M2M). KHÔNG include module admin.
-  // KHÔNG phơi UI ra PROD (public không auth = lộ bản đồ API) — chỉ mount ở
-  // dev/staging để test. Integrator nhận spec TĨNH docs/integration/
+  // KHÔNG phơi UI ra PROD (public không auth = lộ bản đồ API). Bật-TƯỜNG-MINH
+  // qua SWAGGER_ENABLED=true (mặc định TẮT) — an toàn kể cả khi NODE_ENV thiếu
+  // lúc chuyển VM (vbsec P1-3). Integrator nhận spec TĨNH docs/integration/
   // directory-api.openapi.json lúc onboarding. OIDC tự tả qua Discovery.
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.SWAGGER_ENABLED === "true") {
     const openapi = new DocumentBuilder()
       .setTitle("PMH ID — Directory API (M2M)")
       .setDescription(

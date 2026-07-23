@@ -101,6 +101,7 @@ export class DirectoryService {
     includeDeleted: boolean,
     ip: string | null,
   ): Promise<DirUser> {
+    await this.rateLimit(client.clientId);
     const delFilter =
       (includeDeleted ? "" : "AND u.deleted_at IS NULL") +
       " AND u.is_breakglass = false";
@@ -181,6 +182,7 @@ export class DirectoryService {
   }
 
   async listGroups(client: DirClient): Promise<{ id: string; name: string }[]> {
+    await this.rateLimit(client.clientId);
     const { rows } = await this.pool.query<{ id: string; name: string }>(
       `SELECT g.id, g.name FROM client_groups cg JOIN groups g ON g.id = cg.group_id
        WHERE cg.client_id = $1 ORDER BY g.name`,

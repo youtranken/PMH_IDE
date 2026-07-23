@@ -108,6 +108,9 @@ export async function createOidcProvider(
     .map((k) => k.trim())
     .filter(Boolean);
   const isProd = config.get("NODE_ENV") === "production";
+  // Cookie Secure bám scheme THẬT của issuer (https ⇒ có TLS), không bám NODE_ENV
+  // — chuyển VM/quên set NODE_ENV không được phép âm thầm tắt Secure (vbsec P1-2).
+  const issuerIsHttps = new URL(issuer).protocol === "https:";
 
   // Tham số phiên từ Settings (AD-15). Preload cache 1 lần rồi đọc ĐỒNG BỘ
   // trong từng closure ttl → SSA đổi runtime (E6-S5 gọi settings.set) có hiệu
@@ -184,16 +187,24 @@ export async function createOidcProvider(
     adapter: PgAdapter,
     // Khóa ký từ file mount (AD-8); khóa đầu mảng là khóa ký hiện hành
     jwks: { keys: keys.loadOrCreate() },
+    // Chốt cứng thuật toán ký = RS256 (JWKS vốn chỉ RSA). Ngăn client-metadata
+    // tương lai mở rộng sang HS*/none. Access token đã pin RS256 ở resource
+    // server info bên dưới; đây là phòng thủ theo lớp cho id_token/userinfo (vbsec P2-2).
+    enabledJWA: {
+      idTokenSigningAlgValues: ["RS256"],
+      userinfoSigningAlgValues: ["RS256"],
+      introspectionSigningAlgValues: ["RS256"],
+    },
     cookies: {
       keys: cookieKeys,
       // oidc-provider mặc định cookie chỉ {httpOnly, sameSite:'lax'} — KHÔNG tự
-      // đặt Secure. Bật ở prod để _session/_interaction không đi qua HTTP trần
-      // (khớp với stage cookie của app vốn đã secure:true). Dev để tắt cho phép
-      // chạy http://localhost khi cần.
-      long: { secure: isProd },
+      // đặt Secure. Bật khi issuer là https để _session/_interaction không đi qua
+      // HTTP trần (khớp stage cookie app vốn secure:true). http://localhost (dev)
+      // ⇒ tự tắt. Không phụ thuộc NODE_ENV để tránh fail-open khi chuyển VM.
+      long: { secure: issuerIsHttps },
       // Cookie interaction mặc định Path=/interaction/:uid — SPA gọi API tại
       // /api/interaction/:uid nên phải nới path để cookie đi kèm (AD-3)
-      short: { path: "/", secure: isProd },
+      short: { path: "/", secure: issuerIsHttps },
     },
 
     /**

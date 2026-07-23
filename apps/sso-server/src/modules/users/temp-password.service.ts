@@ -78,7 +78,7 @@ export class TempPasswordService {
            temp_password_expires_at = NULL,
            password_updated_at = now(),
            updated_at = now()
-       WHERE id = $1`,
+       WHERE id = $1 AND is_breakglass = false`,
       [userId, hash, mustChange],
     );
   }
@@ -88,9 +88,11 @@ export class TempPasswordService {
    * không tồn tại/đã xóa — nơi gọi giữ phản hồi ĐỒNG NHẤT cho luồng quên MK).
    */
   async issue(userId: string): Promise<string | null> {
+    // is_breakglass=false: tài khoản break-glass KHÔNG cấp MK tạm qua luồng này
+    // (self-filter, không phụ thuộc caller pre-check) — vbsec P2-8.
     const { rows } = await this.pool.query<{ email: string; full_name: string }>(
       `SELECT email, full_name FROM users
-       WHERE id = $1 AND deleted_at IS NULL`,
+       WHERE id = $1 AND deleted_at IS NULL AND is_breakglass = false`,
       [userId],
     );
     if (rows.length === 0) return null;

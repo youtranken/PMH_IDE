@@ -97,7 +97,6 @@ export class PasswordResetService {
     ip: string | null,
   ): Promise<void> {
     await this.tempPassword.assertPolicy(newPassword);
-    const hash = await argon2.hash(newPassword);
     const client = await this.pool.connect();
     let userId = "";
     try {
@@ -113,6 +112,9 @@ export class PasswordResetService {
         throw new BadRequestException("Liên kết không hợp lệ hoặc đã hết hạn.");
       }
       userId = rows[0].user_id;
+      // argon2.hash CHỈ chạy SAU khi token hợp lệ — token sai không ép server hash
+      // (chống khuếch đại CPU-DoS bằng token rác). Token 256-bit nên không brute (vbsec P2-5).
+      const hash = await argon2.hash(newPassword);
       await client.query(
         `UPDATE users
          SET password_hash = $2, must_change_password = false,

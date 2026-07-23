@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, MotionConfig } from "framer-motion";
+import type { Swiper as SwiperClass } from "swiper";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { A11y, EffectCoverflow, Keyboard, Mousewheel, Pagination } from "swiper/modules";
+import { A11y, EffectCoverflow, Mousewheel, Pagination } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/effect-coverflow";
 import "swiper/css/pagination";
@@ -84,6 +85,8 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const [pageHidden, setPageHidden] = useState(false);
+  const swiperRef = useRef<SwiperClass | null>(null);
+  const targetRef = useRef(0); // đích điều hướng phím tích luỹ (không đọc realIndex đang chạy)
 
   // Tab ẩn → gắn class .is-hidden để CSS đóng băng animation (đỡ hao pin/GPU).
   useEffect(() => {
@@ -105,6 +108,37 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
   const n = apps?.length ?? 0;
   const loop = n > 3;
   const activeApp = apps && n ? apps[Math.min(active, n - 1)] : null;
+
+  // Điều hướng phím ◀▶ tự quản: gộp phím theo "đích" tích luỹ rồi slideToLoop —
+  // lệnh này CẮT NGANG hiệu ứng coverflow đang chạy, nên bấm nhanh/qua lại không
+  // bị nuốt phím và không nhảy sai dự án. (Module Keyboard mặc định bỏ qua phím
+  // khi đang animating → gõ N lần chỉ nhích vài slide.) base đọc từ realIndex khi
+  // đứng yên (đồng bộ với kéo/chuột), đọc từ targetRef khi đang chạy (tích luỹ).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const sw = swiperRef.current;
+      if (!sw || sw.destroyed || n < 2) return;
+      const el = document.activeElement;
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      const r = sw.el.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight) return; // coverflow ngoài màn hình → bỏ qua
+      e.preventDefault();
+      const dir = e.key === "ArrowRight" ? 1 : -1;
+      const base = sw.animating ? targetRef.current : sw.realIndex;
+      if (loop) {
+        const t = (((base + dir) % n) + n) % n;
+        targetRef.current = t;
+        sw.slideToLoop(t);
+      } else {
+        const t = Math.max(0, Math.min(n - 1, base + dir));
+        targetRef.current = t;
+        sw.slideTo(t);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [n, loop]);
 
   return (
     <MotionConfig reducedMotion="user">
@@ -177,7 +211,7 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
           >
             <Swiper
               className="pmh-swiper"
-              modules={[EffectCoverflow, Pagination, Keyboard, Mousewheel, A11y]}
+              modules={[EffectCoverflow, Pagination, Mousewheel, A11y]}
               effect="coverflow"
               grabCursor
               centeredSlides
@@ -185,11 +219,10 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
               loop={loop}
               initialSlide={loop ? 0 : Math.min(1, n - 1)}
               coverflowEffect={{ rotate: 26, stretch: 0, depth: 110, modifier: 1, slideShadows: false }}
-              keyboard={{ enabled: true }}
               mousewheel={{ forceToAxis: true }}
               pagination={{ clickable: true }}
-              onSwiper={(sw) => setActive(sw.realIndex)}
-              onSlideChange={(sw) => setActive(sw.realIndex)}
+              onSwiper={(sw) => { swiperRef.current = sw; targetRef.current = sw.realIndex; setActive(sw.realIndex); }}
+              onSlideChange={(sw) => setActive((prev) => (prev === sw.realIndex ? prev : sw.realIndex))}
             >
               {apps.map((a) => (
                 <SwiperSlide key={a.client_id} className="pmh-slide">
