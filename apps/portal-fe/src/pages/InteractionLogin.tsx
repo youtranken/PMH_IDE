@@ -87,6 +87,31 @@ function PasswordChecklist({ pw }: { pw: string }) {
 
 type Step = "login" | "change_password" | "mfa" | "mfa_enroll";
 
+/** Máy yếu (ít nhân CPU / ít RAM) → nên chạy "lite" (đóng băng hiệu ứng nặng). */
+function isLowEndDevice(): boolean {
+  const cores = navigator.hardwareConcurrency ?? 8;
+  const mem = (navigator as unknown as { deviceMemory?: number }).deviceMemory;
+  return cores <= 4 || (typeof mem === "number" && mem <= 4);
+}
+
+/** Ref cho <div> bọc LoginScene. Nếu user bật giảm-chuyển-động HOẶC máy yếu →
+ *  đóng băng SVG (cảnh hoàng hôn ~600 SMIL) ở khung cuối = nhìn như ảnh tĩnh, CPU
+ *  nghỉ. Máy khoẻ + không bật reduced-motion vẫn chạy đầy đủ hiệu ứng.
+ *  (SMIL không nghe @media prefers-reduced-motion nên phải chặn bằng JS.) */
+function useLiteScene() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reduce && !isLowEndDevice()) return;
+    const svg = ref.current?.querySelector("svg") as
+      | (SVGSVGElement & { pauseAnimations?: () => void; setCurrentTime?: (t: number) => void })
+      | null;
+    svg?.pauseAnimations?.();
+    svg?.setCurrentTime?.(11);
+  }, []);
+  return ref;
+}
+
 async function postJson(url: string, body: unknown) {
   const r = await fetch(url, {
     method: "POST",
@@ -109,7 +134,7 @@ export default function InteractionLogin({ uid }: { uid: string }) {
   const [loading, setLoading] = useState(false);
   const [dead, setDead] = useState(false);
   const [forgot, setForgot] = useState(false);
-  const bgRef = useRef<HTMLDivElement>(null);
+  const bgRef = useLiteScene();
 
   useEffect(() => {
     fetch(`/api/interaction/${uid}`, { credentials: "same-origin" })
@@ -117,15 +142,6 @@ export default function InteractionLogin({ uid }: { uid: string }) {
       .then((d) => setClientName(d.clientName ?? d.clientId))
       .catch(() => setDead(true));
   }, [uid]);
-
-  // Tôn trọng reduced-motion: freeze SMIL ở khung hoàng hôn cho người nhạy cảm
-  // chuyển động (SMIL không nghe @media prefers-reduced-motion nên phải chặn tay).
-  useEffect(() => {
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const svg = bgRef.current?.querySelector("svg") as (SVGSVGElement & { pauseAnimations?: () => void; setCurrentTime?: (t: number) => void }) | null;
-    svg?.pauseAnimations?.();
-    svg?.setCurrentTime?.(11);
-  }, []);
 
   /** Xử lý phản hồi chung: điều hướng / chuyển bước / lỗi. */
   function handle(res: { status: number; data: any }): boolean {
@@ -640,6 +656,7 @@ function MfaEnrollForm({ uid }: { uid: string }) {
  */
 export function ResetPassword() {
   const token = new URLSearchParams(window.location.search).get("token") ?? "";
+  const bgRef = useLiteScene();
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [busy, setBusy] = useState(false);
@@ -742,7 +759,7 @@ export function ResetPassword() {
     <div className="pmh-auth">
       <style>{authCss}</style>
       <div className="pmh-auth__bg">
-        <div className="pmh-auth__bgi">
+        <div className="pmh-auth__bgi" ref={bgRef}>
           <LoginScene />
         </div>
       </div>

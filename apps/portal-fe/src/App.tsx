@@ -2,21 +2,33 @@ import { ApartmentOutlined, ArrowLeftOutlined, AuditOutlined, BookOutlined, Home
 import { App as AntApp, Button, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Result, Spin } from "antd";
 import "./pages/shell.css";
 import "./pages/admin.css";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, lazy, Suspense, useEffect, useState } from "react";
 import { Brand, initials } from "./ui";
+// Login + đặt lại MK: EAGER (màn đầu tiên khách chưa đăng nhập thấy — không để
+// nhấp nháy Suspense). Phần còn lại LAZY (code-split): trang login KHÔNG còn tải
+// swiper/framer-motion/scene 3D/toàn bộ trang admin → bundle vào nhẹ hẳn.
 import InteractionLogin, { ResetPassword } from "./pages/InteractionLogin";
-import Launcher from "./pages/Launcher";
-import SelfService from "./pages/SelfService";
-import Settings from "./pages/Settings";
-import Audit from "./pages/Audit";
-import Docs from "./pages/Docs";
-import AdminUsers from "./pages/AdminUsers";
-import AdminGroups from "./pages/AdminGroups";
-import AdminWorkspace from "./pages/AdminWorkspace";
+const Launcher = lazy(() => import("./pages/Launcher"));
+const SelfService = lazy(() => import("./pages/SelfService"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Audit = lazy(() => import("./pages/Audit"));
+const Docs = lazy(() => import("./pages/Docs"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
+const AdminGroups = lazy(() => import("./pages/AdminGroups"));
+const AdminWorkspace = lazy(() => import("./pages/AdminWorkspace"));
 import viVN from "antd/locale/vi_VN";
 import { api, handleCallback, isAuthed, login, logout } from "./auth";
 
 const { Header, Content, Sider } = Layout;
+
+/** Fallback khi đang tải chunk lazy (code-split). Gọn, căn giữa vùng chứa. */
+function PageFallback() {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
+      <Spin size="large" />
+    </div>
+  );
+}
 
 export interface Profile {
   id: string;
@@ -37,11 +49,10 @@ function homeFor(p: Profile): string {
 /** Các route hợp lệ theo quyền của user (dùng chung cho redirect + chọn trang). */
 function allowedRoutes(p: Profile): string[] {
   const isAdmin = p.roles.length > 0;
-  const isDev = p.groups.some((g) => g.toLowerCase() === "developers");
   return [
     "/",
     "/account",
-    ...(isDev ? ["/docs"] : []),
+    "/docs", // tài liệu dự án — mở cho mọi member (nội dung lọc theo dự án user có quyền)
     ...(isAdmin ? ["/admin/users", "/admin/groups", "/admin/workspace", "/audit"] : []),
     ...(isAdmin && p.isSsa ? ["/settings"] : []),
   ];
@@ -207,7 +218,6 @@ function Root() {
   }
 
   const isAdmin = profile.roles.length > 0;
-  const isDev = profile.groups.some((g) => g.toLowerCase() === "developers");
   const adminRoutes = ["/admin/users", "/admin/groups", "/admin/workspace", "/audit", "/settings"];
 
   // Admin console (chrome sidebar) — CHỈ khi vào mục quản trị.
@@ -220,7 +230,6 @@ function Root() {
         mobile={mobile}
         drawer={drawer}
         setDrawer={setDrawer}
-        isDev={isDev}
         onProfile={setProfile}
       />
     );
@@ -229,14 +238,14 @@ function Root() {
   // Trang tài khoản / tài liệu — nền sáng, có topbar, KHÔNG sidebar.
   if (path === "/account") {
     return (
-      <MemberPage profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} onProfile={setProfile}>
+      <MemberPage profile={profile} nav={nav} isAdmin={isAdmin} onProfile={setProfile}>
         <SelfService profile={profile} onProfile={setProfile} />
       </MemberPage>
     );
   }
-  if (path === "/docs" && isDev) {
+  if (path === "/docs") {
     return (
-      <MemberPage profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} onProfile={setProfile}>
+      <MemberPage profile={profile} nav={nav} isAdmin={isAdmin} onProfile={setProfile}>
         <Docs />
       </MemberPage>
     );
@@ -245,8 +254,10 @@ function Root() {
   // Mặc định: TRANG CHỦ immersive — coverflow 3D full-screen, không sidebar.
   return (
     <div className="pmh-home">
-      <TopBar variant="over-dark" profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} showHome={false} onProfile={setProfile} />
-      <Launcher greeting={profile.full_name} fill />
+      <TopBar variant="over-dark" profile={profile} nav={nav} isAdmin={isAdmin} showHome={false} onProfile={setProfile} />
+      <Suspense fallback={<PageFallback />}>
+        <Launcher greeting={profile.full_name} fill />
+      </Suspense>
     </div>
   );
 }
@@ -259,7 +270,6 @@ function AvatarMenu({
   profile,
   nav,
   isAdmin,
-  isDev,
   variant,
   context = "member",
   showHome = true,
@@ -268,7 +278,6 @@ function AvatarMenu({
   profile: Profile;
   nav: (p: string) => void;
   isAdmin: boolean;
-  isDev: boolean;
   variant: "over-dark" | "light";
   context?: "member" | "admin";
   showHome?: boolean;
@@ -283,7 +292,7 @@ function AvatarMenu({
           { key: "email", label: profile.email, disabled: true },
           { type: "divider" as const },
           { key: "account", icon: <UserOutlined />, label: "Tài khoản" },
-          ...(isDev ? [{ key: "/docs", icon: <BookOutlined />, label: "Tài liệu" }] : []),
+          { key: "/docs", icon: <BookOutlined />, label: "Tài liệu dự án" },
           { type: "divider" as const },
           { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true },
         ]
@@ -292,7 +301,7 @@ function AvatarMenu({
           { type: "divider" as const },
           ...(showHome ? [{ key: "/", icon: <HomeOutlined />, label: "Trang chủ" }] : []),
           { key: "account", icon: <UserOutlined />, label: "Tài khoản" },
-          ...(isDev ? [{ key: "/docs", icon: <BookOutlined />, label: "Tài liệu" }] : []),
+          { key: "/docs", icon: <BookOutlined />, label: "Tài liệu dự án" },
           ...(isAdmin ? [{ key: "/admin/users", icon: <ProjectOutlined />, label: "Bảng quản trị" }] : []),
           { type: "divider" as const },
           { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true },
@@ -322,7 +331,9 @@ function AvatarMenu({
         title="Tài khoản"
         destroyOnClose
       >
-        <SelfService profile={profile} onProfile={onProfile} embedded />
+        <Suspense fallback={<PageFallback />}>
+          <SelfService profile={profile} onProfile={onProfile} embedded />
+        </Suspense>
       </Drawer>
     </>
   );
@@ -334,7 +345,6 @@ function TopBar({
   profile,
   nav,
   isAdmin,
-  isDev,
   showHome = true,
   onProfile,
 }: {
@@ -342,7 +352,6 @@ function TopBar({
   profile: Profile;
   nav: (p: string) => void;
   isAdmin: boolean;
-  isDev: boolean;
   showHome?: boolean;
   onProfile: (p: Profile) => void;
 }) {
@@ -353,7 +362,7 @@ function TopBar({
         <Brand size={26} on={dark ? "dark" : "light"} />
         <span className="pmh-topbar__brandname">PMH ID</span>
       </button>
-      <AvatarMenu profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} variant={variant} showHome={showHome} onProfile={onProfile} />
+      <AvatarMenu profile={profile} nav={nav} isAdmin={isAdmin} variant={variant} showHome={showHome} onProfile={onProfile} />
     </div>
   );
 }
@@ -363,25 +372,23 @@ function MemberPage({
   profile,
   nav,
   isAdmin,
-  isDev,
   onProfile,
   children,
 }: {
   profile: Profile;
   nav: (p: string) => void;
   isAdmin: boolean;
-  isDev: boolean;
   onProfile: (p: Profile) => void;
   children: ReactNode;
 }) {
   return (
     <div className="pmh-page">
-      <TopBar variant="light" profile={profile} nav={nav} isAdmin={isAdmin} isDev={isDev} onProfile={onProfile} />
+      <TopBar variant="light" profile={profile} nav={nav} isAdmin={isAdmin} onProfile={onProfile} />
       <div className="pmh-page__body">
         <button className="pmh-page__back" onClick={() => nav("/")}>
           <ArrowLeftOutlined /> Trang chủ
         </button>
-        {children}
+        <Suspense fallback={<PageFallback />}>{children}</Suspense>
       </div>
     </div>
   );
@@ -406,7 +413,6 @@ function AdminConsole({
   mobile,
   drawer,
   setDrawer,
-  isDev,
   onProfile,
 }: {
   profile: Profile;
@@ -415,7 +421,6 @@ function AdminConsole({
   mobile: boolean;
   drawer: boolean;
   setDrawer: (v: boolean) => void;
-  isDev: boolean;
   onProfile: (p: Profile) => void;
 }) {
   const sections = [
@@ -501,15 +506,17 @@ function AdminConsole({
           )}
           <span className={`pmh-env pmh-env--${env.tone}`} title={location.hostname}>{env.label}</span>
           <div style={{ flex: 1 }} />
-          <AvatarMenu profile={profile} nav={nav} isAdmin isDev={isDev} variant="light" context="admin" onProfile={onProfile} />
+          <AvatarMenu profile={profile} nav={nav} isAdmin variant="light" context="admin" onProfile={onProfile} />
         </Header>
         <Content className="pmh-admin__content">
           <div className="pmh-admin__page">
-            {path === "/admin/users" && <AdminUsers isSsa={profile.isSsa} />}
-            {path === "/admin/groups" && <AdminGroups isSsa={profile.isSsa} />}
-            {path === "/admin/workspace" && <AdminWorkspace isSsa={profile.isSsa} />}
-            {path === "/audit" && <Audit isSsa={profile.isSsa} />}
-            {path === "/settings" && <Settings />}
+            <Suspense fallback={<PageFallback />}>
+              {path === "/admin/users" && <AdminUsers isSsa={profile.isSsa} />}
+              {path === "/admin/groups" && <AdminGroups isSsa={profile.isSsa} />}
+              {path === "/admin/workspace" && <AdminWorkspace isSsa={profile.isSsa} />}
+              {path === "/audit" && <Audit isSsa={profile.isSsa} />}
+              {path === "/settings" && <Settings />}
+            </Suspense>
           </div>
         </Content>
       </Layout>
@@ -521,7 +528,7 @@ function AdminConsole({
         closable={false}
         styles={{ body: { padding: 0, background: "linear-gradient(180deg,#0e4d45,#0a3a34)" } }}
       >
-        <div className="pmh-admin">
+        <div className="pmh-admin pmh-admin--drawer">
           <div className="pmh-admin__sider-inner">
             {brand}
             <div className="pmh-admin__rail-tag">Phân hệ quản trị</div>

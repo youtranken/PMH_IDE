@@ -44,6 +44,13 @@
   background: linear-gradient(180deg, var(--a-rail) 0%, var(--a-rail-2) 100%) !important;
   border-right: none !important;
 }
+/* Drawer mobile: KHÔNG lấy nền canvas sáng (#eef1ef) của .pmh-admin — menu là
+   theme dark (chữ trắng) + brand/rail-tag chữ trắng, đặt trên nền sáng sẽ MẤT HÚT.
+   Dùng nền rail xanh y như Sider desktop (giữ .pmh-admin để có sẵn biến --a-*). */
+.pmh-admin--drawer {
+  min-height: 0;
+  background: linear-gradient(180deg, var(--a-rail) 0%, var(--a-rail-2) 100%);
+}
 .pmh-admin__brand {
   height: 62px;
   width: 100%;

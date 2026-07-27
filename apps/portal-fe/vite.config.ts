@@ -14,7 +14,20 @@ export default defineConfig({
   // @pmh/shared là workspace-link build CJS — Vite không pre-bundle linked
   // package mặc định → browser import named từ CJS sẽ crash. Ép pre-bundle:
   optimizeDeps: { include: ["@pmh/shared"] },
-  build: { commonjsOptions: { include: [/shared/, /node_modules/] } },
+  build: {
+    commonjsOptions: { include: [/shared/, /node_modules/] },
+    // Tách vendor ổn định (react, antd) thành chunk riêng → cache lâu, đổi code app
+    // KHÔNG bust cả cục. Swiper/framer-motion/scene 3D nằm trong chunk async của
+    // Launcher (React.lazy) nên KHÔNG vào bundle trang login.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          antd: ["antd", "@ant-design/icons"],
+        },
+      },
+    },
+  },
   server: {
     host: true,
     port: 5173,

@@ -16,8 +16,8 @@ COPY packages/shared packages/shared
 COPY apps/sso-server apps/sso-server
 RUN pnpm --filter @pmh/shared build && pnpm --filter @pmh/sso-server build
 
-# Tài liệu tích hợp cho cổng docs (E8-S1) — bundle vào image cho prod.
-COPY docs/integration apps/sso-server/docs-integration
+# Tài liệu người dùng theo dự án cho cổng /docs — bundle vào image cho prod.
+COPY docs/projects apps/sso-server/docs-content
 
 WORKDIR /repo/apps/sso-server
 EXPOSE 3000
