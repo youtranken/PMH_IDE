@@ -138,7 +138,7 @@ function boot(): Promise<Profile | null> {
 const ROUTE_TITLES: Record<string, string> = {
   "/": "PMH ID — Trang chủ",
   "/account": "PMH ID — Tài khoản",
-  "/docs": "PMH ID — Tài liệu tích hợp",
+  "/docs": "PMH ID — Tài liệu dự án",
   "/admin/users": "PMH ID — Người dùng",
   "/admin/groups": "PMH ID — Nhóm",
   "/admin/workspace": "PMH ID — Dự án & Ứng dụng",
