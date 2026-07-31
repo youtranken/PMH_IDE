@@ -39,6 +39,30 @@ export interface OidcProviderInstance {
     result: Record<string, unknown>,
     options?: { mergeWithLastSubmission?: boolean },
   ): Promise<string>;
+  // Model Client — chỉ khai phần dùng cho Back-Channel Logout (E1-S7): tra client
+  // theo clientId rồi POST logout_token tới backchannelLogoutUri của nó.
+  Client: {
+    find(clientId: string): Promise<
+      | {
+          clientId: string;
+          backchannelLogoutUri?: string;
+          backchannelLogout(sub: string, sid: string): Promise<void>;
+        }
+      | undefined
+    >;
+  };
+  // Model Session — tra phiên theo id (cột `id` của oidc_payloads type='Session')
+  // để lấy các client đã cấp phép trong phiên + sid tương ứng.
+  Session: {
+    find(id: string): Promise<
+      | {
+          accountId?: string;
+          authorizations?: Record<string, unknown>;
+          sidFor(clientId: string): string;
+        }
+      | undefined
+    >;
+  };
 }
 
 /** Resource indicator nội bộ — mọi client dùng chung "API PMH". */

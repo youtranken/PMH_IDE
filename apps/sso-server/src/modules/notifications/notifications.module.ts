@@ -13,6 +13,6 @@ import { WebhookWorker } from "./webhook-worker.service";
 @Module({
   controllers: [WebhookAdminController],
   providers: [MailerService, EmailQueueService, EmailWorker, WebhookWorker],
-  exports: [EmailQueueService],
+  exports: [EmailQueueService, MailerService],
 })
 export class NotificationsModule {}

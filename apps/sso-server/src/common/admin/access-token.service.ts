@@ -8,6 +8,7 @@ interface AccessClaims {
   iss?: string;
   aud?: string | string[];
   exp?: number;
+  iat?: number;
   [k: string]: unknown;
 }
 

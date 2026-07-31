@@ -38,3 +38,6 @@ Thumbs.db
 
 # backup .env tu script sinh secret (chua secret)
 .env.bak.*
+
+# output quét bảo mật (vbsec) — không commit
+vbsec-reports/

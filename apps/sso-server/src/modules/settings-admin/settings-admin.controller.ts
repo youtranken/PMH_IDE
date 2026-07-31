@@ -3,11 +3,12 @@ import {
   Body,
   Controller,
   Get,
+  Post,
   Put,
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsEmail, IsNotEmpty, IsString } from "class-validator";
 import type { Request } from "express";
 import { AdminGuard } from "../../common/admin/admin.guard";
 import { CurrentAdmin } from "../../common/admin/current-admin.decorator";
@@ -16,6 +17,7 @@ import { Roles } from "../../common/admin/roles.decorator";
 import { AuditService } from "../../common/audit.service";
 import { KekService } from "../../common/kek.service";
 import { SettingsService } from "../../config/settings.service";
+import { MailerService } from "../notifications/mailer.service";
 
 /**
  * Tham số cho SSA chỉnh — whitelist chặn ghi key lạ + SÀN cho số để tránh
@@ -56,6 +58,10 @@ class SetSettingDto {
   @IsString() value!: string;
 }
 
+class TestEmailDto {
+  @IsEmail() to!: string;
+}
+
 /**
  * Settings vận hành cho SSA (E6-S5, FR-32/AD-15). Đổi giá trị áp dụng RUNTIME
  * (SettingsService.set ghi cache in-place → TTL/policy hiệu lực ngay, không
@@ -69,7 +75,54 @@ export class SettingsAdminController {
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
     private readonly kek: KekService,
+    private readonly mailer: MailerService,
   ) {}
+
+  /**
+   * Gửi 1 email thử bằng CHÍNH cấu hình SMTP đang lưu (nút "Gửi thử" ở FE). Gửi
+   * TRỰC TIẾP qua MailerService (không qua hàng đợi) để trả lỗi SMTP tức thì —
+   * SSA thấy ngay `535 auth...` thay vì job chìm trong queue. Trả {ok:false,error}
+   * kèm chuỗi lỗi thật (HTTP 200) để FE hiển thị, không ném qua exception filter.
+   */
+  @Post("test-email")
+  async testEmail(
+    @Body() dto: TestEmailDto,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    try {
+      await this.mailer.send(
+        dto.to,
+        "PMH ID — Email thử",
+        `<p>Đây là email thử từ PMH ID để kiểm tra cấu hình SMTP.</p>
+         <p>Nếu bạn nhận được thư này, cấu hình gửi email đã hoạt động.</p>`,
+      );
+      await this.audit
+        .record({
+          actorUserId: admin.userId,
+          action: "settings.test_email",
+          targetType: "setting",
+          targetId: "smtp",
+          ip: req.ip ?? null,
+          detail: { to: dto.to, ok: true },
+        })
+        .catch(() => {});
+      return { ok: true };
+    } catch (e) {
+      const error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+      await this.audit
+        .record({
+          actorUserId: admin.userId,
+          action: "settings.test_email",
+          targetType: "setting",
+          targetId: "smtp",
+          ip: req.ip ?? null,
+          detail: { to: dto.to, ok: false, error },
+        })
+        .catch(() => {});
+      return { ok: false, error };
+    }
+  }
 
   @Get()
   async list() {

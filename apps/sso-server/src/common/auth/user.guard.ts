@@ -29,12 +29,20 @@ export class UserGuard implements CanActivate {
       throw new UnauthorizedException("thiếu Bearer token");
     }
     const claims = this.tokens.verify(auth.slice(7));
-    const { rowCount } = await this.pool.query(
-      `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`,
+    const { rows } = await this.pool.query<{ tvf: string | null }>(
+      `SELECT EXTRACT(EPOCH FROM tokens_valid_from)::bigint AS tvf
+       FROM users WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`,
       [claims.sub],
     );
-    if (rowCount === 0) {
+    if (rows.length === 0) {
       throw new UnauthorizedException("tài khoản không hoạt động");
+    }
+    // THU HỒI TỨC THÌ: token có iat TRƯỚC mốc tokens_valid_from → đã bị thu hồi
+    // (Khóa/Hủy-phiên set mốc = now()). tvf NULL = user chưa từng bị revoke → bỏ
+    // qua, KHÔNG ảnh hưởng ai. Token đăng nhập mới có iat > mốc → qua bình thường.
+    const tvf = rows[0].tvf;
+    if (tvf !== null && claims.iat !== undefined && claims.iat < Number(tvf)) {
+      throw new UnauthorizedException("phiên đã bị thu hồi");
     }
     (req as Request & { userId: string }).userId = claims.sub as string;
     return true;

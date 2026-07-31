@@ -54,7 +54,19 @@ export class AuditService {
               CASE WHEN u.is_breakglass THEN NULL ELSE u.email END AS actor_email,
               a.action,
               a.target_type, a.target_id, a.project_id, a.ip::text AS ip,
-              a.detail, a.created_at
+              a.detail, a.created_at,
+              -- Tên NGƯỜI-ĐỌC-HIỂU của đối tượng (thay UUID cụt): resolve theo loại.
+              -- So id::text = target_id (KHÔNG cast target_id→uuid) để chuỗi lạ không
+              -- ném lỗi cast làm hỏng cả trang. Break-glass vẫn ẩn email (như actor).
+              CASE a.target_type
+                WHEN 'user'    THEN (SELECT CASE WHEN tu.is_breakglass THEN NULL ELSE tu.email END
+                                       FROM users tu WHERE tu.id::text = a.target_id)
+                WHEN 'client'  THEN (SELECT name FROM clients  WHERE id::text = a.target_id)
+                WHEN 'group'   THEN (SELECT name FROM groups   WHERE id::text = a.target_id)
+                WHEN 'project' THEN (SELECT name FROM projects WHERE id::text = a.target_id)
+                WHEN 'setting' THEN a.target_id
+                ELSE NULL
+              END AS target_label
        FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id
        ${whereSql}
        ORDER BY a.id DESC LIMIT $${++p} OFFSET $${++p}`,

@@ -1,4 +1,4 @@
-import { App as AntApp, Button, Card, Empty, Input, Select, Space, Table, Tag } from "antd";
+import { App as AntApp, Button, Card, Empty, Input, Select, Space, Table, Tag, Tooltip } from "antd";
 import { useEffect, useState } from "react";
 import { api } from "../auth";
 import { PageHeader } from "../ui";
@@ -9,9 +9,84 @@ interface AuditRow {
   action: string;
   target_type: string | null;
   target_id: string | null;
+  target_label: string | null;
   project_id: string | null;
   ip: string | null;
   created_at: string;
+}
+
+/** Mã hành động → câu tiếng Việt để người đọc hiểu (mã thô giữ ở tooltip để lọc). */
+const ACTION_LABELS: Record<string, string> = {
+  "login.success": "Đăng nhập thành công",
+  "login.failed": "Đăng nhập sai",
+  "login.denied_no_access": "Từ chối đăng nhập (không có quyền vào app)",
+  "login.breakglass": "Đăng nhập khẩn cấp (break-glass)",
+  "mfa.enabled": "Bật xác thực 2 lớp",
+  "mfa.disabled": "Tắt xác thực 2 lớp",
+  "mfa.failed": "Nhập mã 2 lớp sai",
+  "mfa.recovery_used": "Dùng mã khôi phục 2 lớp",
+  "mfa.secret_reset": "Đặt lại khóa 2 lớp",
+  "password.changed": "Đổi mật khẩu",
+  "password.reset_requested": "Yêu cầu đặt lại mật khẩu",
+  "password.reset_completed": "Đã đặt lại mật khẩu (qua liên kết)",
+  "settings.updated": "Cập nhật tham số hệ thống",
+  "settings.test_email": "Gửi email thử",
+  "user.created": "Tạo người dùng",
+  "user.updated": "Cập nhật người dùng",
+  "user.deleted": "Xóa người dùng",
+  "user.reactivated": "Kích hoạt lại người dùng",
+  "user.password_reset": "Cấp lại mật khẩu cho người dùng",
+  "user.expiry_set": "Đặt hạn tài khoản",
+  "user.expired_locked": "Khóa do hết hạn",
+  "user.sessions_revoked": "Thu hồi mọi phiên của người dùng",
+  "user.ssa_granted": "Cấp quyền SSA",
+  "user.ssa_revoked": "Thu hồi quyền SSA",
+  "self.logout_all": "Tự đăng xuất mọi phiên",
+  "self.session_revoked": "Tự thu hồi 1 phiên",
+  "client.created": "Tạo ứng dụng",
+  "client.updated": "Cập nhật ứng dụng",
+  "client.deleted": "Xóa ứng dụng",
+  "client.secret_rotated": "Xoay client secret",
+  "client.secret_revoked": "Thu hồi client secret",
+  "client.group_added": "Gán nhóm vào ứng dụng",
+  "client.group_removed": "Gỡ nhóm khỏi ứng dụng",
+  "client.allow_all_set": "Đặt cho phép mọi nhóm",
+  "client.webhook_set": "Đặt webhook",
+  "client.webhook_removed": "Gỡ webhook",
+  "group.created": "Tạo nhóm",
+  "group.updated": "Cập nhật nhóm",
+  "group.member_added": "Thêm thành viên nhóm",
+  "group.member_removed": "Gỡ thành viên nhóm",
+  "project.created": "Tạo dự án",
+  "project.updated": "Cập nhật dự án",
+  "project.deleted": "Xóa dự án",
+  "project.admin_appointed": "Bổ nhiệm quản trị dự án",
+  "project.admin_removed": "Gỡ quản trị dự án",
+  "directory.users_query": "Directory API: truy vấn user",
+  "directory.user_get": "Directory API: đọc 1 user",
+  "webhook.requeued": "Xếp lại webhook",
+};
+
+/** Loại đối tượng → danh từ tiếng Việt. */
+const TARGET_TYPE_LABELS: Record<string, string> = {
+  user: "Người dùng",
+  client: "Ứng dụng",
+  group: "Nhóm",
+  project: "Dự án",
+  setting: "Tham số",
+  session: "Phiên",
+  webhook: "Webhook",
+};
+
+/** Mã lạ (chưa map) → bỏ dấu chấm/gạch cho dễ đọc thay vì hiện raw. */
+const actionLabel = (a: string) => ACTION_LABELS[a] ?? a.replace(/[._]/g, " ");
+
+/** Cột "Đối tượng" người-đọc-hiểu: "Người dùng: an@pmh.com.vn", "Tham số: smtp_host". */
+function targetText(r: AuditRow): string {
+  if (!r.target_type) return "—";
+  const type = TARGET_TYPE_LABELS[r.target_type] ?? r.target_type;
+  const label = r.target_label ?? (r.target_id ? r.target_id.slice(0, 8) : "");
+  return label ? `${type}: ${label}` : type;
 }
 
 const columns = [
@@ -26,12 +101,14 @@ const columns = [
     title: "Hành động",
     dataIndex: "action",
     render: (v: string) => (
-      <Tag color={v.startsWith("login.denied") || v.endsWith(".failed") ? "red" : v.startsWith("login") ? "green" : "default"}>
-        {v}
-      </Tag>
+      <Tooltip title={v}>
+        <Tag color={v.includes("denied") || v.endsWith(".failed") ? "red" : v.startsWith("login") ? "green" : "default"}>
+          {actionLabel(v)}
+        </Tag>
+      </Tooltip>
     ),
   },
-  { title: "Đối tượng", render: (_: unknown, r: AuditRow) => (r.target_type ? `${r.target_type}:${(r.target_id ?? "").slice(0, 8)}` : "—") },
+  { title: "Đối tượng", render: (_: unknown, r: AuditRow) => targetText(r) },
   { title: "IP", dataIndex: "ip", render: (v: string | null) => v ?? "—" },
 ];
 

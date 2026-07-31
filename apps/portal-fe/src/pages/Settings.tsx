@@ -107,6 +107,67 @@ function GroupIcon({ children }: { children: ReactNode }) {
   );
 }
 
+/** Nút gửi email thử — dùng cấu hình SMTP đang lưu, hiện lỗi SMTP tức thì. */
+function TestEmail({ defaultTo }: { defaultTo: string }) {
+  const { message } = AntApp.useApp();
+  const [to, setTo] = useState(defaultTo);
+  const [sending, setSending] = useState(false);
+
+  const send = async () => {
+    const addr = to.trim();
+    if (!addr) {
+      message.warning("Nhập email để nhận thư thử");
+      return;
+    }
+    setSending(true);
+    try {
+      const r = await api<{ ok: boolean; error?: string }>(
+        "/api/admin/settings/test-email",
+        { method: "POST", body: { to: addr } },
+      );
+      if (r.ok) {
+        message.success(`Đã gửi email thử tới ${addr} — kiểm hộp thư (cả Spam)`);
+      } else {
+        message.error(`Gửi thất bại: ${r.error ?? "lỗi không rõ"}`, 12);
+      }
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        padding: "14px 0",
+        borderTop: "1px dashed #dfe6e2",
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+        <div style={{ fontWeight: 500, color: BRAND.ink }}>Gửi email thử</div>
+        <span style={{ fontSize: 12, color: BRAND.muted }}>
+          Dùng cấu hình trên gửi 1 thư kiểm tra — lỗi SMTP (nếu có) hiện ngay.
+        </span>
+      </div>
+      <Input
+        value={to}
+        onChange={(e) => setTo(e.target.value)}
+        onPressEnter={send}
+        placeholder="email nhận thử"
+        style={{ width: 300, flex: "0 0 auto" }}
+      />
+      <Button type="primary" loading={sending} onClick={send}>
+        Gửi thử
+      </Button>
+    </div>
+  );
+}
+
 /** Trang Settings SSA (E6-S5, FR-32): đổi tham số vận hành, áp dụng runtime. */
 export default function Settings() {
   const { message } = AntApp.useApp();
@@ -253,6 +314,9 @@ export default function Settings() {
             }
           >
             {g.keys.map((k, i) => Row(k, i === g.keys.length - 1))}
+            {g.title === "Email & cảnh báo" && (
+              <TestEmail defaultTo={byKey.smtp_user?.value ?? ""} />
+            )}
           </Card>
         ))}
       </div>

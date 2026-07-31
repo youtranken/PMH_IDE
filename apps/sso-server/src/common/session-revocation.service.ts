@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Pool } from "pg";
 import { PG_POOL } from "../database/database.module";
+import { BackchannelLogoutService } from "./backchannel-logout.service";
 
 /**
  * Thu hồi phiên/token (FR-05). Nguồn sự thật là oidc_payloads (AD-6/AD-7); mọi
@@ -13,7 +14,10 @@ import { PG_POOL } from "../database/database.module";
  */
 @Injectable()
 export class SessionRevocationService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly backchannel: BackchannelLogoutService,
+  ) {}
 
   /**
    * Hủy phiên/token của user CHỈ với app thuộc các project cho trước (FR-05,
@@ -96,13 +100,20 @@ export class SessionRevocationService {
     return del.rowCount ?? 0;
   }
 
-  /** Hủy MỌI phiên/token của user (toàn cục). Trả số artifact đã xóa. */
+  /** Hủy MỌI phiên/token của user (toàn cục). Trả số PHIÊN (Session) đã hủy. */
   async revokeAllForUser(userId: string): Promise<number> {
+    // Bắn Back-Channel Logout TRƯỚC khi xóa (cần đọc session→client khi còn sống)
+    // để app (QLTS...) đá user ngay. Best-effort — không chặn việc thu hồi.
+    await this.backchannel.notifyLogout(userId).catch(() => {});
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const del = await client.query(
-        `DELETE FROM oidc_payloads WHERE payload->>'accountId' = $1`,
+      // Xóa MỌI artifact (Session/Grant/AccessToken/RefreshToken/AuthorizationCode)
+      // nhưng ĐẾM RIÊNG số Session — đó mới là "số phiên" thật. Một lần đăng nhập
+      // + mỗi lần refresh sinh nhiều bản ghi token/grant, nên rowCount tổng ≫ số
+      // phiên (vì vậy trước đây thấy "thu hồi 7" cho 1 lần đăng nhập).
+      const del = await client.query<{ type: string }>(
+        `DELETE FROM oidc_payloads WHERE payload->>'accountId' = $1 RETURNING type`,
         [userId],
       );
       await client.query(
@@ -110,8 +121,14 @@ export class SessionRevocationService {
          WHERE user_id = $1 AND revoked_at IS NULL`,
         [userId],
       );
+      // Mốc thu hồi TỨC THÌ: access token phát trước now() bị guard chặn ngay
+      // (không chờ hết hạn ≤5'). Token đăng nhập MỚI có iat > mốc → qua bình thường.
+      await client.query(
+        `UPDATE users SET tokens_valid_from = now() WHERE id = $1`,
+        [userId],
+      );
       await client.query("COMMIT");
-      return del.rowCount ?? 0;
+      return del.rows.filter((r) => r.type === "Session").length;
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;

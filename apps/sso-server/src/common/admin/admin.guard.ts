@@ -35,7 +35,7 @@ export class AdminGuard implements CanActivate {
     }
     const claims = this.tokens.verify(auth.slice(7));
 
-    const admin = await this.loadContext(claims.sub as string);
+    const admin = await this.loadContext(claims.sub as string, claims.iat);
     if (admin.roles.length === 0) {
       throw new ForbiddenException("tài khoản không có quyền quản trị");
     }
@@ -56,7 +56,10 @@ export class AdminGuard implements CanActivate {
   }
 
   /** Nạp vai trò + phạm vi project của user (chỉ user còn sống). */
-  private async loadContext(userId: string): Promise<AdminContext> {
+  private async loadContext(
+    userId: string,
+    iat: number | undefined,
+  ): Promise<AdminContext> {
     const [roles, projects, alive] = await Promise.all([
       this.pool.query<{ role: AdminRole }>(
         `SELECT role FROM admin_roles WHERE user_id = $1`,
@@ -66,8 +69,8 @@ export class AdminGuard implements CanActivate {
         `SELECT project_id FROM admin_projects WHERE user_id = $1`,
         [userId],
       ),
-      this.pool.query(
-        `SELECT 1 FROM users
+      this.pool.query<{ tvf: string | null }>(
+        `SELECT EXTRACT(EPOCH FROM tokens_valid_from)::bigint AS tvf FROM users
          WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`,
         [userId],
       ),
@@ -75,6 +78,12 @@ export class AdminGuard implements CanActivate {
     // Admin bị khóa/xóa giữa chừng → không còn quyền (token cũ ≤5' vô hại).
     if (alive.rowCount === 0) {
       return { userId, roles: [], isSsa: false, projectIds: [] };
+    }
+    // THU HỒI TỨC THÌ: token phát trước mốc tokens_valid_from → 401 (SPA re-login).
+    // tvf NULL = chưa từng revoke → bỏ qua. Ném 401 (KHÔNG 403) để portal đá về login.
+    const tvf = alive.rows[0].tvf;
+    if (tvf !== null && iat !== undefined && iat < Number(tvf)) {
+      throw new UnauthorizedException("phiên đã bị thu hồi");
     }
     const roleList = roles.rows.map((r) => r.role);
     return {
