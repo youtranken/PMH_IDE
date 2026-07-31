@@ -1,64 +1,53 @@
 # Cấu hình
 
-Tham số vận hành toàn hệ thống. Mở từ **Bảng quản trị → Cấu hình** (`/settings`) — **chỉ SSA** vào được. Mọi thay đổi **áp dụng ngay**, không cần khởi động lại.
+Các tham số vận hành của hệ thống. Mở từ **Bảng quản trị → Cấu hình** (chỉ **quản trị hệ thống** vào được). Thay đổi có hiệu lực ngay.
 
-> Ô **mật khẩu / bí mật** chỉ **nhập được, không hiện lại** (lưu mã hóa). Để trống = giữ nguyên giá trị cũ.
+> Phần lớn tham số đã được bộ phận kỹ thuật (IT) đặt sẵn khi bàn giao — bạn **thường chỉ cần lo mục Email và Xác thực 2 lớp**. Những mục còn lại nên **để nguyên** trừ khi bạn hiểu rõ hoặc được IT hướng dẫn.
 
-## Email (SMTP) — quan trọng nhất khi bàn giao
+## Email — việc quan trọng nhất
 
-Đây là kênh gửi mật khẩu tạm, liên kết đặt lại mật khẩu, cảnh báo hết hạn. **Không cấu hình đúng thì user không nhận được email.**
+Đây là kênh gửi mật khẩu tạm, liên kết đặt lại mật khẩu và email nhắc hết hạn cho nhân viên. **Chưa cấu hình đúng thì nhân viên không nhận được email nào.**
 
-| Tham số | Giá trị (ví dụ Gmail) |
+Điền các ô trong mục **Email**:
+
+| Ô | Điền gì (dùng Gmail công ty) |
 |---|---|
-| **SMTP host** | `smtp.gmail.com` |
-| **SMTP port** | `587` |
-| **SMTP user** | địa chỉ Gmail gửi thư |
-| **SMTP mật khẩu** | **App Password 16 ký tự** (KHÔNG dùng mật khẩu Gmail thường) |
-| **Địa chỉ From** | khớp tài khoản gửi |
+| **Máy chủ (host)** | `smtp.gmail.com` |
+| **Cổng (port)** | `587` |
+| **Tài khoản** | địa chỉ Gmail dùng để gửi |
+| **Mật khẩu** | **Mật khẩu ứng dụng** (xem bên dưới) |
+| **Người gửi (From)** | tên/địa chỉ hiện ở thư gửi đi |
 
-**Gmail bắt buộc App Password**: bật **Xác minh 2 bước** cho tài khoản Google → tạo **App Password** (Google Account → Bảo mật → Mật khẩu ứng dụng) → dán vào ô mật khẩu SMTP.
+**Vì sao cần "Mật khẩu ứng dụng":** Gmail không cho dùng mật khẩu đăng nhập thường để gửi thư tự động. Bạn cần:
 
-Sau khi nhập, bấm **Gửi thử** để kiểm ngay — nếu lỗi, hệ thống hiện đúng thông báo từ máy chủ email (vd sai App Password).
+1. Bật **Xác minh 2 bước** cho tài khoản Google đó.
+2. Vào Tài khoản Google → **Bảo mật → Mật khẩu ứng dụng**, tạo một mật khẩu 16 ký tự.
+3. Dán mật khẩu 16 ký tự đó vào ô **Mật khẩu**.
 
-## Xác thực 2 lớp (bắt buộc theo vai trò)
+Sau khi điền, bấm **Gửi thử** rồi nhập email của bạn — nếu nhận được thư là xong. Nếu báo lỗi, làm lại bước Mật khẩu ứng dụng (đây là nguyên nhân thường gặp nhất).
 
-- **Vai bắt buộc MFA**: nhập danh sách vai trò (phẩy) buộc phải bật 2 lớp, vd `ssa` hoặc `ssa,project_admin`.
-- User thuộc vai trò đó, khi đăng nhập mà chưa bật, sẽ **bị buộc thiết lập** (quét QR) trước khi vào.
-- Để trống = không bắt buộc ai (user tự bật nếu muốn).
-- **Khuyến nghị**: đặt tối thiểu `ssa` để mọi quản trị viên đều có 2 lớp.
+## Xác thực 2 lớp bắt buộc
 
-## Phiên & Token
+Bạn có thể **bắt buộc** một số vai trò phải bật xác thực 2 lớp:
 
-| Tham số | Ý nghĩa | Mặc định |
-|---|---|---|
-| **TTL access token** | Token sống bao lâu trước khi tự làm mới | 300 giây (5 phút) |
-| **Idle timeout phiên** | Không hoạt động bao lâu thì hết phiên | 900 giây (15 phút) |
-| **Trần tuyệt đối phiên** | Buộc đăng nhập lại sau ngần này dù đang dùng | 43200 giây (12 giờ) |
+- Vào mục **Xác thực 2 lớp**, nhập vai trò cần bắt buộc, ví dụ `ssa` (bắt buộc mọi quản trị hệ thống).
+- Người thuộc vai trò đó, nếu chưa bật, sẽ **được yêu cầu thiết lập** (quét mã QR) ngay lần đăng nhập kế.
+- **Khuyến nghị**: bật ít nhất cho quản trị viên, vì đây là tài khoản quan trọng nhất.
 
-Giảm **TTL access token** → khi Khóa/Hủy-phiên, user hết quyền nhanh hơn (đánh đổi: gọi làm mới token nhiều hơn).
+## Các mục còn lại (thường để nguyên)
 
-## Mật khẩu & Chống dò
+Những tham số này IT đã đặt hợp lý. Chỉ đổi khi thật sự cần:
 
-| Tham số | Ý nghĩa |
-|---|---|
-| **Độ dài mật khẩu tối thiểu** | Số ký tự tối thiểu (còn yêu cầu đủ loại chữ/số/ký hiệu) |
-| **Chu kỳ đổi mật khẩu** | Bao nhiêu ngày thì buộc đổi |
-| **Hạn mật khẩu tạm** | Mật khẩu tạm hết hiệu lực sau bao nhiêu giờ nếu chưa dùng |
-| **Ngưỡng chống dò / account, / IP** | Số lần sai liên tiếp trước khi hệ thống làm chậm |
-| **Backoff chống dò tối đa** | Thời gian chờ tối đa bị áp khi vượt ngưỡng |
+- **Thời gian phiên đăng nhập** — bao lâu không dùng thì tự đăng xuất, và tối đa một phiên kéo dài bao lâu.
+- **Chính sách mật khẩu** — độ dài tối thiểu, bao lâu buộc đổi mật khẩu.
+- **Chống dò mật khẩu** — sau bao nhiêu lần sai thì hệ thống làm chậm lại.
+- **Nhắc trước hết hạn** — gửi email nhắc trước khi tài khoản hết hạn mấy ngày.
+- **Sao lưu & lưu trữ** — nơi hệ thống cất bản sao lưu và nhật ký cũ (do IT quản).
 
-## Vận hành & Lưu trữ
+## Việc cần làm khi mới nhận bàn giao
 
-| Tham số | Ý nghĩa |
-|---|---|
-| **Đường dẫn backup** | Thư mục lưu bản sao lưu đã mã hóa (DB + khóa + cấu hình) |
-| **Đường dẫn lưu trữ audit** | Thư mục nén nhật ký cũ theo tháng |
-| **Cảnh báo trước hết hạn** | Gửi email nhắc trước khi tài khoản hết hạn bao nhiêu ngày |
+1. Điền **Email** (Mật khẩu ứng dụng) → bấm **Gửi thử** thấy thư tới.
+2. Đặt **bắt buộc 2 lớp** cho quản trị viên, rồi tự bật 2 lớp cho tài khoản của bạn.
+3. Xem qua các mục còn lại cho biết, nhưng chưa cần đổi gì nếu chưa chắc.
 
-## Checklist bàn giao nhanh
-
-1. Nhập **SMTP thật** (App Password) → bấm **Gửi thử** thấy mail tới.
-2. Đặt **Vai bắt buộc MFA = `ssa`**, rồi bật 2 lớp cho tài khoản quản trị của bạn.
-3. Xem lại **TTL/idle/trần phiên** hợp với chính sách công ty.
-4. Xác nhận **đường dẫn backup** đang trỏ nơi an toàn (khác đĩa dữ liệu).
-5. Cất **KEK và mật khẩu backup** offline — mất là không khôi phục được dữ liệu mã hóa.
+Mọi việc liên quan sao lưu, khôi phục, hạ tầng máy chủ — liên hệ bộ phận kỹ thuật (IT).

@@ -1,66 +1,63 @@
 # Người dùng
 
-Hướng dẫn quản lý tài khoản người dùng PMH ID sau khi IT bàn giao. Mở từ **Bảng quản trị → Người dùng** (`/admin/users`).
+Hướng dẫn quản lý tài khoản nhân viên trong PMH ID. Mở từ **Bảng quản trị → Người dùng**.
 
-## Vai trò trong hệ thống
+Đây là nơi bạn tạo tài khoản cho nhân viên, cấp lại mật khẩu, khóa/mở, và cho họ vào các ứng dụng của công ty (như QLTS, QLHS).
 
-PMH ID có 3 mức quyền. Hiểu đúng vai trò trước khi thao tác:
+## Ba mức quyền
 
-| Vai trò | Phạm vi | Làm được gì |
+| Quyền | Ai giữ | Làm được gì |
 |---|---|---|
-| **SSA** (Super System Admin) | Toàn hệ thống | Mọi thứ: user, nhóm, dự án, client, cấu hình, nhật ký toàn cục |
-| **project_admin** | Theo dự án được giao | Quản user/nhóm trong phạm vi dự án của mình; xem nhật ký của dự án |
-| **Người dùng** | Bản thân | Đăng nhập app được cấp, tự đổi mật khẩu, tự bật xác thực 2 lớp |
+| **Quản trị hệ thống** | Người phụ trách PMH ID (bạn) | Quản mọi tài khoản, nhóm, và cấu hình |
+| **Quản trị dự án** | Người phụ trách 1 dự án | Quản tài khoản & nhóm trong dự án của mình |
+| **Nhân viên** | Mọi người | Đăng nhập ứng dụng được cấp, tự đổi mật khẩu |
 
-Tài khoản **break-glass** (cứu hộ khẩn cấp) được **ẩn hoàn toàn** khỏi danh sách — đúng thiết kế, giữ offline để dùng khi kẹt.
-
-## Tạo người dùng mới
+## Tạo tài khoản mới
 
 1. Bấm **Thêm người dùng**.
-2. Nhập **email**, **mã nhân viên**, **họ tên**.
-3. Chọn cách cấp mật khẩu:
-   - **Gửi mật khẩu tạm qua email** — hệ thống sinh mật khẩu ngẫu nhiên, gửi tới email user. Cần cấu hình email trước (xem tài liệu **Cấu hình**).
-   - **Đặt mật khẩu thủ công** — dùng khi chưa có email; bạn đọc mật khẩu cho user.
-4. User **bắt buộc đổi mật khẩu** ở lần đăng nhập đầu.
+2. Điền **email**, **mã nhân viên**, **họ tên**.
+3. Chọn cách cấp mật khẩu lần đầu:
+   - **Gửi qua email** — hệ thống tự sinh mật khẩu tạm và gửi tới email nhân viên (cần đã cấu hình email — xem mục **Cấu hình**).
+   - **Đặt thủ công** — bạn tự đặt và báo mật khẩu cho nhân viên (dùng khi chưa có email).
+4. Nhân viên **bắt buộc đổi mật khẩu** ngay lần đăng nhập đầu.
 
-Muốn user vào được một app (QLTS, QLHS…), phải **thêm user vào nhóm** được gán cho app đó — xem tài liệu **Nhóm**.
+Lưu ý: tạo tài khoản xong, nhân viên **chưa vào được ứng dụng nào** cho tới khi bạn **thêm họ vào nhóm** phù hợp — xem mục **Nhóm**.
 
-## Cấp lại / đặt lại mật khẩu
+## Cấp lại mật khẩu
 
-Trong menu của từng user:
+Khi nhân viên quên hoặc cần đặt lại:
 
-- **Cấp lại mật khẩu** → sinh mật khẩu tạm mới (gửi email hoặc đặt thủ công). Mật khẩu cũ mất hiệu lực; user phải đổi ở lần đăng nhập kế.
-- User tự quên mật khẩu thì dùng **"Quên mật khẩu"** ở màn đăng nhập — hệ thống gửi **liên kết đặt lại** qua email (không lộ, dùng một lần, hết hạn ngắn).
+- Trong menu của nhân viên, chọn **Cấp lại mật khẩu** → hệ thống gửi mật khẩu tạm mới (qua email hoặc bạn đặt thủ công). Mật khẩu cũ hết hiệu lực; nhân viên phải đổi ở lần đăng nhập kế.
+- Nhân viên cũng có thể tự bấm **"Quên mật khẩu"** ở màn đăng nhập — hệ thống gửi **liên kết đặt lại** qua email của họ.
 
-## Khóa, hủy phiên, xóa — khác nhau thế nào
+## Khóa, hủy phiên, xóa — chọn đúng việc
 
-Đây là điểm hay nhầm. Chọn đúng theo mục đích:
+Ba thao tác dễ nhầm. Chọn theo mục đích:
 
-| Thao tác | Tác dụng | Đăng nhập lại được? | Khi nào dùng |
+| Thao tác | Kết quả | Đăng nhập lại được? | Dùng khi |
 |---|---|---|---|
-| **Hủy mọi phiên** | Đá user khỏi mọi thiết bị **tức thì** (cả app như QLTS) | **Có** | Nghi lộ phiên, buộc đăng nhập lại |
-| **Khóa** (vô hiệu hóa) | Chặn đăng nhập **tức thì** + đá phiên | **Không** (tới khi mở lại) | Nhân viên nghỉ tạm, đình chỉ |
-| **Xóa** (soft-delete) | Vô hiệu hóa + ẩn khỏi danh sách | **Không** | Nhân viên nghỉ hẳn |
+| **Hủy mọi phiên** | Đăng xuất nhân viên khỏi mọi thiết bị & ứng dụng ngay | **Có** | Nghi lộ mật khẩu, buộc đăng nhập lại |
+| **Khóa** | Chặn đăng nhập ngay | **Không** — tới khi bạn mở lại | Nhân viên tạm nghỉ, đình chỉ |
+| **Xóa** | Vô hiệu hóa và ẩn khỏi danh sách | **Không** | Nhân viên nghỉ hẳn |
 
-- **Khôi phục** được tài khoản đã xóa (soft-delete) nếu cần.
-- Khi Khóa/Hủy-phiên/Xóa, PMH ID **tự báo cho các app** (QLTS…) để đá user ra ngay — không chờ.
+Tài khoản đã **Xóa** vẫn **khôi phục** lại được nếu cần. Khi bạn Khóa/Hủy-phiên/Xóa, các ứng dụng (QLTS…) cũng đăng xuất người đó ngay.
 
-## Tài khoản có hạn (expires_at)
+## Tài khoản có thời hạn
 
-Đặt **ngày hết hạn** cho tài khoản thời vụ / nhà thầu. Đến hạn, hệ thống **tự khóa** và gửi email cảnh báo trước (số ngày cấu hình ở **Cấu hình → Cảnh báo trước hết hạn**).
+Với nhân viên thời vụ hoặc đối tác, bạn có thể đặt **ngày hết hạn**. Đến hạn, hệ thống **tự khóa** tài khoản và gửi email nhắc trước vài ngày (số ngày đặt ở **Cấu hình**).
 
-## Phân quyền quản trị
+## Cấp quyền quản trị
 
-- **Cấp/thu quyền SSA**: chỉ SSA làm được. Cân nhắc kỹ — SSA toàn quyền.
-- **Bổ nhiệm project_admin**: gắn user làm quản trị cho một dự án cụ thể (trong phần Dự án/Client).
-- Chỉ SSA mới đổi được **email / mã nhân viên** của người khác (chống chiếm tài khoản). project_admin sửa được họ tên.
+- Muốn ai đó cùng quản một dự án, hãy **bổ nhiệm họ làm quản trị dự án** cho dự án đó.
+- Chỉ **quản trị hệ thống** mới sửa được **email / mã nhân viên** của người khác (để tránh chiếm tài khoản). Quản trị dự án chỉ sửa được họ tên.
 
-## Xác thực 2 lớp (MFA / TOTP)
+## Xác thực 2 lớp
 
-- MFA là **mã 6 số từ app Authenticator** (Google/Microsoft Authenticator, Authy) — **không phải mã qua email**.
-- **User tự bật** ở trang **Tài khoản** (quét QR, lưu recovery codes). Admin **không** bật hộ được.
-- SSA có thể **bắt buộc** một số vai trò phải bật MFA — xem **Cấu hình → Xác thực 2 lớp**.
+Xác thực 2 lớp là lớp bảo vệ thêm: sau khi nhập mật khẩu, nhân viên nhập thêm **mã 6 số** từ ứng dụng Authenticator trên điện thoại (Google Authenticator, Microsoft Authenticator…).
 
-## Import nhiều user bằng CSV
+- **Nhân viên tự bật** ở trang **Tài khoản** của họ (quét mã QR, lưu mã khôi phục). Bạn **không** bật thay được.
+- Bạn có thể **yêu cầu bắt buộc** một số vai trò phải bật — xem mục **Cấu hình**.
 
-Dùng **Nhập CSV** để tạo hàng loạt: tải mẫu, điền, tải lên. Hệ thống báo cáo dòng nào thành công / lỗi. Mỗi user mới vẫn cần được thêm vào nhóm để vào app.
+## Tạo nhiều tài khoản một lúc
+
+Dùng **Nhập từ file** để tạo hàng loạt: tải file mẫu, điền danh sách, tải lên. Hệ thống báo dòng nào tạo được, dòng nào lỗi. Sau đó vẫn cần thêm từng người vào nhóm để họ vào ứng dụng.

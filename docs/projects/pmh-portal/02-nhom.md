@@ -1,49 +1,49 @@
 # Nhóm
 
-Nhóm là công cụ **phân quyền truy cập**: quyết định **ai được vào app nào**. Mở từ **Bảng quản trị → Nhóm** (`/admin/groups`).
+Nhóm quyết định **ai được vào ứng dụng nào**. Mở từ **Bảng quản trị → Nhóm**.
 
-## Nguyên tắc cốt lõi
+## Vì sao cần nhóm
 
-PMH ID **không** cho user vào app chỉ vì đã đăng nhập. Luồng quyền là:
+Đăng nhập được vào PMH ID **chưa** có nghĩa là vào được mọi ứng dụng. Quy tắc là:
 
-**User → thuộc Nhóm → Nhóm được gán cho App (client) → User vào được App đó.**
+**Nhân viên → thuộc một Nhóm → Nhóm đó được gán cho Ứng dụng → nhân viên vào được ứng dụng.**
 
-Nói cách khác: đăng nhập (xác thực) **khác** với được phép vào app (phân quyền). Một user đăng nhập thành công vẫn **không** thấy QLTS nếu chưa ở nhóm được gán cho QLTS.
+Ví dụ: một nhân viên đăng nhập thành công vẫn **không** thấy QLTS, nếu họ chưa nằm trong nhóm được phép dùng QLTS. Đây là cách kiểm soát để mỗi người chỉ vào đúng phần việc của mình.
 
 ## Tạo và quản lý nhóm
 
-1. Bấm **Thêm nhóm**, đặt tên rõ nghĩa (vd `QLTS - Nhân sự`, `QLHS - Kế toán`).
-2. **Thêm/gỡ thành viên**: mở nhóm → thêm user vào.
-3. Đổi tên / xóa nhóm khi cần.
+1. Bấm **Thêm nhóm**, đặt tên dễ hiểu (ví dụ `QLTS - Nhân sự`, `QLHS - Kế toán`).
+2. Mở nhóm để **thêm hoặc gỡ thành viên**.
+3. Đổi tên hoặc xóa nhóm khi cần.
 
-Thêm user vào nhóm có hiệu lực **gần như tức thì** ở lần app kiểm quyền kế tiếp — không cần user đăng nhập lại.
+Thêm người vào nhóm có hiệu lực **gần như ngay lập tức** — nhân viên không cần đăng nhập lại.
 
-## Gán nhóm cho App (điểm quyết định truy cập)
+## Cho nhóm vào ứng dụng
 
-Trong phần **Dự án / Client** (Bảng quản trị → Workspace), mỗi app có mục **nhóm được phép**:
+Trong phần **Ứng dụng** (Bảng quản trị), mỗi ứng dụng có mục **nhóm được phép**:
 
-- **Gán một hoặc nhiều nhóm** cho app → chỉ thành viên các nhóm đó vào được.
-- **allow_all_groups** (cho phép mọi nhóm): bật thì **mọi user** đăng nhập đều vào được app — bỏ hàng rào nhóm. Chỉ dùng cho app dùng chung toàn công ty; **không** nên bật cho app có dữ liệu nhạy cảm.
+- **Gán nhóm** cho ứng dụng → chỉ thành viên các nhóm đó vào được.
+- **Cho phép mọi người**: nếu bật, **mọi nhân viên** đăng nhập đều vào được ứng dụng đó. Chỉ nên bật cho ứng dụng dùng chung toàn công ty; **không** nên bật cho ứng dụng có dữ liệu nhạy cảm.
 
-## Ví dụ thực tế
+## Ví dụ đầy đủ
 
 Muốn cho phòng Nhân sự dùng QLTS:
 
 1. Tạo nhóm `QLTS - Nhân sự`.
-2. Thêm các user nhân sự vào nhóm.
-3. Vào client **QLTS** → gán nhóm `QLTS - Nhân sự` vào.
-4. Xong — các user đó đăng nhập sẽ thấy và vào được QLTS; user ngoài nhóm thì không.
+2. Thêm các nhân viên nhân sự vào nhóm.
+3. Vào ứng dụng **QLTS** → gán nhóm `QLTS - Nhân sự`.
+4. Xong — các nhân viên đó đăng nhập sẽ thấy và vào được QLTS; người ngoài nhóm thì không.
 
-Gỡ một user khỏi nhóm → user mất quyền vào app tương ứng (và bị đá khỏi phiên app đó).
+Gỡ một người khỏi nhóm → họ mất quyền vào ứng dụng tương ứng ngay.
 
-## Phạm vi của project_admin
+## Nếu bạn là quản trị dự án
 
-- **project_admin** chỉ quản nhóm/thành viên **trong phạm vi dự án mình phụ trách**.
-- Không gán được nhóm đang thuộc **dự án khác** vào client của mình (chống kéo user ngoài phạm vi).
-- **SSA** quản toàn bộ nhóm, mọi dự án.
+- Bạn chỉ quản nhóm và thành viên **trong dự án mình phụ trách**.
+- Không gán được nhóm của **dự án khác** vào ứng dụng của mình.
+- Quản trị hệ thống thì quản toàn bộ nhóm.
 
-## Lưu ý vận hành
+## Vài lưu ý
 
-- Đặt tên nhóm theo **dự án + phòng ban** để dễ soát khi hệ thống lớn dần.
-- Định kỳ rà **thành viên nhóm** khi có nhân sự nghỉ / chuyển bộ phận.
-- Mọi thao tác gán/gỡ nhóm đều được ghi vào **Nhật ký** (xem tài liệu **Nhật ký**).
+- Đặt tên nhóm theo **dự án + phòng ban** để dễ tìm khi có nhiều nhóm.
+- Định kỳ rà lại thành viên khi có người nghỉ hoặc chuyển bộ phận.
+- Mọi thao tác thêm/gỡ nhóm đều được ghi vào **Nhật ký**.
