@@ -246,7 +246,7 @@ function Root() {
   if (path === "/docs") {
     return (
       <MemberPage profile={profile} nav={nav} isAdmin={isAdmin} onProfile={setProfile}>
-        <Docs />
+        <Docs isAdmin={isAdmin} />
       </MemberPage>
     );
   }

@@ -21,7 +21,10 @@ interface DocItem {
  * (`/api/docs/<client_id>`). Mỗi dự án có thể có nhiều tài liệu (.md). Dự án chưa
  * có tài liệu → "Đang chờ cập nhật". Markdown render tối giản (không kéo thư viện).
  */
-export default function Docs() {
+// Mục tài liệu QUẢN TRỊ PMH ID (chỉ admin) — không phải client thật, fetch riêng.
+const PMHID_DOCS = "__pmhid_admin__";
+
+export default function Docs({ isAdmin = false }: { isAdmin?: boolean }) {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [active, setActive] = useState<string | null>(null); // client_id đang chọn
   const [docs, setDocs] = useState<DocItem[] | null>(null); // tài liệu của dự án đang chọn
@@ -29,20 +32,36 @@ export default function Docs() {
   const [openSlug, setOpenSlug] = useState<string | null>(null);
 
   useEffect(() => {
+    // Admin luôn có mục "PMH ID — Quản trị" đứng đầu (tài liệu bàn giao hệ thống).
+    const adminEntry: Project = {
+      client_id: PMHID_DOCS,
+      name: "PMH ID — Quản trị",
+      app_url: "",
+      env: "",
+    };
     api<Project[]>("/api/me/apps")
       .then((a) => {
-        setProjects(a);
-        if (a.length) setActive(a[0].client_id);
+        const list = isAdmin ? [adminEntry, ...a] : a;
+        setProjects(list);
+        if (list.length) setActive(list[0].client_id);
       })
-      .catch(() => setProjects([]));
-  }, []);
+      .catch(() => {
+        const list = isAdmin ? [adminEntry] : [];
+        setProjects(list);
+        if (list.length) setActive(list[0].client_id);
+      });
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!active) return;
     setDocs(null);
     setDocsErr(false);
     setOpenSlug(null);
-    api<{ documents: DocItem[] }>(`/api/docs/${encodeURIComponent(active)}`)
+    const url =
+      active === PMHID_DOCS
+        ? "/api/admin/docs"
+        : `/api/docs/${encodeURIComponent(active)}`;
+    api<{ documents: DocItem[] }>(url)
       .then((d) => {
         setDocs(d.documents);
         setOpenSlug(d.documents[0]?.slug ?? null);

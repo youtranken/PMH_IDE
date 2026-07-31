@@ -65,7 +65,7 @@ export class DocsController {
 
 /** Đọc mọi *.md trong docs-content/<clientId>/ (sắp theo tên file). Title = dòng
  *  `# …` đầu, fallback tên file. Thiếu thư mục / không có .md → [] (FE: "chờ cập nhật"). */
-function readProjectDocs(clientId: string): DocItem[] {
+export function readProjectDocs(clientId: string): DocItem[] {
   const dir = join(DOCS_CONTENT_DIR, clientId);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
   return readdirSync(dir)
