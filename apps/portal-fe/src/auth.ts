@@ -168,16 +168,29 @@ async function doRefresh(): Promise<string> {
 }
 
 export function logout(): void {
-  // Đăng xuất THẬT: qua end_session của oidc-provider để HỦY phiên SSO (không chỉ
-  // xóa token local). Phiên SSO chết → refresh token mọi app trói phiên cũng chết
-  // (expiresWithSession) → single-logout toàn hệ. Provider quay portal về "/" →
-  // boot() thấy hết phiên → hiện form login (đăng nhập lại được user khác).
-  clear();
-  const params = new URLSearchParams({
-    post_logout_redirect_uri: `${location.origin}/`,
-    client_id: CLIENT_ID,
-  });
-  location.href = `/oidc/logout?${params.toString()}`;
+  // Đăng xuất THẬT + single-logout toàn hệ.
+  //
+  // /api/me/logout-all: thu hồi mọi phiên + BẮN Back-Channel Logout tới MỌI app
+  // (QLTS…) để chúng đá user NGAY. Dùng đường này vì end_session của oidc-provider
+  // KHÔNG bắn logout_token ổn định. Phải CHỜ xong rồi mới chuyển trang.
+  //
+  // THÀNH CÔNG: logout-all ĐÃ xóa phiên SSO server-side rồi → KHÔNG gọi /oidc/logout
+  //   nữa (gọi lên phiên đã xóa → trang "Có lỗi xảy ra"). Chỉ xóa token local + về
+  //   "/" → boot() thấy chưa đăng nhập → hiện form login.
+  // LỖI (mạng/timeout): rơi về /oidc/logout để phiên SSO vẫn được dọn tử tế.
+  const done = () => {
+    clear();
+    location.href = "/";
+  };
+  const fallback = () => {
+    clear();
+    const params = new URLSearchParams({
+      post_logout_redirect_uri: `${location.origin}/`,
+      client_id: CLIENT_ID,
+    });
+    location.href = `/oidc/logout?${params.toString()}`;
+  };
+  api("/api/me/logout-all", { method: "POST" }).then(done, fallback);
 }
 
 export class ApiError extends Error {
