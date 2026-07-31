@@ -26,6 +26,12 @@ const authCss = `
    nhau với quầng vàng → trông "sai lệch"). Hover cũng ngả vàng nhẹ. */
 .pmh-authcard .ant-input-affix-wrapper:hover,.pmh-authcard .ant-input:hover{border-color:#C9A24B!important;}
 .pmh-authcard .ant-input-affix-wrapper-focused,.pmh-authcard .ant-input-affix-wrapper:focus-within,.pmh-authcard .ant-input:focus{border-color:#C9A24B!important;box-shadow:0 0 0 3px rgba(201,162,75,.22)!important;}
+/* Alert type="info": antd mặc định XANH DƯƠNG chỏi với card kem + accent xanh lá/
+   vàng đồng → đổi sang tông brand cho hài hòa. Phủ MỌI info alert trong khung login:
+   "nhập mã 6 số" MFA, recovery code, hướng dẫn quét QR enroll. */
+.pmh-authcard .ant-alert-info{background:rgba(14,77,69,.07)!important;border-color:rgba(14,77,69,.22)!important;}
+.pmh-authcard .ant-alert-info .ant-alert-icon{color:#0E4D45!important;}
+.pmh-authcard .ant-alert-info .ant-alert-message{color:#16211F!important;}
 /* Lớp phủ tối để khung login + chữ nổi rõ trên scene động */
 .pmh-auth__overlay{position:absolute;inset:0;z-index:1;background:
   linear-gradient(110deg, rgba(9,16,30,.8) 0%, rgba(9,16,30,.18) 44%, rgba(8,14,26,.48) 64%, rgba(8,14,26,.8) 100%);}
