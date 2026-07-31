@@ -75,9 +75,10 @@ export class AdminGuard implements CanActivate {
         [userId],
       ),
     ]);
-    // Admin bị khóa/xóa giữa chừng → không còn quyền (token cũ ≤5' vô hại).
+    // Admin bị khóa/xóa giữa chừng → 401 (KHÔNG 403) để SPA tự đá về login,
+    // nhất quán với nhánh tvf bên dưới và với UserGuard.
     if (alive.rowCount === 0) {
-      return { userId, roles: [], isSsa: false, projectIds: [] };
+      throw new UnauthorizedException("tài khoản không hoạt động");
     }
     // THU HỒI TỨC THÌ: token phát trước mốc tokens_valid_from → 401 (SPA re-login).
     // tvf NULL = chưa từng revoke → bỏ qua. Ném 401 (KHÔNG 403) để portal đá về login.

@@ -38,7 +38,15 @@ export class BackchannelLogoutService {
 
   /** Bắn logout_token tới mọi app mà user đang có phiên. Không bao giờ ném lỗi. */
   async notifyLogout(userId: string): Promise<void> {
-    const provider = this.getProvider();
+    let provider: OidcProviderInstance;
+    try {
+      provider = this.getProvider();
+    } catch (e) {
+      // Giữ hợp đồng "không bao giờ ném": provider chưa resolve (boot/shutdown) →
+      // bỏ qua BCL thay vì phá luồng thu hồi phiên của caller.
+      this.logger.warn(`BCL: không lấy được provider: ${String(e)}`);
+      return;
+    }
     let sessionIds: string[];
     try {
       const { rows } = await this.pool.query<{ id: string }>(
