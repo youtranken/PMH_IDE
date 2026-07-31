@@ -186,6 +186,20 @@ sequenceDiagram
 
 > Nếu app chỉ xoá session local mà **không** gọi `end_session`, phiên SSO còn sống → user vào lại được ngay. Đó là lỗi tích hợp phía app.
 
+> **⚠️ BCL bắn khi nào — và KHI NÀO KHÔNG (đọc kỹ):** `logout_token` chỉ gửi khi
+> phiên SSO kết thúc **CHỦ ĐỘNG**: (a) user bấm **Đăng xuất toàn hệ** (qua
+> `end_session`), hoặc (b) admin **Khóa / Hủy phiên / Xóa / Reset mật khẩu** user.
+> **KHÔNG** bắn khi phiên **hết idle (15')** hay **token hết hạn thụ động** — lúc đó
+> không có sự kiện logout nào để mà bắn.
+>
+> ⇒ **Mọi app BẮT BUỘC tự xử "refresh thất bại":** refresh token **trói vào phiên**
+> (`expiresWithSession`) → phiên chết vì **bất kỳ** lý do gì (idle, logout, bị khóa)
+> thì lần refresh kế của app **bị từ chối** (`invalid_grant`). Hãy coi đó là **tín
+> hiệu đăng xuất** và xoá phiên local. Đây là cơ chế **luôn đúng cho MỌI trường hợp**
+> (kể cả idle — nơi BCL không phủ). **BCL chỉ là lớp đá TỨC THÌ cộng thêm** cho ca
+> logout/khoá chủ động, **KHÔNG thay** việc xử lý refresh-fail. Dùng thư viện OIDC
+> chuẩn (vd `openid-client`) — nó tự bắt lỗi refresh và gọi hook đăng xuất.
+
 ---
 
 ## Tóm tắt 1 dòng mỗi khối
@@ -197,4 +211,4 @@ sequenceDiagram
 | **portal-fe** | SPA quản trị, đăng nhập PKCE, gọi `/api/*` bằng Bearer token |
 | **Postgres** | Nguồn sự thật: user, phiên/token (oidc_payloads), hàng đợi webhook/email, settings |
 | **webhook** | Báo app khách khi user bị khóa/xóa/đổi nhóm → đá tức thì (thay cho chờ ≤5') |
-| **BCL** | Kết thúc phiên SSO → đá user khỏi MỌI app cùng lúc |
+| **BCL** | Logout/khoá **chủ động** → đá user khỏi MỌI app **tức thì**. Idle/hết-hạn thụ động KHÔNG bắn BCL → app tự xử qua refresh-fail |
