@@ -5,6 +5,7 @@ import { AuditService } from "../../common/audit.service";
 import { SessionRevocationService } from "../../common/session-revocation.service";
 import { SettingsService } from "../../config/settings.service";
 import { PG_POOL } from "../../database/database.module";
+import { escapeHtml, renderEmail } from "../notifications/email-layout";
 import { EmailQueueService } from "../notifications/email-queue.service";
 
 /**
@@ -85,21 +86,15 @@ export class ExpiryService {
       await this.emails.enqueue(
         u.email,
         "Tài khoản PMH ID sắp hết hạn",
-        `<p>Chào ${escapeHtml(u.full_name)},</p>
-         <p>Tài khoản của bạn sẽ hết hạn vào <b>${dateStr}</b> và bị khóa tự động.</p>
-         <p>Liên hệ quản trị nếu cần gia hạn.</p>`,
+        renderEmail({
+          preheader: `Tài khoản của bạn sẽ hết hạn vào ${dateStr}.`,
+          heading: "Tài khoản sắp hết hạn",
+          intro: `<p style="margin:0;">Chào ${escapeHtml(u.full_name)}, tài khoản PMH ID của bạn sẽ hết hạn và bị khóa tự động vào:</p>`,
+          highlight: { label: "Ngày hết hạn", value: escapeHtml(dateStr) },
+          outro: "Vui lòng liên hệ quản trị nếu cần gia hạn.",
+        }),
       );
     }
     if (rows.length > 0) this.logger.log(`gửi cảnh báo hết hạn cho ${rows.length} user`);
   }
-}
-
-function escapeHtml(v: string): string {
-  return v.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ] as string,
-  );
 }

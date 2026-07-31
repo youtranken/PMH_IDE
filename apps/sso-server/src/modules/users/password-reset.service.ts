@@ -7,6 +7,7 @@ import { AuditService } from "../../common/audit.service";
 import { SessionRevocationService } from "../../common/session-revocation.service";
 import { SettingsService } from "../../config/settings.service";
 import { PG_POOL } from "../../database/database.module";
+import { escapeHtml, renderEmail } from "../notifications/email-layout";
 import { EmailQueueService } from "../notifications/email-queue.service";
 import { TempPasswordService } from "./temp-password.service";
 
@@ -78,11 +79,16 @@ export class PasswordResetService {
     await this.emails.enqueue(
       email,
       "Đặt lại mật khẩu — PMH ID",
-      `<p>Chào ${escapeHtml(full_name)},</p>
-       <p>Có yêu cầu đặt lại mật khẩu tài khoản PMH ID của bạn. Bấm nút dưới để đặt mật khẩu mới:</p>
-       <p><a href="${link}" style="display:inline-block;padding:11px 20px;background:#0E4D45;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Đặt lại mật khẩu</a></p>
-       <p style="color:#5f716c;font-size:13px">Nếu nút không bấm được, mở liên kết: <br>${escapeHtml(link)}</p>
-       <p>Liên kết hết hạn sau <b>${ttlMin} phút</b> và chỉ dùng được một lần. Nếu bạn KHÔNG yêu cầu, hãy bỏ qua email này — mật khẩu hiện tại của bạn vẫn nguyên.</p>`,
+      renderEmail({
+        preheader: "Yêu cầu đặt lại mật khẩu tài khoản PMH ID của bạn.",
+        heading: "Đặt lại mật khẩu",
+        intro: `<p style="margin:0 0 12px;">Chào ${escapeHtml(full_name)},</p>
+          <p style="margin:0;">Có yêu cầu đặt lại mật khẩu cho tài khoản PMH ID của bạn. Bấm nút dưới để đặt mật khẩu mới:</p>`,
+        cta: { label: "Đặt lại mật khẩu", href: link },
+        outro: `Nếu nút không bấm được, mở liên kết:<br>
+          <a href="${escapeHtml(link)}" style="color:#0E4D45;word-break:break-all;">${escapeHtml(link)}</a><br><br>
+          Liên kết hết hạn sau <b>${ttlMin} phút</b> và chỉ dùng được <b>một lần</b>. Nếu bạn <b>không</b> yêu cầu, hãy bỏ qua email này — mật khẩu hiện tại của bạn vẫn nguyên.`,
+      }),
     );
   }
 
@@ -146,19 +152,4 @@ export class PasswordResetService {
       })
       .catch(() => {});
   }
-}
-
-/** Escape để tên user không phá HTML email. */
-function escapeHtml(v: string): string {
-  return v.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c] as string,
-  );
 }

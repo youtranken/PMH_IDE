@@ -5,6 +5,7 @@ import * as argon2 from "argon2";
 import { Pool } from "pg";
 import { SettingsService } from "../../config/settings.service";
 import { PG_POOL } from "../../database/database.module";
+import { escapeHtml, renderEmail } from "../notifications/email-layout";
 import { EmailQueueService } from "../notifications/email-queue.service";
 
 /**
@@ -115,21 +116,18 @@ export class TempPasswordService {
     await this.emails.enqueue(
       email,
       "Mật khẩu tạm — PMH ID",
-      `<p>Chào ${escapeHtml(full_name)},</p>
-       <p>Mật khẩu tạm của bạn: <b style="font-size:18px">${escapeHtml(temp)}</b></p>
-       <p>Hết hạn sau <b>${ttlHours} giờ</b>. Hãy đăng nhập và đổi mật khẩu ngay ở lần đăng nhập kế.</p>`,
+      renderEmail({
+        preheader: "Mật khẩu tạm để đăng nhập PMH ID.",
+        heading: "Mật khẩu tạm",
+        intro: `<p style="margin:0;">Chào ${escapeHtml(full_name)}, đây là mật khẩu tạm để đăng nhập PMH ID:</p>`,
+        highlight: {
+          label: "Mật khẩu tạm",
+          value: escapeHtml(temp),
+          note: `Hết hạn sau ${ttlHours} giờ nếu chưa dùng.`,
+        },
+        outro: "Hãy đăng nhập và <b>đổi mật khẩu ngay</b> ở lần đăng nhập kế.",
+      }),
     );
     return email;
   }
-}
-
-/** Escape để MK/tên không phá HTML email (temp có ký tự &,<... đã lọc nhưng tên thì không). */
-function escapeHtml(v: string): string {
-  return v.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ] as string,
-  );
 }

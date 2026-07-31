@@ -17,6 +17,7 @@ import { Roles } from "../../common/admin/roles.decorator";
 import { AuditService } from "../../common/audit.service";
 import { KekService } from "../../common/kek.service";
 import { SettingsService } from "../../config/settings.service";
+import { renderEmail } from "../notifications/email-layout";
 import { MailerService } from "../notifications/mailer.service";
 
 /**
@@ -94,8 +95,12 @@ export class SettingsAdminController {
       await this.mailer.send(
         dto.to,
         "PMH ID — Email thử",
-        `<p>Đây là email thử từ PMH ID để kiểm tra cấu hình SMTP.</p>
-         <p>Nếu bạn nhận được thư này, cấu hình gửi email đã hoạt động.</p>`,
+        renderEmail({
+          preheader: "Email thử kiểm tra cấu hình SMTP.",
+          heading: "Email thử",
+          intro: `<p style="margin:0 0 12px;">Đây là email thử từ hệ thống PMH ID để kiểm tra cấu hình SMTP.</p>
+            <p style="margin:0;">Nếu bạn nhận được thư này, cấu hình gửi email đã <b>hoạt động</b>. ✅</p>`,
+        }),
       );
       await this.audit
         .record({
