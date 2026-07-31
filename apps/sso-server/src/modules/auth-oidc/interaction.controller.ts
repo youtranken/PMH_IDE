@@ -83,6 +83,9 @@ export class InteractionController {
       prompt: d.prompt.name,
       clientId,
       clientName: await this.clientDisplayName(clientId),
+      // login_hint (email user gõ ở app đích) → FE điền sẵn ô Email, khỏi gõ lại.
+      loginHint:
+        typeof d.params.login_hint === "string" ? d.params.login_hint : null,
     };
   }
 

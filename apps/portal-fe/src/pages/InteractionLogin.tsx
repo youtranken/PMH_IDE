@@ -130,6 +130,7 @@ async function postJson(url: string, body: unknown) {
 export default function InteractionLogin({ uid }: { uid: string }) {
   const [step, setStep] = useState<Step>("login");
   const [clientName, setClientName] = useState<string | null>(null);
+  const [loginHint, setLoginHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dead, setDead] = useState(false);
@@ -139,7 +140,10 @@ export default function InteractionLogin({ uid }: { uid: string }) {
   useEffect(() => {
     fetch(`/api/interaction/${uid}`, { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => setClientName(d.clientName ?? d.clientId))
+      .then((d) => {
+        setClientName(d.clientName ?? d.clientId);
+        if (typeof d.loginHint === "string") setLoginHint(d.loginHint);
+      })
       .catch(() => setDead(true));
   }, [uid]);
 
@@ -245,7 +249,7 @@ export default function InteractionLogin({ uid }: { uid: string }) {
           )}
           {step === "login" && (forgot
             ? <ForgotForm onBack={() => { setError(null); setForgot(false); }} />
-            : <LoginForm loading={loading} onFinish={onLogin} onForgot={() => { setError(null); setForgot(true); }} />)}
+            : <LoginForm loading={loading} initialEmail={loginHint} onFinish={onLogin} onForgot={() => { setError(null); setForgot(true); }} />)}
           {step === "change_password" && (
             <ChangePasswordForm loading={loading} onFinish={onChangePassword} />
           )}
@@ -307,18 +311,29 @@ function LoginForm({
   loading,
   onFinish,
   onForgot,
+  initialEmail,
 }: {
   loading: boolean;
   onFinish: (v: { email: string; password: string }) => void;
   onForgot: () => void;
+  initialEmail?: string | null;
 }) {
+  const [form] = Form.useForm();
+  // login_hint đến ASYNC (sau fetch details) nên initialValues lúc mount chưa có →
+  // set khi hint tới. Chỉ điền khi ô còn trống, tránh đè khi user đã tự sửa.
+  useEffect(() => {
+    if (initialEmail && !form.getFieldValue("email")) {
+      form.setFieldsValue({ email: initialEmail });
+    }
+  }, [initialEmail, form]);
+  const prefilled = !!initialEmail;
   return (
-    <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
+    <Form form={form} layout="vertical" onFinish={onFinish} requiredMark={false}>
       <Form.Item label="Email" name="email" rules={[{ required: true, message: "Nhập email" }]}>
         <Input
           size="large"
           autoComplete="username"
-          autoFocus
+          autoFocus={!prefilled}
           prefix={<UserOutlined style={{ color: BRAND.muted }} />}
           placeholder="ten@pmh.com.vn"
         />
@@ -332,6 +347,7 @@ function LoginForm({
         <Input.Password
           size="large"
           autoComplete="current-password"
+          autoFocus={prefilled}
           prefix={<LockOutlined style={{ color: BRAND.muted }} />}
         />
       </Form.Item>

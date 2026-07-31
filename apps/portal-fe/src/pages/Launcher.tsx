@@ -31,6 +31,19 @@ const hostOf = (url: string) => {
   }
 };
 
+/** Đính cờ ?sso=1 vào URL mở app. Cả link (rel=noreferrer) lẫn header no-referrer của
+ *  cổng đều giấu Referer, nên app đích KHÔNG thể tự biết "đến từ portal" để chạy SSO
+ *  thẳng — cờ tường minh này là tín hiệu đó (app đích không đọc thì bỏ qua vô hại). */
+const withLaunchFlag = (url: string) => {
+  try {
+    const u = new URL(url);
+    u.searchParams.set("sso", "1");
+    return u.toString();
+  } catch {
+    return url;
+  }
+};
+
 /** Scene 3D theo loại dự án (null = dùng ProjectScene SVG). */
 function scene3DFor(name: string) {
   const kind = sceneKindFor(name);
@@ -48,7 +61,7 @@ function AppCard({ app }: { app: AppItem }) {
     // động, Enter sẵn có, screen-reader đọc đúng "liên kết".
     <a
       className="pmh-card"
-      href={app.app_url}
+      href={withLaunchFlag(app.app_url)}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`Mở ${app.name}`}
