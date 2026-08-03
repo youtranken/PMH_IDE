@@ -27,6 +27,10 @@ echo "==> [1/4] Kiểm mạng edge"
 docker network inspect edge >/dev/null 2>&1 || { echo "!! Chưa có mạng edge (dựng PMH ID trước)." >&2; exit 1; }
 
 echo "==> [2/4] Lên QLHS (base + prod overlay — web+api join edge)"
+# Bắc cầu mật khẩu DB từ apps/api/.env vào shell để compose thay ${POSTGRES_PASSWORD}/${QLHS_APP_PASSWORD}
+set -a; . <(grep -E '^(POSTGRES_PASSWORD|QLHS_APP_PASSWORD)=' "$ENVF" || true); set +a
+{ [ -n "${POSTGRES_PASSWORD:-}" ] && [ -n "${QLHS_APP_PASSWORD:-}" ]; } || {
+  echo "!! ${ENVF} thiếu POSTGRES_PASSWORD / QLHS_APP_PASSWORD — sinh bằng gen-secrets.sh rồi dán vào." >&2; exit 1; }
 "${CJ[@]}" up -d --build
 
 echo "==> [3/4] Chờ QLHS health qua edge (~90s: migrate + boot)"
