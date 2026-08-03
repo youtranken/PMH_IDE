@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # restore — phục hồi PMH ID từ 1 bản backup mã hóa (giải mã → nạp lại DB + khóa ký).
 # Bám theo docs/ops/runbook-recovery.md §2. ⚠️ XÓA & TẠO LẠI database 'pmhid' rồi nạp backup.
-# Dùng:  bash restore.sh                 # chọn bản MỚI NHẤT trong data-backups
-#        bash restore.sh <tên-file.enc>  # chọn 1 bản cụ thể
+# Dùng:  bash restore.sh   → LIỆT KÊ các bản trong data-backups để BẠN CHỌN (số hoặc tên file).
 set -euo pipefail
 
 # Tự suy PMH_IDE từ vị trí script (script_backups → prod-cluster → deploy → PMH_IDE)
@@ -18,14 +17,31 @@ PW=$(grep -E '^POSTGRES_PASSWORD=' .env | cut -d= -f2- | tr -d '\r')
 [ -n "$PASS" ]       || { echo "!! .env thiếu BACKUP_PASSPHRASE"; exit 1; }
 [ -n "$PW" ]         || { echo "!! .env thiếu POSTGRES_PASSWORD"; exit 1; }
 
-# Chọn archive
-ARCHIVE="${1:-}"
-if [ -z "$ARCHIVE" ]; then
-  ARCHIVE=$(ls -1t "$BACKUP_DIR"/pmhid-backup-*.tar.gz.enc 2>/dev/null | head -1 || true)
-elif [ ! -f "$ARCHIVE" ]; then
-  ARCHIVE="$BACKUP_DIR/$ARCHIVE"
+# LIỆT KÊ các bản backup trong BACKUP_DIR để CHỌN (KHÔNG tự lấy mới nhất)
+mapfile -t FILES < <(ls -1t "$BACKUP_DIR"/pmhid-backup-*.tar.gz.enc 2>/dev/null || true)
+[ "${#FILES[@]}" -gt 0 ] || { echo "!! Không có bản backup nào trong $BACKUP_DIR"; exit 1; }
+
+echo "Các bản backup trong $BACKUP_DIR (mới → cũ):"
+i=1
+for f in "${FILES[@]}"; do
+  sz=$(du -h "$f" 2>/dev/null | cut -f1)
+  ts=$(date -r "$f" '+%Y-%m-%d %H:%M' 2>/dev/null || echo '?')
+  printf "  [%2d] %s  (%s, %s)\n" "$i" "$(basename "$f")" "$ts" "${sz:-?}"
+  i=$((i+1))
+done
+echo
+read -rp "Chọn SỐ bản để phục hồi (hoặc dán tên/đường dẫn file): " CHOICE
+if [[ "$CHOICE" =~ ^[0-9]+$ ]]; then
+  idx=$((CHOICE-1))
+  { [ "$idx" -ge 0 ] && [ "$idx" -lt "${#FILES[@]}" ]; } || { echo "!! Số không hợp lệ."; exit 1; }
+  ARCHIVE="${FILES[$idx]}"
+elif [ -f "$CHOICE" ]; then
+  ARCHIVE="$CHOICE"
+elif [ -f "$BACKUP_DIR/$CHOICE" ]; then
+  ARCHIVE="$BACKUP_DIR/$CHOICE"
+else
+  echo "!! Không thấy file: $CHOICE"; exit 1
 fi
-[ -f "$ARCHIVE" ] || { echo "!! Không thấy bản backup: ${1:-<mới nhất>} (trong $BACKUP_DIR)"; exit 1; }
 
 echo "Phục hồi TỪ : $ARCHIVE"
 echo "⚠️  Sẽ DROP database 'pmhid' hiện tại và nạp lại từ backup này."

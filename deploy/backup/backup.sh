@@ -16,11 +16,12 @@ set -o pipefail 2>/dev/null || true
 ENV_FILE="${ENV_FILE:-/secrets/.env}"
 KEYS_DIR="${SIGNING_KEYS_DIR:-/run/secrets/signing-keys}"
 OUT_DIR="${BACKUP_OUT:-/backups}"
-KEEP="${BACKUP_KEEP:-30}"
+KEEP_DAYS="${BACKUP_KEEP_DAYS:-30}"
 
-# KEEP phải >=1, nếu không rotation sẽ xóa SẠCH kể cả bản vừa tạo
-case "$KEEP" in ''|*[!0-9]*) echo "BACKUP_KEEP không hợp lệ: $KEEP"; exit 1;; esac
-[ "$KEEP" -ge 1 ] || { echo "BACKUP_KEEP phải >=1 (đang $KEEP)"; exit 1; }
+# Giữ TỊNH TIẾN theo NGÀY: xóa bản cũ hơn KEEP_DAYS ngày (bản vừa tạo 0 ngày → luôn giữ).
+# >=1 để không lỡ xóa bản mới nhất.
+case "$KEEP_DAYS" in ''|*[!0-9]*) echo "BACKUP_KEEP_DAYS không hợp lệ: $KEEP_DAYS"; exit 1;; esac
+[ "$KEEP_DAYS" -ge 1 ] || { echo "BACKUP_KEEP_DAYS phải >=1 (đang $KEEP_DAYS)"; exit 1; }
 
 command -v pg_dump >/dev/null || { echo "thiếu pg_dump"; exit 1; }
 command -v openssl >/dev/null || { echo "thiếu openssl (image phải có sẵn)"; exit 1; }
@@ -67,9 +68,7 @@ if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRAS
   echo "[LỖI] archive KHÔNG verify được — xóa bản hỏng, hủy"; rm -f "$OUT"; exit 1
 fi
 
-echo "[backup] xoay giữ $KEEP bản mới nhất"
-ls -1t "$OUT_DIR"/pmhid-backup-*.tar.gz.enc 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
-  echo "  xóa cũ: $old"; rm -f "$old"
-done
+echo "[backup] tịnh tiến: xóa bản cũ hơn $KEEP_DAYS ngày"
+find "$OUT_DIR" -maxdepth 1 -name 'pmhid-backup-*.tar.gz.enc' -type f -mtime "+$KEEP_DAYS" -print -exec rm -f {} \;
 
 echo "[backup] XONG: $(ls -lh "$OUT" | awk '{print $5}') — $OUT"
