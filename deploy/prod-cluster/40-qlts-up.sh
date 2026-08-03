@@ -13,7 +13,7 @@ if [[ ! -f "${QLTS}/.env" ]]; then
   echo "   cp ${PMH_ROOT}/PMH_IDE/deploy/prod-cluster/env-templates/qlts.env.example ${QLTS}/.env && nano ${QLTS}/.env" >&2
   exit 1
 fi
-if grep -q "CHANGE_ME" "${QLTS}/.env"; then
+if grep -vE '^[[:space:]]*#' "${QLTS}/.env" | grep -q "CHANGE_ME"; then
   echo "!! ${QLTS}/.env còn CHANGE_ME — cần PMH_CLIENT_ID/SECRET (từ UI PMH ID), secret DB/Redis, LOCAL_SA_PASSWORD_HASH." >&2
   exit 1
 fi

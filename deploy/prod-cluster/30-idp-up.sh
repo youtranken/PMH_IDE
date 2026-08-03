@@ -15,7 +15,7 @@ if [[ ! -f "${IDP}/.env" ]]; then
   echo "   cp deploy/prod-cluster/env-templates/idp.env.example ${IDP}/.env && nano ${IDP}/.env" >&2
   exit 1
 fi
-if grep -q "CHANGE_ME" "${IDP}/.env"; then
+if grep -vE '^[[:space:]]*#' "${IDP}/.env" | grep -q "CHANGE_ME"; then
   echo "!! ${IDP}/.env còn giá trị CHANGE_ME — điền hết secret trước (bash gen-secrets.sh)." >&2
   exit 1
 fi
