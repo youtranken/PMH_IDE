@@ -157,7 +157,9 @@ rồi `git commit && git push`, và trên prod `bash 40-qlts-up.sh` lại:
   docker compose --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml logs -f backup-cron`.
   Bấm 1 bản ngay: `bash ~/script_backups/backup-now.sh`. Phục hồi: `bash ~/script_backups/restore.sh`.
   QLTS backup theo tài liệu QLTS.
-- **Cập nhật code sau này:** `cd ~/<repo> && git pull` rồi chạy lại script `up` tương ứng.
+- **Cập nhật code sau này:**
+  - QLTS: `bash update-qlts.sh` (backup → git pull ff-only → rebuild + recreate → api tự migrate → chờ health).
+  - PMH ID: `cd ~/PMH_IDE && git pull` rồi chạy lại `bash 30-idp-up.sh`.
 - Sao lưu **KEK_BASE64 + COOKIE_KEYS + BACKUP_PASSPHRASE** ra nơi an toàn tách khỏi host —
   mất KEK = mất mọi secret đã mã hóa (TOTP/webhook/SMTP).
 - **Trần RAM (cap 8GB cả cụm PMH_IDE + edge — IdP chỉ xác thực, nhẹ):** đặt ở `docker-compose.prod.yml`
