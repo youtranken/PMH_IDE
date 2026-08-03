@@ -5,7 +5,9 @@
 # Chạy: bash backup-now.sh
 set -euo pipefail
 
-IDP="${IDP:-$HOME/PMH_IDE}"
+# Tự suy PMH_IDE từ vị trí script (script_backups → prod-cluster → deploy → PMH_IDE)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IDP="${IDP:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 cd "$IDP"
 CJ=(docker compose --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml)
 

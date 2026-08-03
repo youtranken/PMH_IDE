@@ -39,5 +39,11 @@ Thumbs.db
 # backup .env tu script sinh secret (chua secret)
 .env.bak.*
 
+# kho backup mã hóa đặt TRONG repo prod (BACKUP_DIR = ~/PMH_IDE/data-backups) —
+# là DỮ LIỆU, không phải code → không commit, không để git đụng tới.
+data-backups/
+backups/
+pmhid-backup-*.tar.gz.enc
+
 # output quét bảo mật (vbsec) — không commit
 vbsec-reports/

@@ -11,18 +11,20 @@
 Các script tự dựng đúng bố cục này (`10-clone.sh` lo tạo):
 
 ```
-~/                         (/home/<bạn>)
-├── PMH_IDE/               clone repo idde (IdP) — chứa cả deploy/edge + deploy/prod-cluster
-├── QLTS_DE/               clone repo qlts
-├── QLHS_DE/               (đợt 2)
-├── data-backups/          bản backup mã hóa rơi vào đây  → trỏ BACKUP_DIR vào đây
-└── script_backups/        backup-now.sh, restore.sh (chạy tay khi cần)
+~/  (hoặc ~/pmh nếu đặt PMH_ROOT=$HOME/pmh)
+├── PMH_IDE/                          repo idde (IdP) — chứa deploy/edge + deploy/prod-cluster
+│   ├── data-backups/                 ← bản backup mã hóa rơi vào đây (=BACKUP_DIR, đã .gitignore)
+│   └── deploy/prod-cluster/script_backups/   backup-now.sh, restore.sh (chạy tay khi cần)
+└── QLTS_DE/                          repo qlts   (QLHS_DE ở đợt 2)
 ```
 
 - **Backup chạy TRONG DOCKER, không cần cron host:** service `backup-cron` (nằm sẵn trong
   `PMH_IDE/deploy/docker-compose.yml`) là 1 container thường trú, tự chạy mỗi ngày lúc `BACKUP_AT`
-  (mặc định 02:00), ghi bản mã hóa vào `data-backups`. Bạn KHÔNG phải cài crontab.
-- `script_backups/backup-now.sh` = bấm thêm 1 bản ngay; `restore.sh` = phục hồi từ 1 bản.
+  (mặc định 02:00), ghi bản mã hóa vào `PMH_IDE/data-backups`. Bạn KHÔNG phải cài crontab.
+- Script backup/restore nằm sẵn trong repo: `PMH_IDE/deploy/prod-cluster/script_backups/`
+  (`backup-now.sh` = bấm 1 bản ngay; `restore.sh` = phục hồi từ 1 bản).
+- ⚠️ `data-backups` nằm TRONG PMH_IDE (đã .gitignore) → gọn, nhưng nhớ **copy bản `.enc` ra ngoài
+  máy định kỳ** (đĩa khác/máy khác): xóa/clone lại PMH_IDE là mất backup nếu chỉ có ở đây.
 
 **Phân đợt:** đợt này **PMH ID (admin-de) + QLTS**. Xong, chạy ổn rồi mới **đưa QLHS** (đợt 2:
 bỏ comment dòng clone QLHS trong `10-clone.sh`, thêm `deploy/edge/conf.d/qlhs.conf`, vá compose QLHS

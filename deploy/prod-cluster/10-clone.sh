@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# 10 — Layout prod trong HOME: clone repo + tạo thư mục backup + đặt script backup/restore.
-# Chạy: bash 10-clone.sh   (KHÔNG cần sudo — mọi thứ nằm trong $HOME)
+# 10 — Layout prod: clone repo + tạo thư mục backup TRONG PMH_IDE.
+# Chạy: bash 10-clone.sh   (KHÔNG cần sudo — mọi thứ nằm trong $HOME/$PMH_ROOT)
 set -euo pipefail
 
-PMH_ROOT="${PMH_ROOT:-$HOME}"        # gốc layout = /home/<bạn>
+PMH_ROOT="${PMH_ROOT:-$HOME}"        # gốc layout (mặc định /home/<bạn>; đặt PMH_ROOT nếu dùng ~/pmh)
+IDP="${PMH_ROOT}/PMH_IDE"
 
 IDP_URL="https://github.com/youtranken/PMH_IDE.git"
 QLTS_URL="https://github.com/youtranken/QLTS_DE.git"
@@ -24,22 +25,20 @@ clone_or_pull () {
 }
 
 echo "==> Layout tại ${PMH_ROOT}"
-clone_or_pull "${IDP_URL}"  "${PMH_ROOT}/PMH_IDE" "${BRANCH_IDP}"
-clone_or_pull "${QLTS_URL}" "${PMH_ROOT}/QLTS_DE" "${BRANCH_QLTS}"
+clone_or_pull "${IDP_URL}"  "${IDP}"                 "${BRANCH_IDP}"
+clone_or_pull "${QLTS_URL}" "${PMH_ROOT}/QLTS_DE"    "${BRANCH_QLTS}"
 # QLHS ĐỢT 2 (bỏ comment khi tới lượt):
 # clone_or_pull "https://github.com/youtranken/QLHS_DE.git" "${PMH_ROOT}/QLHS_DE" "main"
 
-echo "==> Tạo thư mục dữ liệu backup + thư mục script backup/restore"
-mkdir -p "${PMH_ROOT}/data-backups" "${PMH_ROOT}/script_backups"
-cp "${PMH_ROOT}/PMH_IDE/deploy/prod-cluster/script_backups/"*.sh "${PMH_ROOT}/script_backups/"
-chmod +x "${PMH_ROOT}/script_backups/"*.sh
+echo "==> Tạo thư mục backup TRONG PMH_IDE (đã .gitignore, git không đụng tới)"
+mkdir -p "${IDP}/data-backups"
 
 echo
 echo "XONG 10. Layout:"
-echo "  ${PMH_ROOT}/PMH_IDE         (idde / IdP)"
-echo "  ${PMH_ROOT}/QLTS_DE         (qlts)"
-echo "  ${PMH_ROOT}/data-backups    (nơi bản backup mã hóa rơi vào — trỏ BACKUP_DIR vào đây)"
-echo "  ${PMH_ROOT}/script_backups  (backup-now.sh, restore.sh — chạy tay khi cần)"
+echo "  ${IDP}                       (idde / IdP)"
+echo "  ${IDP}/data-backups          (bản backup mã hóa rơi vào đây — trỏ BACKUP_DIR vào đây)"
+echo "  ${IDP}/deploy/prod-cluster/script_backups/  (backup-now.sh, restore.sh — có sẵn trong repo)"
+echo "  ${PMH_ROOT}/QLTS_DE          (qlts)"
 echo
-echo "Tiếp: cd ${PMH_ROOT}/PMH_IDE/deploy/prod-cluster && bash gen-secrets.sh"
-echo "Nhớ đặt trong PMH_IDE/.env:  BACKUP_DIR=${PMH_ROOT}/data-backups"
+echo "Tiếp: cd ${IDP}/deploy/prod-cluster && bash gen-secrets.sh"
+echo "Nhớ đặt trong PMH_IDE/.env:  BACKUP_DIR=${IDP}/data-backups"
