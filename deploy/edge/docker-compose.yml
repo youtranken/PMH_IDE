@@ -11,7 +11,7 @@ services:
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
-    mem_limit: 128m
+    mem_limit: 256m  # phần của edge trong ngân sách 16GB cụm PMH_IDE
     environment:
       TZ: Asia/Bangkok
     ports:

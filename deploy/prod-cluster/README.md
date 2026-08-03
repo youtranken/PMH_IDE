@@ -51,13 +51,17 @@ Làm xong 3 việc này rồi mới chạy script. Chi tiết trong `docs/ops/TR
 
 ## 1. Bootstrap máy prod (chạy 1 lần)
 
-Copy 2 file `00-prep-ubuntu.sh` và `10-clone.sh` sang máy prod (scp hoặc curl raw từ GitHub), rồi:
+Copy `00-prep-ubuntu.sh`, `05-harden-ubuntu.sh`, `10-clone.sh` sang máy prod (scp hoặc curl raw), rồi:
 
 ```bash
 sudo bash 00-prep-ubuntu.sh      # cài Docker + git + mở firewall OS
+sudo bash 05-harden-ubuntu.sh    # BẢO MẬT Ubuntu (ufw/fail2ban/ssh/tự-vá) — làm TRƯỚC deploy
 newgrp docker                    # nạp lại quyền docker cho user (hoặc logout/login)
-bash 10-clone.sh                 # clone PMH_IDE + QLTS_DE về ~ (/home/<bạn>)
+bash 10-clone.sh                 # clone PMH_IDE + QLTS_DE + dựng layout trong ~ (/home/<bạn>)
 ```
+
+> `05-harden` chỉ **tắt đăng nhập mật khẩu SSH khi bạn đã có SSH key** (chống tự khóa mình).
+> Chưa có key thì nó giữ mật khẩu và in hướng dẫn cài key — cài xong **chạy lại `05`** để siết.
 
 Sau bước này mọi script còn lại nằm sẵn ở `~/PMH_IDE/deploy/prod-cluster/`.
 `cd ~/PMH_IDE/deploy/prod-cluster` để chạy tiếp.
@@ -154,3 +158,7 @@ rồi `git commit && git push`, và trên prod `bash 40-qlts-up.sh` lại:
 - **Cập nhật code sau này:** `cd ~/<repo> && git pull` rồi chạy lại script `up` tương ứng.
 - Sao lưu **KEK_BASE64 + COOKIE_KEYS + BACKUP_PASSPHRASE** ra nơi an toàn tách khỏi host —
   mất KEK = mất mọi secret đã mã hóa (TOTP/webhook/SMTP).
+- **Trần RAM (cap 16GB cả cụm PMH_IDE + edge):** đặt ở `docker-compose.prod.yml` (postgres 7g,
+  sso-server 6g, portal-fe/backup-cron 512m, backup 1g) + edge 256m = ~15.25g. Đây là **trần**
+  (container bị kill nếu vượt), không phải cấp phát cứng. **QLTS/QLHS nếu chạy CHUNG máy cần RAM
+  riêng NGOÀI 16GB này** — máy nên có RAM tổng > 16GB nếu đặt chung. Chỉnh số trong prod overlay.
