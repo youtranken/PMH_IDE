@@ -3,7 +3,7 @@
 # Yêu cầu: đã đăng ký client QLTS trong PMH ID và điền QLTS_DE/.env. Chạy: bash 40-qlts-up.sh
 set -euo pipefail
 
-PMH_ROOT="${PMH_ROOT:-/opt/pmh}"
+PMH_ROOT="${PMH_ROOT:-$HOME}"
 QLTS="${PMH_ROOT}/QLTS_DE"
 cd "${QLTS}"
 

@@ -3,7 +3,7 @@
 # Chạy: bash 20-edge-up.sh
 set -euo pipefail
 
-PMH_ROOT="${PMH_ROOT:-/opt/pmh}"
+PMH_ROOT="${PMH_ROOT:-$HOME}"
 IDP="${PMH_ROOT}/PMH_IDE"
 CERT_DIR="${IDP}/deploy/nginx/certs"
 

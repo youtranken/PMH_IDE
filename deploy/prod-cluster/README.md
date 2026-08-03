@@ -6,6 +6,30 @@
 
 ---
 
+## Layout trên máy prod (trong `$HOME`, VD `/home/pmh`)
+
+Các script tự dựng đúng bố cục này (`10-clone.sh` lo tạo):
+
+```
+~/                         (/home/<bạn>)
+├── PMH_IDE/               clone repo idde (IdP) — chứa cả deploy/edge + deploy/prod-cluster
+├── QLTS_DE/               clone repo qlts
+├── QLHS_DE/               (đợt 2)
+├── data-backups/          bản backup mã hóa rơi vào đây  → trỏ BACKUP_DIR vào đây
+└── script_backups/        backup-now.sh, restore.sh (chạy tay khi cần)
+```
+
+- **Backup chạy TRONG DOCKER, không cần cron host:** service `backup-cron` (nằm sẵn trong
+  `PMH_IDE/deploy/docker-compose.yml`) là 1 container thường trú, tự chạy mỗi ngày lúc `BACKUP_AT`
+  (mặc định 02:00), ghi bản mã hóa vào `data-backups`. Bạn KHÔNG phải cài crontab.
+- `script_backups/backup-now.sh` = bấm thêm 1 bản ngay; `restore.sh` = phục hồi từ 1 bản.
+
+**Phân đợt:** đợt này **PMH ID (admin-de) + QLTS**. Xong, chạy ổn rồi mới **đưa QLHS** (đợt 2:
+bỏ comment dòng clone QLHS trong `10-clone.sh`, thêm `deploy/edge/conf.d/qlhs.conf`, vá compose QLHS
+join edge — sẽ hướng dẫn khi tới lượt).
+
+---
+
 ## 0. Trước khi bắt đầu — 3 việc của ĐỘI MẠNG (không phải script)
 
 Làm xong 3 việc này rồi mới chạy script. Chi tiết trong `docs/ops/TRIEN_KHAI_PROD_CLUSTER_8443.md` §4 (bước A–E).
@@ -19,8 +43,8 @@ Làm xong 3 việc này rồi mới chạy script. Chi tiết trong `docs/ops/TR
 
 **Chứng chỉ:** bạn đã có cert thật `*.pmh.com.vn`. Đặt 2 file vào host prod (script `20` sẽ kiểm):
 ```
-/opt/pmh/PMH_IDE/deploy/nginx/certs/fullchain.pem
-/opt/pmh/PMH_IDE/deploy/nginx/certs/privkey.pem
+~/PMH_IDE/deploy/nginx/certs/fullchain.pem
+~/PMH_IDE/deploy/nginx/certs/privkey.pem
 ```
 
 ---
@@ -32,11 +56,11 @@ Copy 2 file `00-prep-ubuntu.sh` và `10-clone.sh` sang máy prod (scp hoặc cur
 ```bash
 sudo bash 00-prep-ubuntu.sh      # cài Docker + git + mở firewall OS
 newgrp docker                    # nạp lại quyền docker cho user (hoặc logout/login)
-bash 10-clone.sh                 # clone PMH_IDE + QLTS_DE về /opt/pmh
+bash 10-clone.sh                 # clone PMH_IDE + QLTS_DE về ~ (/home/<bạn>)
 ```
 
-Sau bước này mọi script còn lại nằm sẵn ở `/opt/pmh/PMH_IDE/deploy/prod-cluster/`.
-`cd /opt/pmh/PMH_IDE/deploy/prod-cluster` để chạy tiếp.
+Sau bước này mọi script còn lại nằm sẵn ở `~/PMH_IDE/deploy/prod-cluster/`.
+`cd ~/PMH_IDE/deploy/prod-cluster` để chạy tiếp.
 
 ---
 
@@ -46,10 +70,10 @@ Sau bước này mọi script còn lại nằm sẵn ở `/opt/pmh/PMH_IDE/deplo
 bash gen-secrets.sh          # in ra các secret ngẫu nhiên để dán vào .env (không tự ghi)
 
 # --- Điền .env cho PMH ID ---
-cp env-templates/idp.env.example  /opt/pmh/PMH_IDE/.env
-nano /opt/pmh/PMH_IDE/.env        # dán secret từ gen-secrets, sửa CHANGE_ME
+cp env-templates/idp.env.example  ~/PMH_IDE/.env
+nano ~/PMH_IDE/.env        # dán secret từ gen-secrets, sửa CHANGE_ME
 
-# --- Đặt cert thật vào /opt/pmh/PMH_IDE/deploy/nginx/certs/ (xem mục 0) ---
+# --- Đặt cert thật vào ~/PMH_IDE/deploy/nginx/certs/ (xem mục 0) ---
 
 bash 20-edge-up.sh           # tạo network edge (subnet ghim) + dựng EDGE nginx
 bash 30-idp-up.sh            # build + init khóa ký (host trắng) + lên PMH ID + chờ health
@@ -65,8 +89,8 @@ bash 31-idp-bootstrap-admin.sh   # tạo tài khoản quản trị SSA đầu ti
 
 ```bash
 # --- Điền .env cho QLTS (dùng client_id/secret vừa lấy) ---
-cp env-templates/qlts.env.example  /opt/pmh/QLTS_DE/.env
-nano /opt/pmh/QLTS_DE/.env        # dán PMH_CLIENT_ID/SECRET + secret DB/Redis + hash SA
+cp env-templates/qlts.env.example  ~/QLTS_DE/.env
+nano ~/QLTS_DE/.env        # dán PMH_CLIENT_ID/SECRET + secret DB/Redis + hash SA
 
 bash 40-qlts-up.sh           # lên QLTS (prod, không nạp override)
 bash 90-verify.sh            # kiểm health admin-de + qlts qua cổng 8443
@@ -122,8 +146,11 @@ rồi `git commit && git push`, và trên prod `bash 40-qlts-up.sh` lại:
 
 - **Prod luôn dùng `-f docker-compose.yml` (QLTS) / thêm `-f docker-compose.prod.yml` (admin-de)** — KHÔNG nạp
   `docker-compose.override.yml` (dev). Các script đã làm đúng.
-- **Backup:** PMH ID có `backup-cron` chạy nền (mốc `BACKUP_AT`, mặc định 02:00). Kiểm `BACKUP_DIR`
-  trỏ đĩa **khác** đĩa Docker. QLTS backup theo tài liệu QLTS.
-- **Cập nhật code sau này:** `cd /opt/pmh/<repo> && git pull` rồi chạy lại script `up` tương ứng.
+- **Backup (chạy trong docker):** `backup-cron` tự chạy hằng ngày, ghi vào `~/data-backups`
+  (= `BACKUP_DIR`, nên đặt sang đĩa khác đĩa Docker nếu có). Xem lịch: `cd ~/PMH_IDE &&
+  docker compose --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml logs -f backup-cron`.
+  Bấm 1 bản ngay: `bash ~/script_backups/backup-now.sh`. Phục hồi: `bash ~/script_backups/restore.sh`.
+  QLTS backup theo tài liệu QLTS.
+- **Cập nhật code sau này:** `cd ~/<repo> && git pull` rồi chạy lại script `up` tương ứng.
 - Sao lưu **KEK_BASE64 + COOKIE_KEYS + BACKUP_PASSPHRASE** ra nơi an toàn tách khỏi host —
   mất KEK = mất mọi secret đã mã hóa (TOTP/webhook/SMTP).

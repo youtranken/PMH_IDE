@@ -23,7 +23,7 @@ echo "PMH_WEBHOOK_SECRET=$(openssl rand -hex 32)    # phải KHỚP secret khai 
 echo
 echo "----- LOCAL_SA_PASSWORD_HASH (QLTS) -----"
 echo "Không sinh ở đây (là hash scrypt). Trên máy prod chạy trong repo QLTS:"
-echo "  cd /opt/pmh/QLTS_DE/api && npm run sa:hash -- '<mật-khẩu-SA-mạnh>'"
+echo "  cd ~/QLTS_DE/api && npm run sa:hash -- '<mật-khẩu-SA-mạnh>'"
 echo "rồi dán chuỗi 'scrypt.saltHex.hashHex' vào LOCAL_SA_PASSWORD_HASH."
 echo
 echo "PMH_CLIENT_ID / PMH_CLIENT_SECRET (QLTS): lấy từ UI PMH ID khi đăng ký client (bước giữa runbook)."

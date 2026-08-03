@@ -3,7 +3,7 @@
 # KHÔNG dùng seed-dev.js (dữ liệu dev). Chạy TƯƠNG TÁC: bash 31-idp-bootstrap-admin.sh
 set -euo pipefail
 
-PMH_ROOT="${PMH_ROOT:-/opt/pmh}"
+PMH_ROOT="${PMH_ROOT:-$HOME}"
 IDP="${PMH_ROOT}/PMH_IDE"
 cd "${IDP}"
 COMPOSE=(docker compose --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml)

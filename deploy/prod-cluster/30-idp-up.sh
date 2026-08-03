@@ -3,7 +3,7 @@
 #      up → chờ /api/health. Chạy: bash 30-idp-up.sh
 set -euo pipefail
 
-PMH_ROOT="${PMH_ROOT:-/opt/pmh}"
+PMH_ROOT="${PMH_ROOT:-$HOME}"
 IDP="${PMH_ROOT}/PMH_IDE"
 cd "${IDP}"
 

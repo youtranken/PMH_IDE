@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# 10 — Clone (hoặc cập nhật) 2 repo cho đợt này về /opt/pmh. QLHS làm sau.
-# Chạy: bash 10-clone.sh
+# 10 — Layout prod trong HOME: clone repo + tạo thư mục backup + đặt script backup/restore.
+# Chạy: bash 10-clone.sh   (KHÔNG cần sudo — mọi thứ nằm trong $HOME)
 set -euo pipefail
 
-PMH_ROOT="${PMH_ROOT:-/opt/pmh}"
+PMH_ROOT="${PMH_ROOT:-$HOME}"        # gốc layout = /home/<bạn>
 
-# repo -> nhánh
 IDP_URL="https://github.com/youtranken/PMH_IDE.git"
 QLTS_URL="https://github.com/youtranken/QLTS_DE.git"
 BRANCH_IDP="main"
@@ -24,15 +23,23 @@ clone_or_pull () {
   fi
 }
 
-echo "==> Thư mục gốc: ${PMH_ROOT}"
-sudo mkdir -p "${PMH_ROOT}"
-sudo chown -R "$(id -u):$(id -g)" "${PMH_ROOT}"
-
+echo "==> Layout tại ${PMH_ROOT}"
 clone_or_pull "${IDP_URL}"  "${PMH_ROOT}/PMH_IDE" "${BRANCH_IDP}"
 clone_or_pull "${QLTS_URL}" "${PMH_ROOT}/QLTS_DE" "${BRANCH_QLTS}"
+# QLHS ĐỢT 2 (bỏ comment khi tới lượt):
+# clone_or_pull "https://github.com/youtranken/QLHS_DE.git" "${PMH_ROOT}/QLHS_DE" "main"
+
+echo "==> Tạo thư mục dữ liệu backup + thư mục script backup/restore"
+mkdir -p "${PMH_ROOT}/data-backups" "${PMH_ROOT}/script_backups"
+cp "${PMH_ROOT}/PMH_IDE/deploy/prod-cluster/script_backups/"*.sh "${PMH_ROOT}/script_backups/"
+chmod +x "${PMH_ROOT}/script_backups/"*.sh
 
 echo
-echo "XONG 10. Các script còn lại nằm ở: ${PMH_ROOT}/PMH_IDE/deploy/prod-cluster/"
-echo "Tiếp theo:"
-echo "  cd ${PMH_ROOT}/PMH_IDE/deploy/prod-cluster"
-echo "  bash gen-secrets.sh   # rồi điền .env, đặt cert, chạy 20/30/31/40/90"
+echo "XONG 10. Layout:"
+echo "  ${PMH_ROOT}/PMH_IDE         (idde / IdP)"
+echo "  ${PMH_ROOT}/QLTS_DE         (qlts)"
+echo "  ${PMH_ROOT}/data-backups    (nơi bản backup mã hóa rơi vào — trỏ BACKUP_DIR vào đây)"
+echo "  ${PMH_ROOT}/script_backups  (backup-now.sh, restore.sh — chạy tay khi cần)"
+echo
+echo "Tiếp: cd ${PMH_ROOT}/PMH_IDE/deploy/prod-cluster && bash gen-secrets.sh"
+echo "Nhớ đặt trong PMH_IDE/.env:  BACKUP_DIR=${PMH_ROOT}/data-backups"
