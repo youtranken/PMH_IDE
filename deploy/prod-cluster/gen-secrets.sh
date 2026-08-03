@@ -20,6 +20,7 @@ echo "----- QLTS_DE/.env -----"
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)     # chỉ [A-Za-z0-9] — đã tránh @ : # % phá URL"
 echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
 echo "PMH_WEBHOOK_SECRET=$(openssl rand -hex 32)    # phải KHỚP secret khai ở client QLTS trong PMH ID"
+echo "MAIL_ENC_KEY=$(openssl rand -hex 32)          # mã hoá password SMTP lưu qua UI — KHÔNG đổi sau khi đã lưu"
 echo
 echo "----- LOCAL_SA_PASSWORD_HASH (QLTS) -----"
 echo "Không sinh ở đây (là hash scrypt). Trên máy prod chạy trong repo QLTS:"
