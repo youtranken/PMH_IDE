@@ -81,7 +81,7 @@ nano ~/PMH_IDE/.env        # dán secret từ gen-secrets, sửa CHANGE_ME
 
 bash 20-edge-up.sh           # tạo network edge (subnet ghim) + dựng EDGE nginx
 bash 30-idp-up.sh            # build + init khóa ký (host trắng) + lên PMH ID + chờ health
-bash 31-idp-bootstrap-admin.sh   # tạo tài khoản quản trị SSA đầu tiên (hỏi email/mật khẩu)
+bash 31-idp-bootstrap-admin.sh   # tạo 2 tài khoản: ssa@ (SSA) + sysadmin@ (break-glass) — nhập mật khẩu
 ```
 
 **➡️ Bước thủ công giữa chừng — ĐĂNG KÝ CLIENT QLTS trong UI PMH ID:**
