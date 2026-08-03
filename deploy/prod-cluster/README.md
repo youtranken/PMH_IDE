@@ -158,7 +158,7 @@ rồi `git commit && git push`, và trên prod `bash 40-qlts-up.sh` lại:
 - **Cập nhật code sau này:** `cd ~/<repo> && git pull` rồi chạy lại script `up` tương ứng.
 - Sao lưu **KEK_BASE64 + COOKIE_KEYS + BACKUP_PASSPHRASE** ra nơi an toàn tách khỏi host —
   mất KEK = mất mọi secret đã mã hóa (TOTP/webhook/SMTP).
-- **Trần RAM (cap 16GB cả cụm PMH_IDE + edge):** đặt ở `docker-compose.prod.yml` (postgres 7g,
-  sso-server 6g, portal-fe/backup-cron 512m, backup 1g) + edge 256m = ~15.25g. Đây là **trần**
-  (container bị kill nếu vượt), không phải cấp phát cứng. **QLTS/QLHS nếu chạy CHUNG máy cần RAM
-  riêng NGOÀI 16GB này** — máy nên có RAM tổng > 16GB nếu đặt chung. Chỉnh số trong prod overlay.
+- **Trần RAM (cap 8GB cả cụm PMH_IDE + edge — IdP chỉ xác thực, nhẹ):** đặt ở `docker-compose.prod.yml`
+  (postgres 3g, sso-server 3g, portal-fe/backup-cron 256m, backup 512m) + edge 256m = ~7.25g. Đây là
+  **trần** (container bị kill nếu vượt), không phải cấp phát cứng. **QLTS/QLHS nếu chạy CHUNG máy cần
+  RAM riêng NGOÀI 8GB này.** Chỉnh số trong prod overlay nếu cần.

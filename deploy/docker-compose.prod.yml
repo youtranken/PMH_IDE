@@ -4,36 +4,36 @@
 #
 # ĐỌC docs/ops/prod-checklist.md TRƯỚC KHI CHẠY (secrets, cert, domain, migrate, SSA đầu tiên).
 #
-# TRẦN RAM (mem_limit) cho prod — CAP toàn bộ PMH_IDE (kèm edge) ≤ 16GB:
-#   postgres 7g + sso-server 6g + portal-fe 512m + backup-cron 512m + backup 1g + edge 256m
-#   = ~15.25g (chừa ~0.75g cho OS). Đây là TRẦN (kill nếu vượt), không phải cấp phát cứng.
+# TRẦN RAM (mem_limit) cho prod — CAP toàn bộ PMH_IDE (kèm edge) ≤ 8GB (IdP chỉ xác thực, nhẹ):
+#   postgres 3g + sso-server 3g + portal-fe 256m + backup-cron 256m + backup 512m + edge 256m
+#   = ~7.25g (chừa ~0.75g cho OS). Đây là TRẦN (kill nếu vượt), không phải cấp phát cứng.
 #   Edge nằm ở deploy/edge/docker-compose.yml (mem_limit 256m).
-#   LƯU Ý: QLTS/QLHS (nếu chung máy) cần RAM RIÊNG ngoài 16GB này.
+#   LƯU Ý: QLTS/QLHS (nếu chung máy) cần RAM RIÊNG ngoài 8GB này.
 name: pmh-id
 
 services:
   postgres:
-    mem_limit: 7g
-    mem_reservation: 1g
+    mem_limit: 3g
+    mem_reservation: 512m
 
   sso-server:
-    mem_limit: 6g
-    mem_reservation: 1g
+    mem_limit: 3g
+    mem_reservation: 512m
 
   # FE: phục vụ bản build TĨNH qua Nginx (không phải Vite dev server).
   portal-fe:
     build:
       target: prod
-    mem_limit: 512m
-    mem_reservation: 128m
+    mem_limit: 256m
+    mem_reservation: 64m
 
   backup-cron:
-    mem_limit: 512m
-    mem_reservation: 128m
+    mem_limit: 256m
+    mem_reservation: 64m
 
   # Chạy tay (--profile backup run --rm backup) — không thường trú.
   backup:
-    mem_limit: 1g
+    mem_limit: 512m
 
   # Prod KHÔNG dùng mailpit — cấu hình SMTP thật qua .env (SMTP_HOST/PORT/USER/PASSWORD/FROM).
   mailpit:
