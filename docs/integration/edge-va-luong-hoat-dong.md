@@ -22,11 +22,11 @@ flowchart TB
     net([Internet<br/>người dùng + app]) -->|"HTTPS :443"| edge
 
     subgraph EDGE["stack pmh-edge — mạng edge (external)"]
-      edge["nginx<br/>TLS wildcard *.pmh.com.vn<br/>publish 80/443<br/>alias: id.pmh.com.vn, qlts.pmh.com.vn"]
+      edge["nginx<br/>TLS wildcard *.pmh.com.vn<br/>publish 80/8443<br/>alias: admin-de.pmh.com.vn, qlts.pmh.com.vn"]
     end
 
-    edge -->|"Host id.pmh.com.vn<br/>/oidc /api /docs"| sso
-    edge -->|"Host id.pmh.com.vn<br/>/interaction  /"| fe
+    edge -->|"Host admin-de.pmh.com.vn<br/>/oidc /api /docs"| sso
+    edge -->|"Host admin-de.pmh.com.vn<br/>/interaction  /"| fe
     edge -->|"Host qlts.pmh.com.vn"| qlts
 
     subgraph PMHID["stack pmh-id"]
@@ -56,7 +56,7 @@ flowchart TB
 
 **Routing thực tế trong `id.conf`:**
 
-| Đường dẫn (Host = id.pmh.com.vn) | Chuyển tới |
+| Đường dẫn (Host = admin-de.pmh.com.vn) | Chuyển tới |
 |---|---|
 | `/oidc/*` `/api/*` `/docs` | `sso-server:3000` |
 | `/interaction/*` `/` (mọi thứ còn lại) | `portal-fe:5173` |

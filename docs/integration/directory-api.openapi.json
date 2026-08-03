@@ -160,7 +160,7 @@
   "tags": [],
   "servers": [
     {
-      "url": "https://id.pmh.com.vn",
+      "url": "https://admin-de.pmh.com.vn:8443",
       "description": "Production"
     }
   ],

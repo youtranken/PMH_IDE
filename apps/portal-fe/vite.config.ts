@@ -32,8 +32,8 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    // Sau Nginx: Host do proxy đặt (localhost dev / id.pmh.com.vn prod)
-    allowedHosts: ["localhost", "id.pmh.com.vn"],
+    // Sau Nginx: Host do proxy đặt (localhost dev / admin-de.pmh.com.vn prod)
+    allowedHosts: ["localhost", "admin-de.pmh.com.vn"],
     hmr: {
       protocol: "wss",
       clientPort: publicHttpsPort,

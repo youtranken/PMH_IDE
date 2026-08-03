@@ -35,11 +35,14 @@ openssl rand -base64 24                 # → BACKUP_PASSPHRASE=...
 - [ ] `BACKUP_PASSPHRASE` mới, **cất offline** (cần để giải mã backup — xem runbook §1).
 
 ### 2. Domain, môi trường, TLS
+> Domain công khai = **`admin-de.pmh.com.vn`**, cổng **`8443`**. Mọi URL công khai mang `:8443`.
 - [ ] `NODE_ENV=production`.
-- [ ] `OIDC_ISSUER=https://id.pmh.com.vn/oidc` (KHÔNG localhost). Issuer đổi = mọi client phải cập nhật.
-- [ ] DNS `id.pmh.com.vn` → IP host prod.
+- [ ] `OIDC_ISSUER=https://admin-de.pmh.com.vn:8443/oidc` (KHÔNG localhost, PHẢI có `:8443`). Issuer đổi = mọi client (QLTS/QLHS) phải cập nhật khớp cả cổng.
+- [ ] `PORTAL_REDIRECT_URI=https://admin-de.pmh.com.vn:8443/auth/callback` (redirect_uris/post-logout của portal suy từ đây; sai cổng = `invalid_redirect_uri`).
+- [ ] DNS `admin-de.pmh.com.vn` → IP host prod.
+- [ ] Edge nginx `listen 8443` và publish **`8443:8443`** (không `8443:443`) — để app nội bộ gọi issuer `:8443` cũng trúng. Cert wildcard phủ `admin-de.pmh.com.vn`.
 - [ ] **Cert TLS thật** đặt vào `deploy/nginx/certs/` (thay cert tự ký của `gen-certs.sh`). Tên file `fullchain.pem`/`privkey.pem` khớp `deploy/edge/conf.d/*.conf`; EDGE mount thư mục này.
-- [ ] Kiểm `allowedHosts` FE đã có `id.pmh.com.vn` (đã có sẵn trong `vite.config.ts`, chỉ ảnh hưởng dev).
+- [ ] Kiểm `allowedHosts` FE đã có `admin-de.pmh.com.vn` (đã có sẵn trong `vite.config.ts`, chỉ ảnh hưởng dev).
 
 ### 3. SMTP thật (cấu hình ở FE: Cấu hình → Email)
 - [ ] Vào **Cấu hình → Email** đặt: `smtp_host` (Gmail: `smtp.gmail.com`), `smtp_port`

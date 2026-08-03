@@ -180,7 +180,7 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: "easeOut" }}
         >
-          <div className="pmh-hero__eyebrow">Phòng thiết kế dự án · PMH ID</div>
+          <div className="pmh-hero__eyebrow">Phòng công trình - thiết kế dự án · PMH ID</div>
           <h1 className="pmh-hero__title">
             Xin chào, <em>{firstName || "bạn"}</em>
           </h1>

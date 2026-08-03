@@ -47,7 +47,7 @@ export class PasswordResetService {
         /* rơi xuống mặc định */
       }
     }
-    return "https://id.pmh.com.vn";
+    return "https://admin-de.pmh.com.vn:8443";
   }
 
   /**

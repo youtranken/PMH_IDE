@@ -31,7 +31,7 @@ app mới: điền **Phiếu 1** gửi admin PMH ID → nhận lại **Phiếu 2
 |---|---|---|
 | 1 | `client_id` + `client_secret` | **Secret hiện MỘT LẦN**, lưu hash — mất phải rotate. Giữ kỹ, đừng commit |
 | 2 | `webhook_secret` *(nếu bật webhook)* | Cũng **một lần** — dùng verify HMAC chữ ký |
-| 3 | Discovery URL | `https://id.pmh.com.vn/oidc/.well-known/openid-configuration` — chỉ cần cái này, thư viện tự suy phần còn lại |
+| 3 | Discovery URL | `https://admin-de.pmh.com.vn:8443/oidc/.well-known/openid-configuration` — chỉ cần cái này, thư viện tự suy phần còn lại |
 | 4 | Xác nhận nhóm đã gán | Để project biết user nào login được |
 | 5 | Tài liệu | [`README.md`](./README.md) (cách code) + [`edge-va-luong-hoat-dong.md`](./edge-va-luong-hoat-dong.md) (tham khảo nội bộ: hiểu EDGE) |
 

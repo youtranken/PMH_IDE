@@ -290,15 +290,11 @@ export default function InteractionLogin({ uid }: { uid: string }) {
             <img src="/logo-phu-my-hung.png" alt="Phú Mỹ Hưng" />
           </div>
           <div className="pmh-auth__eyebrow" style={{ marginTop: 30 }}>
-            Phòng thiết kế dự án · Bất động sản
+            Phòng công trình - thiết kế dự án · Bất động sản
           </div>
           <h1>
-            Một tài khoản,<br />mọi <em>dự án</em> của công ty.
+            Một tài khoản,<br />mọi <em>dự án</em>.
           </h1>
-          <p>
-            Cổng đăng nhập chung của PMH — an toàn, tập trung. Đăng nhập một lần,
-            mở mọi phối cảnh, hồ sơ và ứng dụng nội bộ.
-          </p>
           <div className="pmh-auth__rule" />
         </div>
         <div className="pmh-authcard">

@@ -155,10 +155,10 @@ export async function createOidcProvider(
   const portalRedirects = config.get("PORTAL_REDIRECT_URI")
     ? config.get<string>("PORTAL_REDIRECT_URI")!.split(",").map((s) => s.trim())
     : [
-        // EDGE nginx phục vụ portal ở cổng 443 (không port trong URL). Cổng 9443
-        // cũ đã bỏ khi gộp về EDGE chung — redirect_uri phải khớp location.origin
-        // của SPA (https://id.pmh.com.vn) nếu không authorize trả invalid_redirect_uri.
-        "https://id.pmh.com.vn/auth/callback",
+        // EDGE nginx phục vụ portal ở cổng công khai 8443 — redirect_uri PHẢI khớp
+        // location.origin của SPA (gồm cả :8443) nếu không authorize trả
+        // invalid_redirect_uri. Prod đặt PORTAL_REDIRECT_URI để không phụ thuộc default này.
+        "https://admin-de.pmh.com.vn:8443/auth/callback",
         "https://localhost/auth/callback",
       ];
   const portalPostLogout = Array.from(
@@ -173,7 +173,7 @@ export async function createOidcProvider(
     client_id: config.get("PORTAL_CLIENT_ID") ?? "pmh-portal",
     token_endpoint_auth_method: "none",
     // SPA dùng location.origin → redirect_uris suy từ PORTAL_REDIRECT_URI
-    // (prod đặt domain thật; mặc định đã là https://id.pmh.com.vn).
+    // (prod đặt domain thật; mặc định đã là https://admin-de.pmh.com.vn:8443).
     redirect_uris: portalRedirects,
     // Đăng xuất portal đi qua end_session rồi quay về origin "/" (đăng xuất
     // THẬT, hủy phiên SSO) — phải khai địa chỉ này.

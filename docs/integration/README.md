@@ -1,6 +1,6 @@
 # PMH ID — Hướng dẫn tích hợp cho Developer
 
-> Tài liệu cho dev các project nội bộ tích hợp đăng nhập chung qua **PMH ID** (`https://id.pmh.com.vn`).
+> Tài liệu cho dev các project nội bộ tích hợp đăng nhập chung qua **PMH ID** (`https://admin-de.pmh.com.vn:8443`, cổng công khai **8443**).
 > Bản này bám theo Architecture Spine + PRD (2026-07-04). Có thắc mắc hoặc cần cấp client → liên hệ SSA.
 
 ---
@@ -36,18 +36,18 @@ Bạn chỉ cần lo **kịch bản B** (thư viện OIDC lo hết phần redire
 
 | Thứ | Giá trị |
 |---|---|
-| Issuer | `https://id.pmh.com.vn/oidc` |
-| Discovery | `https://id.pmh.com.vn/oidc/.well-known/openid-configuration` |
-| Authorization | `https://id.pmh.com.vn/oidc/authorize` |
-| Token | `https://id.pmh.com.vn/oidc/token` |
-| JWKS (public key) | `https://id.pmh.com.vn/oidc/jwks` |
-| UserInfo | `https://id.pmh.com.vn/oidc/userinfo` |
-| Logout | `https://id.pmh.com.vn/oidc/logout` |
-| Directory API | `https://id.pmh.com.vn/api/v1/...` |
+| Issuer | `https://admin-de.pmh.com.vn:8443/oidc` |
+| Discovery | `https://admin-de.pmh.com.vn:8443/oidc/.well-known/openid-configuration` |
+| Authorization | `https://admin-de.pmh.com.vn:8443/oidc/authorize` |
+| Token | `https://admin-de.pmh.com.vn:8443/oidc/token` |
+| JWKS (public key) | `https://admin-de.pmh.com.vn:8443/oidc/jwks` |
+| UserInfo | `https://admin-de.pmh.com.vn:8443/oidc/userinfo` |
+| Logout | `https://admin-de.pmh.com.vn:8443/oidc/logout` |
+| Directory API | `https://admin-de.pmh.com.vn:8443/api/v1/...` |
 
 > **Luôn dùng Discovery URL** thay vì hardcode từng endpoint — thư viện OIDC tự đọc cấu hình từ đó, và nếu endpoint đổi thì bạn không phải sửa code.
 >
-> **Prod vs môi trường local:** URL **giống hệt nhau** — cùng `https://id.pmh.com.vn` (cổng 443). Từ khi gộp về EDGE nginx chung, môi trường dev **không còn cổng `:9443`**. Khi test trên máy dev chỉ cần: thêm dòng hosts `127.0.0.1 id.pmh.com.vn`, và **chấp nhận cert tự ký** (dev dùng self-signed; prod là cert wildcard thật). Vẫn chỉ nên trỏ thư viện vào Discovery URL rồi để nó tự suy ra phần còn lại.
+> **Prod vs môi trường local:** URL **giống hệt nhau** — cùng `https://admin-de.pmh.com.vn:8443` (cổng công khai **8443**). Khi test trên máy dev chỉ cần: thêm dòng hosts `127.0.0.1 admin-de.pmh.com.vn`, và **chấp nhận cert tự ký** (dev dùng self-signed; prod là cert wildcard thật). Vẫn chỉ nên trỏ thư viện vào Discovery URL rồi để nó tự suy ra phần còn lại.
 
 **Bạn cần khai với admin khi xin client:**
 - `redirect_uris`: URL callback của app, ví dụ `https://pmh.com.vn/projectA/auth/callback`.
@@ -70,7 +70,7 @@ Access token là JWT ký RS256. Claims (hợp đồng **`ver`** — sẽ báo tr
   "full_name": "Nguyễn Văn An",
   "groups": ["Kế toán", "Hành chính"],
   "ver": 1,
-  "iss": "https://id.pmh.com.vn/oidc",
+  "iss": "https://admin-de.pmh.com.vn:8443/oidc",
   "aud": "your_client_id",
   "exp": 1751600000
 }
@@ -86,7 +86,7 @@ import * as client from 'openid-client';
 
 // 1. Đọc cấu hình từ Discovery (không hardcode endpoint)
 const config = await client.discovery(
-  new URL('https://id.pmh.com.vn/oidc'),
+  new URL('https://admin-de.pmh.com.vn:8443/oidc'),
   process.env.PMH_CLIENT_ID,
   process.env.PMH_CLIENT_SECRET,
 );
@@ -125,11 +125,11 @@ Các ngôn ngữ khác: dùng thư viện OIDC certified tương ứng (PHP: `ju
 ```js
 import * as jose from 'jose';
 
-const JWKS = jose.createRemoteJWKSet(new URL('https://id.pmh.com.vn/oidc/jwks'));
+const JWKS = jose.createRemoteJWKSet(new URL('https://admin-de.pmh.com.vn:8443/oidc/jwks'));
 
 async function verify(accessToken) {
   const { payload } = await jose.jwtVerify(accessToken, JWKS, {
-    issuer: 'https://id.pmh.com.vn/oidc',
+    issuer: 'https://admin-de.pmh.com.vn:8443/oidc',
     audience: process.env.PMH_CLIENT_ID,
   });
   return payload; // đã xác thực; dùng payload.sub, payload.groups
@@ -173,7 +173,7 @@ app.get('/logout', (req, res) => {
 
 ```
 # Đăng xuất TOÀN HỆ (kết thúc phiên SSO):
-https://id.pmh.com.vn/oidc/logout
+https://admin-de.pmh.com.vn:8443/oidc/logout
     ?id_token_hint=<id_token nhận lúc login>
     &post_logout_redirect_uri=https%3A%2F%2Fqlts.pmh.com.vn   # url-encode; khớp hệt app_url
 
@@ -221,12 +221,12 @@ Mặc định khi phiên SSO kết thúc (user "Đăng xuất khỏi PMH ID", ho
 
 ```js
 import * as jose from 'jose';
-const JWKS = jose.createRemoteJWKSet(new URL('https://id.pmh.com.vn/oidc/jwks'));
+const JWKS = jose.createRemoteJWKSet(new URL('https://admin-de.pmh.com.vn:8443/oidc/jwks'));
 
 app.post('/backchannel-logout', express.urlencoded({ extended: false }), async (req, res) => {
   try {
     const { payload } = await jose.jwtVerify(req.body.logout_token, JWKS, {
-      issuer: 'https://id.pmh.com.vn/oidc',
+      issuer: 'https://admin-de.pmh.com.vn:8443/oidc',
       audience: process.env.PMH_CLIENT_ID,
     });
     const isLogout = payload.events?.['http://schemas.openid.net/event/backchannel-logout'];
@@ -280,12 +280,12 @@ Dùng khi app cần danh sách user **không phụ thuộc việc họ đã đă
 
 ```bash
 # 1. Lấy token M2M
-curl -X POST https://id.pmh.com.vn/oidc/token \
+curl -X POST https://admin-de.pmh.com.vn:8443/oidc/token \
   -u "$CLIENT_ID:$CLIENT_SECRET" \
   -d "grant_type=client_credentials"
 
 # 2. Gọi Directory API
-curl https://id.pmh.com.vn/api/v1/users?group=Kế%20toán \
+curl https://admin-de.pmh.com.vn:8443/api/v1/users?group=Kế%20toán \
   -H "Authorization: Bearer <token>"
 ```
 

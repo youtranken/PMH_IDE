@@ -201,7 +201,7 @@ async function bootstrap() {
       .setVersion("1")
       // Path trong spec đã gồm global-prefix /api → server là GỐC domain (tránh
       // nhân đôi /api/api/...).
-      .addServer("https://id.pmh.com.vn", "Production")
+      .addServer("https://admin-de.pmh.com.vn:8443", "Production")
       .addBearerAuth(
         { type: "http", scheme: "bearer", description: "access_token từ client_credentials grant" },
         "client-credentials",
