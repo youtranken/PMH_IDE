@@ -19,14 +19,9 @@ if grep -vE '^[[:space:]]*#' "$ENVF" | grep -q CHANGE_ME; then
   echo "!! ${ENVF} còn CHANGE_ME (OIDC_CLIENT_SECRET + QLHS_LOCAL_ADMIN_PASSWORD) — điền trước." >&2
   exit 1
 fi
-for f in fullchain.pem private.key; do
-  if [ ! -s "pmh.com.vn/$f" ]; then
-    echo "!! Thiếu ${QLHS}/pmh.com.vn/$f — copy cert vào (web nginx cần):" >&2
-    echo "   mkdir -p ${QLHS}/pmh.com.vn && cp ~/pmh.com.vn/fullchain.pem ~/pmh.com.vn/private.key ${QLHS}/pmh.com.vn/" >&2
-    exit 1
-  fi
-done
+# KHÔNG cần cert riêng cho QLHS: prod overlay cho web chạy chỉ :80, edge lo cert chung.
 grep -q 'OIDC_ISSUER=https://admin-de.pmh.com.vn:8443/oidc' "$ENVF" || echo "   ⚠️ OIDC_ISSUER nên là https://admin-de.pmh.com.vn:8443/oidc"
+grep -q 'OIDC_CLIENT_ID=qlhs' "$ENVF" || echo "   ⚠️ OIDC_CLIENT_ID phải KHỚP client đăng ký ở PMH ID (vd 'qlhs')."
 
 echo "==> [1/4] Kiểm mạng edge"
 docker network inspect edge >/dev/null 2>&1 || { echo "!! Chưa có mạng edge (dựng PMH ID trước)." >&2; exit 1; }
@@ -37,7 +32,7 @@ echo "==> [2/4] Lên QLHS (base + prod overlay — web+api join edge)"
 echo "==> [3/4] Chờ QLHS health qua edge (~90s: migrate + boot)"
 ok=0
 for i in $(seq 1 30); do
-  code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: qlhs.pmh.com.vn' https://localhost:8443/health || true)
+  code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: qlhs.pmh.com.vn' https://localhost:8443/api/health || true)
   [[ "$code" == "200" ]] && { ok=1; echo "    health OK (200)"; break; }
   echo "    ...chờ (HTTP ${code:-x}) ${i}/30"; sleep 3
 done
