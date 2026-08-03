@@ -27,8 +27,8 @@ clone_or_pull () {
 echo "==> Layout tại ${PMH_ROOT}"
 clone_or_pull "${IDP_URL}"  "${IDP}"                 "${BRANCH_IDP}"
 clone_or_pull "${QLTS_URL}" "${PMH_ROOT}/QLTS_DE"    "${BRANCH_QLTS}"
-# QLHS ĐỢT 2 (bỏ comment khi tới lượt):
-# clone_or_pull "https://github.com/youtranken/QLHS_DE.git" "${PMH_ROOT}/QLHS_DE" "main"
+# QLHS (nhánh chính của QLHS là 'master', không phải main)
+clone_or_pull "https://github.com/youtranken/QLHS_DE.git" "${PMH_ROOT}/QLHS_DE" "master"
 
 echo "==> Tạo thư mục backup TRONG PMH_IDE (đã .gitignore, git không đụng tới)"
 mkdir -p "${IDP}/data-backups"
