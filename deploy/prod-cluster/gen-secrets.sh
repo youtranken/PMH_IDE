@@ -19,7 +19,9 @@ echo
 echo "----- QLTS_DE/.env -----"
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)     # chỉ [A-Za-z0-9] — đã tránh @ : # % phá URL"
 echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
-echo "PMH_WEBHOOK_SECRET=$(openssl rand -hex 32)    # phải KHỚP secret khai ở client QLTS trong PMH ID"
+# PMH_WEBHOOK_SECRET (QLTS & QLHS): KHÔNG sinh ở đây — PMH ID TỰ SINH khi bạn khai
+#   webhook_url trên client (hiện 1 LẦN) rồi dán vào PMH_WEBHOOK_SECRET của app.
+#   Bỏ trống nếu KHÔNG dùng offboarding webhook.
 echo "MAIL_ENC_KEY=$(openssl rand -hex 32)          # mã hoá password SMTP lưu qua UI — KHÔNG đổi sau khi đã lưu"
 echo
 echo "----- QLHS_DE/.env  (GỐC repo — bản siết bảo mật DB) -----"
