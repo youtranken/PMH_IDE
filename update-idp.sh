@@ -28,7 +28,7 @@ echo "==> [4/5] Recreate container"
 echo "==> [5/5] Chờ /api/health"
 ok=0
 for i in $(seq 1 30); do
-  code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: admin-de.pmh.com.vn' https://localhost:8443/api/health || true)
+  code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: de-admin.pmh.com.vn' https://localhost:8443/api/health || true)
   [[ "$code" == "200" ]] && { ok=1; echo "    health OK (200)"; break; }
   echo "    ...chờ (HTTP ${code:-x}) ${i}/30"; sleep 3
 done
