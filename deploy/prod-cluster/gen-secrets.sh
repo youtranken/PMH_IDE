@@ -25,6 +25,7 @@ echo
 echo "----- QLHS_DE/.env  (GỐC repo — bản siết bảo mật DB) -----"
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)     # chìa superuser DB (thay 'qlhs')"
 echo "QLHS_APP_PASSWORD=$(openssl rand -hex 24)     # chìa app-role qlhs_app (thay 'qlhs_app')"
+echo "CONFIG_ENC_KEY=$(openssl rand -base64 48)     # mã hoá password SMTP lưu qua UI — KHÔNG đổi sau khi đã lưu"
 echo
 echo "----- LOCAL_SA_PASSWORD_HASH (QLTS) -----"
 echo "Không sinh ở đây (là hash scrypt). Trên máy prod chạy trong repo QLTS:"
