@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 50 — Lên QLHS trong cụm edge (base + prod overlay). Yêu cầu: đã đăng ký client QLHS ở PMH ID,
-# điền apps/api/.env, đặt cert vào QLHS_DE/pmh.com.vn. Chạy: bash 50-qlhs-up.sh
+# điền .env (GỐC repo ~/QLHS_DE/.env). Cert do EDGE lo — QLHS KHÔNG cần cert riêng. Chạy: bash 50-qlhs-up.sh
 set -euo pipefail
 
 PMH_ROOT="${PMH_ROOT:-$HOME}"

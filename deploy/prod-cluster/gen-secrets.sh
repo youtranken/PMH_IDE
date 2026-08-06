@@ -22,7 +22,7 @@ echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
 echo "PMH_WEBHOOK_SECRET=$(openssl rand -hex 32)    # phải KHỚP secret khai ở client QLTS trong PMH ID"
 echo "MAIL_ENC_KEY=$(openssl rand -hex 32)          # mã hoá password SMTP lưu qua UI — KHÔNG đổi sau khi đã lưu"
 echo
-echo "----- QLHS_DE/apps/api/.env (bản siết bảo mật DB) -----"
+echo "----- QLHS_DE/.env  (GỐC repo — bản siết bảo mật DB) -----"
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)     # chìa superuser DB (thay 'qlhs')"
 echo "QLHS_APP_PASSWORD=$(openssl rand -hex 24)     # chìa app-role qlhs_app (thay 'qlhs_app')"
 echo
