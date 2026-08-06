@@ -13,7 +13,8 @@ export function sceneKindFor(name: string): Kind {
   if (/(hồ sơ|ho so|record|văn bản|van ban|tài liệu|tai lieu)/.test(s)) return "records";
   if (/(tài sản|tai san|asset|bất động|bat dong|property|kho)/.test(s)) return "assets";
   if (/(văn phòng phẩm|van phong pham|vpp|stationery|supplies|bút|but|giấy in)/.test(s)) return "supplies";
-  if (/(mượn|muon|máy tính|may tinh|thiết bị|thiet bi|device|laptop|equipment)/.test(s)) return "devices";
+  // Thiết bị/mượn gộp vào QLTS: QLTS nay quản cả tài sản lẫn mượn thiết bị → dùng chung AssetHolo3D (kind "assets").
+  if (/(mượn|muon|máy tính|may tinh|thiết bị|thiet bi|device|laptop|equipment)/.test(s)) return "assets";
   return "city";
 }
 
