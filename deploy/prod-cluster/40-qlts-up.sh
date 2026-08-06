@@ -18,8 +18,8 @@ if grep -vE '^[[:space:]]*#' "${QLTS}/.env" | grep -q "CHANGE_ME"; then
   exit 1
 fi
 # Cảnh báo bất biến :8443
-grep -q 'APP_BASE_URL=https://qlts.pmh.com.vn:8443' "${QLTS}/.env" || echo "   ⚠️  APP_BASE_URL nên là https://qlts.pmh.com.vn:8443 (có :8443)."
-grep -q 'PMH_ISSUER_URL=https://admin-de.pmh.com.vn:8443/oidc' "${QLTS}/.env" || echo "   ⚠️  PMH_ISSUER_URL nên là https://admin-de.pmh.com.vn:8443/oidc."
+grep -q 'APP_BASE_URL=https://de-qlts.pmh.com.vn:8443' "${QLTS}/.env" || echo "   ⚠️  APP_BASE_URL nên là https://de-qlts.pmh.com.vn:8443 (có :8443)."
+grep -q 'PMH_ISSUER_URL=https://de-admin.pmh.com.vn:8443/oidc' "${QLTS}/.env" || echo "   ⚠️  PMH_ISSUER_URL nên là https://de-admin.pmh.com.vn:8443/oidc."
 
 echo "==> [1/3] Kiểm mạng edge"
 docker network inspect edge >/dev/null 2>&1 || { echo "!! Chưa có mạng edge (chạy 20-edge-up.sh)." >&2; exit 1; }
@@ -30,7 +30,7 @@ docker compose -f docker-compose.yml up -d --build
 echo "==> [3/3] Chờ QLTS health (~90s: migrate + boot)"
 ok=0
 for i in $(seq 1 30); do
-  code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: qlts.pmh.com.vn' https://localhost:8443/api/health || true)
+  code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: de-qlts.pmh.com.vn' https://localhost:8443/api/health || true)
   if [[ "${code}" == "200" ]]; then ok=1; echo "    health OK (200)"; break; fi
   echo "    ...chưa sẵn sàng (HTTP ${code:-x}), thử lại ${i}/30"; sleep 3
 done

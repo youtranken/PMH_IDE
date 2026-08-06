@@ -15,12 +15,12 @@ check () {
   fi
 }
 
-echo "== EDGE / PMH ID (admin-de) =="
-check "admin-de /api/health" "admin-de.pmh.com.vn" "/api/health" 200
-check "admin-de trang chủ"    "admin-de.pmh.com.vn" "/"            200
+echo "== EDGE / PMH ID (de-admin) =="
+check "de-admin /api/health" "de-admin.pmh.com.vn" "/api/health" 200
+check "de-admin trang chủ"    "de-admin.pmh.com.vn" "/"            200
 
 echo "== QLTS =="
-check "qlts /api/health"  "qlts.pmh.com.vn" "/api/health" 200
+check "qlts /api/health"  "de-qlts.pmh.com.vn" "/api/health" 200
 
 echo "== Host lạ phải bị chặn (444/000) =="
 code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: khong-ton-tai.example' "https://localhost:8443/" || echo "000")
@@ -29,5 +29,5 @@ echo "  host lạ → HTTP ${code} (444/000 = tốt: edge không lộ app mặc 
 echo
 echo "Kết quả: ${pass} pass / ${fail} fail."
 echo "⚠️  Đây chỉ là kiểm nội bộ. BẮT BUỘC test thật trên trình duyệt (ngoài Internet + trong LAN):"
-echo "   https://admin-de.pmh.com.vn:8443  và  https://qlts.pmh.com.vn:8443 → đăng nhập SSO tròn vòng."
+echo "   https://de-admin.pmh.com.vn:8443  và  https://de-qlts.pmh.com.vn:8443 → đăng nhập SSO tròn vòng."
 [[ "${fail}" -eq 0 ]] || exit 1

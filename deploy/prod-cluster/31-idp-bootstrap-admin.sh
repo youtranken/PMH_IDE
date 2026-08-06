@@ -29,7 +29,7 @@ read -rsp "Nhập lại: " SA_PW2; echo
   sso-server node scripts/seed-prod.js
 
 echo
-echo "XONG 31. Đăng nhập https://admin-de.pmh.com.vn:8443 bằng ssa@ → BẬT MFA → đổi mật khẩu."
+echo "XONG 31. Đăng nhập https://de-admin.pmh.com.vn:8443 bằng ssa@ → BẬT MFA → đổi mật khẩu."
 echo "sysadmin@ (break-glass): chỉ dùng khi kẹt MFA/SSO, cất mật khẩu OFFLINE."
 echo "TIẾP: trong UI → Ứng dụng SSO → đăng ký client QLTS"
-echo "  redirect_uri = https://qlts.pmh.com.vn:8443/api/auth/callback → điền QLTS_DE/.env → bash 40-qlts-up.sh"
+echo "  redirect_uri = https://de-qlts.pmh.com.vn:8443/api/auth/callback → điền QLTS_DE/.env → bash 40-qlts-up.sh"

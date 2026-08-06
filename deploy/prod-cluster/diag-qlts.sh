@@ -17,13 +17,13 @@ docker compose -f "$EDGE_F" ps 2>/dev/null
 echo "--- qlts ---"
 ( cd "$QLTS" && docker compose -f docker-compose.yml ps 2>/dev/null )
 
-line "2) Health qua EDGE (so admin-de / qlts / qlhs)"
-for h in admin-de.pmh.com.vn qlts.pmh.com.vn qlhs.pmh.com.vn; do
+line "2) Health qua EDGE (so de-admin / qlts / qlhs)"
+for h in de-admin.pmh.com.vn de-qlts.pmh.com.vn de-qlhs.pmh.com.vn; do
   echo -n "  $h/api/health -> "
   curl -sk -o /dev/null -w '%{http_code}\n' -H "Host: $h" https://localhost:8443/api/health
 done
-echo -n "  qlts.pmh.com.vn/api/auth/me -> "
-curl -sk -o /dev/null -w '%{http_code}\n' -H "Host: qlts.pmh.com.vn" https://localhost:8443/api/auth/me
+echo -n "  de-qlts.pmh.com.vn/api/auth/me -> "
+curl -sk -o /dev/null -w '%{http_code}\n' -H "Host: de-qlts.pmh.com.vn" https://localhost:8443/api/auth/me
 
 line "3) QLTS api TRỰC TIẾP (bỏ qua edge/web) — chứng minh api có route"
 ( cd "$QLTS"
@@ -32,7 +32,7 @@ line "3) QLTS api TRỰC TIẾP (bỏ qua edge/web) — chứng minh api có rou
 )
 
 line "4) Path mà api QLTS NHẬN khi request đi QUA edge (probe ZQZ777)"
-curl -sk -H "Host: qlts.pmh.com.vn" "https://localhost:8443/api/ZQZ777" >/dev/null 2>&1
+curl -sk -H "Host: de-qlts.pmh.com.vn" "https://localhost:8443/api/ZQZ777" >/dev/null 2>&1
 sleep 1
 ( cd "$QLTS" && docker compose -f docker-compose.yml logs --since 30s api 2>/dev/null | grep -oiE '"url":"[^"]*"' | grep -i zqz ) \
   || echo "  → api QLTS KHÔNG nhận ZQZ777 (edge gửi đi backend khác)"

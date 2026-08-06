@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 30 — Lên PMH ID (admin-de) theo overlay prod: build → init khóa ký (nếu host trắng) →
+# 30 — Lên PMH ID (de-admin) theo overlay prod: build → init khóa ký (nếu host trắng) →
 #      up → chờ /api/health. Chạy: bash 30-idp-up.sh
 set -euo pipefail
 
@@ -40,7 +40,7 @@ echo "==> [4/5] Lên toàn stack PMH ID (prod: FE tĩnh, tắt mailpit)"
 echo "==> [5/5] Chờ /api/health (tối đa ~90s; migration chạy lần đầu có thể lâu)"
 ok=0
 for i in $(seq 1 30); do
-  code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: admin-de.pmh.com.vn' https://localhost:8443/api/health || true)
+  code=$(curl -sk -o /dev/null -w '%{http_code}' -H 'Host: de-admin.pmh.com.vn' https://localhost:8443/api/health || true)
   if [[ "${code}" == "200" ]]; then ok=1; echo "    health OK (200)"; break; fi
   echo "    ...chưa sẵn sàng (HTTP ${code:-x}), thử lại ${i}/30"; sleep 3
 done

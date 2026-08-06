@@ -1,7 +1,7 @@
-# Triển khai PROD cụm PMH — EDGE + PMH ID (admin-de) + QLTS
+# Triển khai PROD cụm PMH — EDGE + PMH ID (de-admin) + QLTS
 
 > Bộ script cho **người mới**, chỉ lo **hạ tầng**. Nghiệp vụ từng app nằm ngoài phạm vi.
-> Phạm vi đợt này: **EDGE nginx + PMH ID (admin-de.pmh.com.vn) + QLTS**. QLHS làm sau.
+> Phạm vi đợt này: **EDGE nginx + PMH ID (de-admin.pmh.com.vn) + QLTS**. QLHS làm sau.
 > Cổng công khai của cụm = **8443** (không dùng 443). Mọi URL công khai mang `:8443`.
 
 ---
@@ -26,7 +26,7 @@ Các script tự dựng đúng bố cục này (`10-clone.sh` lo tạo):
 - ⚠️ `data-backups` nằm TRONG PMH_IDE (đã .gitignore) → gọn, nhưng nhớ **copy bản `.enc` ra ngoài
   máy định kỳ** (đĩa khác/máy khác): xóa/clone lại PMH_IDE là mất backup nếu chỉ có ở đây.
 
-**Phân đợt:** đợt này **PMH ID (admin-de) + QLTS**. Xong, chạy ổn rồi mới **đưa QLHS** (đợt 2:
+**Phân đợt:** đợt này **PMH ID (de-admin) + QLTS**. Xong, chạy ổn rồi mới **đưa QLHS** (đợt 2:
 bỏ comment dòng clone QLHS trong `10-clone.sh`, thêm `deploy/edge/conf.d/qlhs.conf`, vá compose QLHS
 join edge — sẽ hướng dẫn khi tới lượt).
 
@@ -36,10 +36,10 @@ join edge — sẽ hướng dẫn khi tới lượt).
 
 Làm xong 3 việc này rồi mới chạy script. Chi tiết trong `docs/ops/TRIEN_KHAI_PROD_CLUSTER_8443.md` §4 (bước A–E).
 
-1. **DNS nội bộ (AD):** tạo 3 zone FQDN riêng, mỗi zone 1 record A tại gốc `@` → **IP host prod**
-   (`admin-de.pmh.com.vn`, `qlts.pmh.com.vn`, và sau này `qlhs.pmh.com.vn`).
+1. **DNS nội bộ (AD):** tạo zone FQDN riêng cho MỖI app, mỗi zone 1 record A tại gốc `@` → **IP host prod**
+   (`de-admin.pmh.com.vn`, `de-qlts.pmh.com.vn`, `de-qlhs.pmh.com.vn`, và `de-vpp.pmh.com.vn` — VPP làm sau).
    ⚠️ ĐỪNG tạo nguyên zone `pmh.com.vn` (sẽ chiếm hết `*.pmh.com.vn`).
-2. **DNS công cộng (PA):** 3 record A cùng trỏ **IP public**.
+2. **DNS công cộng (PA):** mỗi domain 1 record A cùng trỏ **IP public**.
 3. **Firewall Sophos:** DNAT `#Port2:8443 → <IP host>:8443` — **giữ 8443, KHÔNG dịch về 443**;
    thêm policy cho LAN → host:8443 Allow.
 
@@ -87,9 +87,9 @@ bash 31-idp-bootstrap-admin.sh   # tạo 2 tài khoản: ssa@ (SSA) + sysadmin@ 
 ```
 
 **➡️ Bước thủ công giữa chừng — ĐĂNG KÝ CLIENT QLTS trong UI PMH ID:**
-1. Mở `https://admin-de.pmh.com.vn:8443`, đăng nhập bằng SSA vừa tạo.
+1. Mở `https://de-admin.pmh.com.vn:8443`, đăng nhập bằng SSA vừa tạo.
 2. Vào **Ứng dụng SSO → tạo client** cho QLTS:
-   - `redirect_uri` = `https://qlts.pmh.com.vn:8443/api/auth/callback` (đúng từng ký tự, có `:8443`).
+   - `redirect_uri` = `https://de-qlts.pmh.com.vn:8443/api/auth/callback` (đúng từng ký tự, có `:8443`).
    - Lưu lại `client_id` + `client_secret` (secret chỉ hiện 1 lần).
 3. Nếu có webhook offboarding: đặt `PMH_WEBHOOK_SECRET` chung cho QLTS.
 
@@ -99,12 +99,12 @@ cp env-templates/qlts.env.example  ~/QLTS_DE/.env
 nano ~/QLTS_DE/.env        # dán PMH_CLIENT_ID/SECRET + secret DB/Redis + hash SA
 
 bash 40-qlts-up.sh           # lên QLTS (prod, không nạp override)
-bash 90-verify.sh            # kiểm health admin-de + qlts qua cổng 8443
+bash 90-verify.sh            # kiểm health de-admin + de-qlts qua cổng 8443
 ```
 
 Cuối cùng **verify THẬT** từ trình duyệt (cả ngoài Internet lẫn trong LAN):
-- `https://admin-de.pmh.com.vn:8443` → trang login + khóa xanh.
-- `https://qlts.pmh.com.vn:8443` → bấm đăng nhập → nhảy sang admin-de → quay về QLTS (SSO chạy).
+- `https://de-admin.pmh.com.vn:8443` → trang login + khóa xanh.
+- `https://de-qlts.pmh.com.vn:8443` → bấm đăng nhập → nhảy sang de-admin → quay về QLTS (SSO chạy).
 
 ---
 
@@ -112,24 +112,24 @@ Cuối cùng **verify THẬT** từ trình duyệt (cả ngoài Internet lẫn t
 
 | Nơi | Giá trị đúng |
 |---|---|
-| `PMH_IDE/.env` → `OIDC_ISSUER` | `https://admin-de.pmh.com.vn:8443/oidc` |
-| `QLTS_DE/.env` → `PMH_ISSUER_URL` | `https://admin-de.pmh.com.vn:8443/oidc` |
-| `QLTS_DE/.env` → `APP_BASE_URL` | `https://qlts.pmh.com.vn:8443` |
-| redirect_uri đăng ký ở PMH ID | `https://qlts.pmh.com.vn:8443/api/auth/callback` |
+| `PMH_IDE/.env` → `OIDC_ISSUER` | `https://de-admin.pmh.com.vn:8443/oidc` |
+| `QLTS_DE/.env` → `PMH_ISSUER_URL` | `https://de-admin.pmh.com.vn:8443/oidc` |
+| `QLTS_DE/.env` → `APP_BASE_URL` | `https://de-qlts.pmh.com.vn:8443` |
+| redirect_uri đăng ký ở PMH ID | `https://de-qlts.pmh.com.vn:8443/api/auth/callback` |
 
 > Lưu ý: `.env.example` gốc của QLTS ghi `id.pmh.com.vn` và `APP_BASE_URL` thiếu `:8443` —
 > đó là giá trị **dev cũ**. Template ở đây (`qlts.env.example`) đã sửa đúng cho cụm.
 
 ---
 
-## 4. Rủi ro cần VERIFY (kênh back-channel QLTS → admin-de)
+## 4. Rủi ro cần VERIFY (kênh back-channel QLTS → de-admin)
 
-Khi login QLTS, `qlts-api` phải gọi ngược `https://admin-de.pmh.com.vn:8443/oidc` (đổi code→token, lấy JWKS).
-`qlts-api` **không** nằm trên mạng `edge`, nên nó resolve `admin-de.pmh.com.vn` qua **DNS nội bộ → IP host →
-hairpin về cổng 8443** của edge. Cách này chạy được **nếu** host prod dùng DNS nội bộ có zone admin-de.
+Khi login QLTS, `qlts-api` phải gọi ngược `https://de-admin.pmh.com.vn:8443/oidc` (đổi code→token, lấy JWKS).
+`qlts-api` **không** nằm trên mạng `edge`, nên nó resolve `de-admin.pmh.com.vn` qua **DNS nội bộ → IP host →
+hairpin về cổng 8443** của edge. Cách này chạy được **nếu** host prod dùng DNS nội bộ có zone de-admin.
 
 **Nếu login QLTS treo/timeout hoặc báo lỗi token**, áp patch sau vào `QLTS_DE/docker-compose.yml`
-(cho `api` **và** `worker` join thẳng mạng edge để resolve alias `admin-de.pmh.com.vn` về nginx — chắc ăn hơn),
+(cho `api` **và** `worker` join thẳng mạng edge để resolve alias `de-admin.pmh.com.vn` về nginx — chắc ăn hơn),
 rồi `git commit && git push`, và trên prod `bash 40-qlts-up.sh` lại:
 
 ```yaml
@@ -150,16 +150,17 @@ rồi `git commit && git push`, và trên prod `bash 40-qlts-up.sh` lại:
 
 ## 5. Ghi chú vận hành
 
-- **Prod luôn dùng `-f docker-compose.yml` (QLTS) / thêm `-f docker-compose.prod.yml` (admin-de)** — KHÔNG nạp
+- **Prod luôn dùng `-f docker-compose.yml` (QLTS) / thêm `-f docker-compose.prod.yml` (de-admin)** — KHÔNG nạp
   `docker-compose.override.yml` (dev). Các script đã làm đúng.
-- **Backup (chạy trong docker):** `backup-cron` tự chạy hằng ngày, ghi vào `~/data-backups`
-  (= `BACKUP_DIR`, nên đặt sang đĩa khác đĩa Docker nếu có). Xem lịch: `cd ~/PMH_IDE &&
-  docker compose --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml logs -f backup-cron`.
-  Bấm 1 bản ngay: `bash ~/script_backups/backup-now.sh`. Phục hồi: `bash ~/script_backups/restore.sh`.
-  QLTS backup theo tài liệu QLTS.
-- **Cập nhật code sau này:**
-  - QLTS: `bash update-qlts.sh` (backup → git pull ff-only → rebuild + recreate → api tự migrate → chờ health).
-  - PMH ID: `cd ~/PMH_IDE && git pull` rồi chạy lại `bash 30-idp-up.sh`.
+- **Backup (chạy trong docker):** `backup-cron` tự chạy **hằng ngày lúc `BACKUP_AT` (02:00)**, ghi vào
+  `~/PMH_IDE/data-backups` (= `BACKUP_DIR`). **Giữ MỌI bản trong `BACKUP_KEEP_DAYS` ngày** (mặc định 30 → xóa bản cũ hơn 30 ngày, KHÔNG theo số lượng);
+  đổi bằng cách thêm `BACKUP_KEEP_DAYS=60` (hoặc số khác) vào `PMH_IDE/.env` rồi recreate `backup-cron`.
+  Xem lịch/log: `docker compose --env-file ~/PMH_IDE/.env -f ~/PMH_IDE/deploy/docker-compose.yml -f ~/PMH_IDE/deploy/docker-compose.prod.yml logs -f backup-cron`.
+  Bấm 1 bản ngay: `bash ~/PMH_IDE/deploy/prod-cluster/script_backups/backup-now.sh`. Phục hồi: `.../restore.sh`.
+  ⚠️ `data-backups` nằm TRONG PMH_IDE → **copy bản `.enc` ra ngoài máy định kỳ** (USB/máy khác). QLTS backup theo tài liệu QLTS.
+- **Cập nhật code sau này (dev push GitHub → prod kéo về):**
+  - PMH ID: `bash ~/PMH_IDE/update-idp.sh` (backup → git pull ff-only → rebuild + recreate → migration tự chạy → chờ health).
+  - QLTS: `bash ~/QLTS_DE/update-qlts.sh` (git pull ff-only → rebuild + recreate → api tự migrate → chờ health).
 - Sao lưu **KEK_BASE64 + COOKIE_KEYS + BACKUP_PASSPHRASE** ra nơi an toàn tách khỏi host —
   mất KEK = mất mọi secret đã mã hóa (TOTP/webhook/SMTP).
 - **Trần RAM (cap 8GB cả cụm PMH_IDE + edge — IdP chỉ xác thực, nhẹ):** đặt ở `docker-compose.prod.yml`
