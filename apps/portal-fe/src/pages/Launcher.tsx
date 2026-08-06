@@ -10,7 +10,6 @@ import { api } from "../auth";
 import { SkylineMotif } from "../ui";
 import { ProjectScene, sceneKindFor } from "../scenes";
 import AssetHolo3D from "../AssetHolo3D";
-import LoanDock3D from "../LoanDock3D";
 import RecordVault3D from "../RecordVault3D";
 import SupplyBox3D from "../SupplyBox3D";
 import "./Launcher.css";
@@ -48,7 +47,6 @@ const withLaunchFlag = (url: string) => {
 function scene3DFor(name: string) {
   const kind = sceneKindFor(name);
   if (kind === "assets") return <AssetHolo3D />;
-  if (kind === "devices") return <LoanDock3D />;
   if (kind === "records") return <RecordVault3D />;
   if (kind === "supplies") return <SupplyBox3D />;
   return null;
@@ -100,6 +98,20 @@ export default function Launcher({ greeting, fill }: { greeting?: string; fill?:
   const [pageHidden, setPageHidden] = useState(false);
   const swiperRef = useRef<SwiperClass | null>(null);
   const targetRef = useRef(0); // đích điều hướng phím tích luỹ (không đọc realIndex đang chạy)
+
+  // prefers-reduced-motion: CSS/framer đã cover, nhưng animation SMIL trong SVG
+  // fallback KHÔNG nghe @media → phải pause bằng JS. Pause khi mount + sau khi
+  // scene render (và mỗi khi đổi card active).
+  useEffect(() => {
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const pause = () =>
+      document.querySelectorAll("svg").forEach((s) =>
+        (s as SVGSVGElement & { pauseAnimations?: () => void }).pauseAnimations?.(),
+      );
+    pause();
+    const t = setTimeout(pause, 400);
+    return () => clearTimeout(t);
+  }, [active]);
 
   // Tab ẩn → gắn class .is-hidden để CSS đóng băng animation (đỡ hao pin/GPU).
   useEffect(() => {

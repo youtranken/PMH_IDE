@@ -32,6 +32,7 @@ class CreateUserDto {
   @IsEmail() email!: string;
   @IsString() @IsNotEmpty() employeeCode!: string;
   @IsString() @IsNotEmpty() fullName!: string;
+  @IsString() @IsNotEmpty() department!: string; // phòng ban (bắt buộc)
   // Tùy chọn: đặt MK thủ công ngay khi tạo. Policy kiểm ở service.
   @IsOptional() @IsString() @IsNotEmpty() password?: string;
   @IsOptional() @IsBoolean() mustChangePassword?: boolean;
@@ -44,6 +45,7 @@ class UpdateUserDto {
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() @IsNotEmpty() employeeCode?: string;
   @IsOptional() @IsString() @IsNotEmpty() fullName?: string;
+  @IsOptional() @IsString() @IsNotEmpty() department?: string;
 }
 class ImportDto {
   @IsString() @IsNotEmpty() csv!: string;
@@ -68,24 +70,22 @@ export class UsersController {
   ) {}
 
   @Get()
-  list(@CurrentAdmin() admin: AdminContext) {
-    return this.users.list(admin);
+  list(
+    @CurrentAdmin() admin: AdminContext,
+    @Query("q") q?: string,
+    @Query("department") department?: string,
+  ) {
+    return this.users.list(admin, q, department);
   }
 
-  // Khai TRƯỚC @Get(":id") để "export" không bị bắt làm :id.
+  // File MẪU để nhập user (không phải dữ liệu thật). Khai TRƯỚC @Get(":id").
   @Get("export")
-  async export(
-    @Query("group") group: string | undefined,
-    @Query("status") status: string | undefined,
-    @CurrentAdmin() admin: AdminContext,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const csv = await this.csvExport.exportCsv({ group, status }, admin);
+  exportTemplate(@Res({ passthrough: true }) res: Response) {
     res.set({
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="users.csv"',
+      "Content-Disposition": 'attachment; filename="user-import-template.csv"',
     });
-    return csv;
+    return this.csvExport.template();
   }
 
   @Post("import/preview")
@@ -114,6 +114,7 @@ export class UsersController {
         email: dto.email,
         employeeCode: dto.employeeCode,
         fullName: dto.fullName,
+        department: dto.department,
         password: dto.password,
         mustChangePassword: dto.mustChangePassword,
       },
@@ -140,6 +141,17 @@ export class UsersController {
     @Req() req: Request,
   ) {
     return this.users.softDelete(id, admin.userId, req.ip ?? null);
+  }
+
+  // Xóa VĨNH VIỄN (không hoàn tác) — service chặn nếu user chưa khóa/chưa soft-delete.
+  @Delete(":id/permanent")
+  @Roles("ssa")
+  hardDelete(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.users.hardDelete(id, admin.userId, req.ip ?? null);
   }
 
   @Post(":id/reactivate")

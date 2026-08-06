@@ -218,6 +218,9 @@ export class GroupsService {
     ip: string | null,
   ): Promise<{ revoked: number }> {
     await this.assertCanManage(admin, groupId);
+    // Đối xứng với addMember: project_admin KHÔNG đụng tài khoản quản trị khác
+    // (chặn gỡ SSA khỏi nhóm + thu hồi phiên SSA trong phạm vi mình).
+    if (!admin.isSsa) await this.assertTargetNotAdmin(userId);
     await this.pool.query(
       `DELETE FROM user_groups WHERE user_id = $1 AND group_id = $2`,
       [userId, groupId],
@@ -237,6 +240,40 @@ export class GroupsService {
       detail: { user_id: userId, revoked },
     });
     return { revoked };
+  }
+
+  /**
+   * Xóa hẳn nhóm (SSA). user_groups + client_groups ON DELETE CASCADE tự dọn →
+   * mọi member RỜI nhóm và mọi client MẤT grant từ nhóm này. Vì member mất quyền
+   * vào app mà nhóm mở, thu hồi mọi phiên của họ (như removeMember đường SSA).
+   */
+  async remove(
+    groupId: string,
+    actorUserId: string,
+    ip: string | null,
+  ): Promise<{ removedMembers: number; revoked: number }> {
+    const g = await this.get(groupId); // 404 nếu không có
+    const { rows: members } = await this.pool.query<{ user_id: string }>(
+      `SELECT user_id FROM user_groups WHERE group_id = $1`,
+      [groupId],
+    );
+    await this.pool.query(`DELETE FROM groups WHERE id = $1`, [groupId]);
+    let revoked = 0;
+    for (const m of members) {
+      await this.events.emit(m.user_id, "user.groups_changed", {
+        removed: groupId,
+      });
+      revoked += await this.revocation.revokeAllForUser(m.user_id);
+    }
+    await this.audit.record({
+      actorUserId,
+      action: "group.deleted",
+      targetType: "group",
+      targetId: groupId,
+      ip,
+      detail: { name: g.name, members: members.length, revoked },
+    });
+    return { removedMembers: members.length, revoked };
   }
 
   /**

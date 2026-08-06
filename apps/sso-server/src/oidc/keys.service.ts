@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { KekService } from "../common/kek.service";
+import { isProdPosture } from "../config/env.validation";
 import { generateRsaJwk, type RsaPrivateJwk } from "./jwk.util";
 
 export type { RsaPrivateJwk };
@@ -63,8 +64,15 @@ export class KeysService {
       return keys;
     }
 
-    if (this.config.get("NODE_ENV") === "production") {
-      // Prod không tự sinh khóa — phải provision qua quy trình rotate (AD-8)
+    // Prod (NODE_ENV production HOẶC issuer https) KHÔNG tự sinh khóa — phải
+    // provision qua quy trình rotate (AD-8). Gate theo issuer https để đặt sai
+    // NODE_ENV không âm thầm cho auto-gen khóa tạm trên prod.
+    if (
+      isProdPosture(
+        this.config.get("NODE_ENV"),
+        String(this.config.get("OIDC_ISSUER") ?? ""),
+      )
+    ) {
       throw new Error(
         `[keys] Không thấy ${file}. Prod bắt buộc provision khóa ký trước khi chạy.`,
       );

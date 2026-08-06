@@ -80,6 +80,17 @@ export class GroupsController {
     return this.groups.update(id, dto, admin.userId, req.ip ?? null);
   }
 
+  // Xóa hẳn nhóm (SSA) — cascade gỡ member khỏi nhóm + gỡ grant khỏi client.
+  @Delete(":id")
+  @Roles("ssa")
+  remove(
+    @Param("id") id: string,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.groups.remove(id, admin.userId, req.ip ?? null);
+  }
+
   @Get(":id/members")
   listMembers(@Param("id") id: string, @CurrentAdmin() admin: AdminContext) {
     return this.groups.listMembers(id, admin);

@@ -98,7 +98,7 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
 
   const drawerClient = appDrawerId ? clientsById[appDrawerId] ?? null : null;
 
-  const toggle = async (c: Client) => {
+  const doToggle = async (c: Client) => {
     try {
       await api(`/api/admin/clients/${c.id}/${c.disabled ? "enable" : "disable"}`, { method: "POST" });
       message.success(c.disabled ? "Đã bật ứng dụng" : "Đã tắt ứng dụng");
@@ -106,6 +106,17 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
     } catch (e) {
       message.error((e as Error).message);
     }
+  };
+  const toggle = (c: Client) => {
+    if (c.disabled) { doToggle(c); return; } // bật lại: không cần xác nhận
+    modal.confirm({
+      title: `Tắt ứng dụng "${c.name}"?`,
+      content: "Mọi người dùng sẽ KHÔNG đăng nhập được vào ứng dụng này cho tới khi bật lại.",
+      okText: "Tắt ứng dụng",
+      okButtonProps: { danger: true },
+      cancelText: "Hủy",
+      onOk: () => doToggle(c),
+    });
   };
   const toggleM2m = (c: Client) => modal.confirm({
     title: c.m2m_enabled ? `Tắt API danh bạ (M2M) cho "${c.name}"?` : `Bật API danh bạ (M2M) cho "${c.name}"?`,
@@ -119,8 +130,12 @@ export default function AdminWorkspace({ isSsa }: { isSsa: boolean }) {
     },
   });
   const rotate = async (c: Client) => {
-    const r = await api<{ secret: string; graceHours: number }>(`/api/admin/clients/${c.id}/rotate-secret`, { method: "POST" });
-    setSecret({ title: `Secret mới · ${c.client_id}`, secret: r.secret, note: `Secret cũ còn hiệu lực thêm ${r.graceHours} giờ (ân hạn).` });
+    try {
+      const r = await api<{ secret: string; graceHours: number }>(`/api/admin/clients/${c.id}/rotate-secret`, { method: "POST" });
+      setSecret({ title: `Secret mới · ${c.client_id}`, secret: r.secret, note: `Secret cũ còn hiệu lực thêm ${r.graceHours} giờ (ân hạn).` });
+    } catch (e) {
+      message.error((e as Error).message);
+    }
   };
   const delApp = (c: Client) => modal.confirm({
     title: `Xóa ứng dụng "${c.name}"?`,
@@ -418,13 +433,13 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
 
 /** Tab "Truy cập": nhóm được vào (allow-all + gán/gỡ). */
 function ClientGroupsPanel({ client, onChanged }: { client: Client; onChanged: () => void }) {
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const [assigned, setAssigned] = useState<{ group_id: string; name: string }[]>([]);
   const [all, setAll] = useState<{ id: string; name: string }[]>([]);
   const [allowAll, setAllowAll] = useState(false);
   const [pick, setPick] = useState<string | undefined>();
 
-  const reloadAssigned = () => api<{ group_id: string; name: string }[]>(`/api/admin/clients/${client.id}/groups`).then(setAssigned);
+  const reloadAssigned = () => api<{ group_id: string; name: string }[]>(`/api/admin/clients/${client.id}/groups`).then(setAssigned).catch((e) => message.error(`Không tải được nhóm đã gán: ${(e as Error).message}`));
   useEffect(() => {
     setAllowAll(client.allow_all_groups);
     reloadAssigned();
@@ -432,18 +447,29 @@ function ClientGroupsPanel({ client, onChanged }: { client: Client; onChanged: (
   }, [client.id]);
 
   const toggleAll = async (v: boolean) => {
-    try { await api(`/api/admin/clients/${client.id}/allow-all`, { method: "POST", body: { allowAll: v } }); setAllowAll(v); message.success(v ? "Cho mọi nhóm login" : "Chỉ nhóm được gán"); onChanged(); }
+    try { await api(`/api/admin/clients/${client.id}/allow-all`, { method: "POST", body: { allowAll: v } }); setAllowAll(v); onChanged(); message.success(v ? "Cho mọi nhóm đăng nhập" : "Chỉ nhóm được gán"); onChanged(); }
     catch (e) { message.error((e as Error).message); }
   };
-  const add = async () => { try { await api(`/api/admin/clients/${client.id}/groups`, { method: "POST", body: { groupId: pick } }); setPick(undefined); reloadAssigned(); onChanged(); } catch (e) { message.error((e as Error).message); } };
-  const remove = async (gid: string) => { try { await api(`/api/admin/clients/${client.id}/groups/${gid}`, { method: "DELETE" }); setAssigned((a) => a.filter((x) => x.group_id !== gid)); onChanged(); } catch (e) { message.error((e as Error).message); } };
+  const add = async () => { try { await api(`/api/admin/clients/${client.id}/groups`, { method: "POST", body: { groupId: pick } }); setPick(undefined); reloadAssigned(); onChanged(); message.success("Đã thêm nhóm vào ứng dụng"); } catch (e) { message.error((e as Error).message); } };
+  const doRemove = async (gid: string) => { try { await api(`/api/admin/clients/${client.id}/groups/${gid}`, { method: "DELETE" }); setAssigned((a) => a.filter((x) => x.group_id !== gid)); onChanged(); } catch (e) { message.error((e as Error).message); } };
+  const remove = (gid: string) => {
+    const g = assigned.find((x) => x.group_id === gid);
+    modal.confirm({
+      title: "Gỡ nhóm khỏi ứng dụng?",
+      content: `Thành viên nhóm "${g?.name ?? ""}" sẽ mất quyền vào ứng dụng này (trừ khi còn thuộc nhóm khác cũng được gán).`,
+      okText: "Gỡ nhóm",
+      okButtonProps: { danger: true },
+      cancelText: "Hủy",
+      onOk: () => doRemove(gid),
+    });
+  };
   const cands = all.filter((g) => !assigned.some((a) => a.group_id === g.id));
 
   return (
     <div>
       <div className="pmh-ws__danger-row" style={{ borderTop: "none", paddingTop: 0 }}>
         <div>
-          <div style={{ fontWeight: 600 }}>Cho mọi nhóm login</div>
+          <div style={{ fontWeight: 600 }}>Cho mọi nhóm đăng nhập</div>
           <Text type="secondary" style={{ fontSize: 13 }}>Kể cả nhóm tạo sau. Không nới quyền danh bạ.</Text>
         </div>
         <Switch checked={allowAll} onChange={toggleAll} />
@@ -506,7 +532,7 @@ function WebhookPanel({ client, onSecret, onEdit }: { client: Client; onSecret: 
         <div style={{ marginBottom: 8 }}>
           {client.backchannel_logout_uri
             ? <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{client.backchannel_logout_uri}</span>
-            : <Text type="secondary">Chưa đặt (app vẫn văng trong ≤5 phút).</Text>}
+            : <Text type="secondary">Chưa đặt (ứng dụng vẫn tự đăng xuất trong ≤5 phút).</Text>}
         </div>
         <Button size="small" onClick={onEdit}>Sửa URL logout</Button>
       </div>
@@ -521,7 +547,7 @@ function AdminsPanel({ projectId }: { projectId: string }) {
   const [users, setUsers] = useState<{ id: string; email: string; full_name: string; deleted_at: string | null }[]>([]);
   const [pick, setPick] = useState<string | undefined>();
 
-  const load = () => api<{ user_id: string; email: string; full_name: string }[]>(`/api/admin/projects/${projectId}/admins`).then(setPeople);
+  const load = () => api<{ user_id: string; email: string; full_name: string }[]>(`/api/admin/projects/${projectId}/admins`).then(setPeople).catch((e) => message.error(`Không tải được danh sách quản trị: ${(e as Error).message}`));
   useEffect(() => { load(); }, [projectId]);
   useEffect(() => { if (!users.length) api<typeof users>("/api/admin/users").then(setUsers).catch(() => {}); }, [projectId]);
 
@@ -540,8 +566,9 @@ function AdminsPanel({ projectId }: { projectId: string }) {
     <div>
       <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>Quản trị viên dự án quản lý user, nhóm và ứng dụng trong phạm vi dự án này.</Text>
       <Space.Compact style={{ width: "100%", marginBottom: 16 }}>
-        <Select showSearch placeholder="Bổ nhiệm nhân viên…" style={{ width: "100%" }} value={pick} onChange={setPick}
-          filterOption={(i, o) => (o?.label as string).toLowerCase().includes(i.toLowerCase())}
+        <Select showSearch placeholder="Gõ tìm người để bổ nhiệm…" style={{ width: "100%" }} value={pick} onChange={setPick}
+          filterOption={false}
+          onSearch={(qv) => { const qs = qv.trim() ? `?q=${encodeURIComponent(qv.trim())}` : ""; api<typeof users>(`/api/admin/users${qs}`).then(setUsers).catch(() => {}); }}
           options={cands.map((u) => ({ value: u.id, label: `${u.full_name} · ${u.email}` }))} />
         <Button type="primary" disabled={!pick} onClick={add}>Bổ nhiệm</Button>
       </Space.Compact>
@@ -657,7 +684,7 @@ function ClientForm({ open, client, fixedProjectId, onClose, onCreated, onSaved 
           <Input.TextArea rows={3} placeholder={"https://banhang.pmh.com.vn/callback"} style={{ fontFamily: "ui-monospace, monospace", fontSize: 13 }} />
         </Form.Item>
         {edit && (
-          <Form.Item name="backchannelLogoutUri" label="Back-Channel Logout URI (tùy chọn)" extra="Đăng xuất tức thì: khi phiên SSO kết thúc, PMH ID POST logout_token tới URL này để app đá user ra ngay. Để trống = tắt (app vẫn văng trong ≤5 phút).">
+          <Form.Item name="backchannelLogoutUri" label="Back-Channel Logout URI (tùy chọn)" extra="Đăng xuất tức thì: khi phiên SSO kết thúc, PMH ID POST logout_token tới URL này để app đá user ra ngay. Để trống = tắt (ứng dụng vẫn tự đăng xuất trong ≤5 phút).">
             <Input placeholder="https://banhang.pmh.com.vn/backchannel-logout" />
           </Form.Item>
         )}
@@ -673,7 +700,7 @@ function SecretModal({ data, onClose }: { data: Secret | null; onClose: () => vo
       <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Chỉ hiển thị một lần" description={data?.note} />
       <Space.Compact style={{ display: "flex" }}>
         <Input readOnly value={data?.secret} style={{ fontFamily: "ui-monospace, monospace" }} />
-        <Button icon={<CopyOutlined />} onClick={() => { navigator.clipboard?.writeText(data?.secret ?? ""); message.success("Đã copy"); }}>Copy</Button>
+        <Button icon={<CopyOutlined />} onClick={() => { navigator.clipboard?.writeText(data?.secret ?? ""); message.success("Đã sao chép"); }}>Sao chép</Button>
       </Space.Compact>
     </Modal>
   );

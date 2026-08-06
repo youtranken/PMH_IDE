@@ -139,8 +139,11 @@ function MfaCard() {
   const [disabling, setDisabling] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Lỗi probe → hiện lỗi + coi như CHƯA bật (để còn nút bật), không kẹt trắng câm.
   const load = () =>
-    api<{ enabled: boolean }>("/api/me/mfa").then((s) => setEnabled(s.enabled));
+    api<{ enabled: boolean }>("/api/me/mfa")
+      .then((s) => setEnabled(s.enabled))
+      .catch((e) => { setEnabled(false); message.error(`Không kiểm tra được trạng thái MFA: ${(e as Error).message}`); });
   useEffect(() => {
     load();
   }, []);
@@ -149,6 +152,8 @@ function MfaCard() {
     setBusy(true);
     try {
       setSetup(await api<{ otpauth: string; qr: string }>("/api/me/mfa/setup", { method: "POST" }));
+    } catch (e) {
+      message.error(`Không bắt đầu được thiết lập MFA: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -356,6 +361,7 @@ function ChangePassword() {
         <div style={{ maxWidth: 380 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: BRAND.ink }}>Mật khẩu hiện tại</label>
           <Input.Password
+            aria-label="Mật khẩu hiện tại"
             size="large"
             style={{ margin: "6px 0 14px" }}
             value={curPw}
@@ -364,6 +370,7 @@ function ChangePassword() {
           />
           <label style={{ fontSize: 13, fontWeight: 600, color: BRAND.ink }}>Mật khẩu mới</label>
           <Input.Password
+            aria-label="Mật khẩu mới"
             size="large"
             style={{ margin: "6px 0 14px" }}
             value={pw}
@@ -372,6 +379,7 @@ function ChangePassword() {
           />
           <label style={{ fontSize: 13, fontWeight: 600, color: BRAND.ink }}>Xác nhận mật khẩu mới</label>
           <Input.Password
+            aria-label="Xác nhận mật khẩu mới"
             size="large"
             status={mismatch ? "error" : undefined}
             style={{ margin: "6px 0 6px" }}

@@ -7,7 +7,6 @@ import {
   QuestionCircleOutlined,
   SafetyCertificateOutlined,
   SafetyOutlined,
-  SettingOutlined,
 } from "@ant-design/icons";
 import { App as AntApp, Button, Card, Input, Skeleton, Tooltip } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
@@ -216,12 +215,12 @@ export default function Settings() {
     }
   };
 
+  // Chỉ hiện các tham số tinh chỉnh thường ngày. Phần hạ tầng/nâng cao — Chống dò
+  // mật khẩu, Xác thực 2 lớp (vai bắt buộc), Client & tích hợp, Vận hành & lưu trữ,
+  // và mọi key lạ ("Khác") — ẩn khỏi UI; cấu hình qua env/DB.
+  const VISIBLE_GROUPS = new Set(["Phiên & Token", "Mật khẩu", "Email & cảnh báo"]);
   const byKey = Object.fromEntries(rows.map((s) => [s.key, s]));
-  const known = new Set(GROUPS.flatMap((g) => g.keys));
-  const leftover = rows.filter((s) => !known.has(s.key)).map((s) => s.key);
-  const groups = leftover.length
-    ? [...GROUPS, { title: "Khác", icon: <SettingOutlined />, keys: leftover }]
-    : GROUPS;
+  const groups = GROUPS.filter((g) => VISIBLE_GROUPS.has(g.title));
 
   const Row = (key: string, isLast: boolean) => {
     const s = byKey[key];
@@ -255,6 +254,7 @@ export default function Settings() {
         </div>
         {isSecret ? (
           <Input.Password
+            aria-label={LABELS[key] ?? key}
             value={draft[key] ?? ""}
             placeholder={secretIsSet ? "•••• đã đặt — nhập để đổi" : "chưa đặt"}
             autoComplete="new-password"
@@ -264,6 +264,7 @@ export default function Settings() {
           />
         ) : (
           <Input
+            aria-label={LABELS[key] ?? key}
             value={draft[key] ?? ""}
             onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
             onPressEnter={() => changed && save(key)}

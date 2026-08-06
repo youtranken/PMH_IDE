@@ -217,10 +217,11 @@ describe("A3 — allow_all_groups không nới được phạm vi QUẢN TRỊ",
       expect(r.status).toBe(404);
     });
 
-    it("export CSV của PA VẪN không chứa user ngoài phạm vi", async () => {
+    it("export trả file MẪU (template), không lộ dữ liệu user thật", async () => {
       const r = await api().get("/api/admin/users/export").set(bearer(paTok));
       expect(r.status).toBe(200);
-      expect(r.text).toContain(`${TAG}-userA`);
+      expect(r.text).toContain("employee_code,email,full_name,department,groups");
+      expect(r.text).not.toContain(`${TAG}-userA`);
       expect(r.text).not.toContain(`${TAG}-userB`);
     });
   });

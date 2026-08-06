@@ -1,98 +1,40 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { Pool } from "pg";
-import { PG_POOL } from "../../database/database.module";
-import type { AdminContext } from "../../common/admin/admin.types";
+import { Injectable } from "@nestjs/common";
 
-export interface ExportFilter {
-  group?: string;
-  status?: string;
-}
-
-interface ExportRow {
-  employee_code: string;
-  email: string;
-  full_name: string;
-  status: string;
-  groups: string[];
-}
+/** Cột của file mẫu nhập user (đồng bộ với CsvImportService). */
+export const IMPORT_COLUMNS = [
+  "employee_code",
+  "email",
+  "full_name",
+  "department",
+  "groups",
+] as const;
 
 /**
- * Xuất danh sách user ra CSV (E4-S4, FR-14). SSA xuất tất cả; project_admin chỉ
- * user TRONG PHẠM VI project mình (AD-1) — tức user đăng nhập được app của
- * project (đồ thị group→client_groups→client→project, hoặc client allow_all).
+ * File MẪU (template) để nhập user hàng loạt (E4-S4). Trước đây xuất dữ liệu user
+ * thật; đổi thành template rỗng (tiêu đề + 1 dòng ví dụ) để admin điền rồi Import.
+ * `department` phải trùng tên trong danh mục Phòng ban; `groups` nhiều nhóm cách
+ * nhau bằng dấu chấm phẩy.
  */
 @Injectable()
 export class CsvExportService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
-
-  async exportCsv(
-    filter: ExportFilter,
-    admin: AdminContext,
-  ): Promise<string> {
-    // Ẩn break-glass khỏi export (như list()/get()) — nếu không, SSA bấm "Xuất
-    // CSV" là lộ email/mã NV tài khoản khẩn cấp.
-    const where: string[] = ["u.deleted_at IS NULL", "u.is_breakglass = false"];
-    const params: unknown[] = [];
-    let p = 0;
-
-    if (filter.status) {
-      where.push(`u.status = $${++p}`);
-      params.push(filter.status);
-    }
-    if (filter.group) {
-      where.push(
-        `EXISTS (SELECT 1 FROM user_groups ug2 JOIN groups g2 ON g2.id = ug2.group_id
-                 WHERE ug2.user_id = u.id AND lower(g2.name) = lower($${++p}))`,
-      );
-      params.push(filter.group);
-    }
-    // Phạm vi project_admin (SSA bỏ qua = toàn cục)
-    if (!admin.isSsa) {
-      const $proj = `$${++p}`;
-      params.push(admin.projectIds);
-      // Không xét allow_all_groups — xem chú thích ở UsersService.list().
-      where.push(`EXISTS (
-        SELECT 1 FROM user_groups ug3
-        JOIN client_groups cg ON cg.group_id = ug3.group_id
-        JOIN clients c3 ON c3.id = cg.client_id
-        WHERE ug3.user_id = u.id AND c3.project_id = ANY(${$proj}::uuid[])
-              AND NOT c3.disabled)`);
-    }
-
-    const { rows } = await this.pool.query<ExportRow>(
-      `SELECT u.employee_code, u.email, u.full_name, u.status,
-              COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS groups
-       FROM users u
-       LEFT JOIN user_groups ug ON ug.user_id = u.id
-       LEFT JOIN groups g ON g.id = ug.group_id
-       WHERE ${where.join(" AND ")}
-       GROUP BY u.id, u.employee_code, u.email, u.full_name, u.status
-       ORDER BY u.employee_code`,
-      params,
+  /** Trả nội dung CSV mẫu (RFC4180, CRLF). */
+  template(): string {
+    const example = [
+      "NV001",
+      "a.nguyen@pmh.com.vn",
+      "Nguyễn Văn A",
+      "Kế toán",
+      "Kế toán;Sales",
+    ];
+    return [IMPORT_COLUMNS.join(","), example.map(csvCell).join(",")].join(
+      "\r\n",
     );
-
-    const lines = ["employee_code,email,full_name,status,groups"];
-    for (const r of rows) {
-      lines.push(
-        [
-          r.employee_code,
-          r.email,
-          r.full_name,
-          r.status,
-          r.groups.join(";"),
-        ]
-          .map(csvCell)
-          .join(","),
-      );
-    }
-    return lines.join("\r\n");
   }
 }
 
 /**
  * Bọc ô CSV (RFC4180) + chống FORMULA INJECTION: ô mở đầu bằng = + - @ (hoặc
- * tab/CR) bị Excel/Sheets thực thi như công thức → chèn dấu ' phía trước. Dữ
- * liệu như full_name do người dùng/CSV nhập nên phải trung hòa trước khi xuất.
+ * tab/CR) bị Excel/Sheets thực thi như công thức → chèn dấu ' phía trước.
  */
 function csvCell(v: string): string {
   const guarded = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;

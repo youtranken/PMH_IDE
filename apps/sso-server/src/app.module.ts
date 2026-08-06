@@ -11,6 +11,7 @@ import { OidcModule } from "./oidc/oidc.module";
 import { AuthOidcModule } from "./modules/auth-oidc/auth-oidc.module";
 import { UsersModule } from "./modules/users/users.module";
 import { GroupsModule } from "./modules/groups/groups.module";
+import { DepartmentsModule } from "./modules/departments/departments.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 import { ClientsModule } from "./modules/clients/clients.module";
 import { DirectoryApiModule } from "./modules/directory-api/directory-api.module";
@@ -41,6 +42,7 @@ import { DocsModule } from "./modules/docs/docs.module";
     AuthOidcModule,
     UsersModule,
     GroupsModule,
+    DepartmentsModule,
     ProjectsModule,
     ClientsModule,
     DirectoryApiModule,

@@ -51,12 +51,26 @@ app mới: điền **Phiếu 1** gửi admin PMH ID → nhận lại **Phiếu 2
 **A. Host ở nơi khác (domain/hạ tầng riêng):** EDGE **không sửa gì**. App gọi OIDC qua
 internet; webhook host là IP public → egress allowlist mặc định đã cho qua.
 
-**B. Host sau EDGE chung (được cấp `<ten>.pmh.com.vn`):**
-1. Thêm **server block / route** trong config EDGE cho `Host: <ten>.pmh.com.vn` → backend họ. Cert wildcard `*.pmh.com.vn` đã phủ — **không cần cert mới**.
-2. Thêm **network alias** `<ten>.pmh.com.vn` trên mạng `edge` → sso-server gọi webhook/BCL đi vòng trong máy.
-3. Host webhook giờ là **IP nội bộ** → thêm dải đó vào setting **`webhook_allowlist_cidr`**, nếu không `assertEgressAllowed` chặn (coi là SSRF).
+**B. Host sau EDGE chung (được cấp `de-<ten>.pmh.com.vn`):**
+1. Thêm **server block / route** trong `deploy/edge/conf.d/<ten>.conf` cho `Host:
+   de-<ten>.pmh.com.vn` → `proxy_pass http://<ten>-web:80`. Cert wildcard `*.pmh.com.vn`
+   đã phủ — **không cần cert mới**. Nhớ `nginx -t && nginx -s reload`.
+2. Thêm **network alias** `de-<ten>.pmh.com.vn` trên mạng `edge` (cho edge-nginx) →
+   sso-server gọi webhook/BCL đi vòng trong máy.
+3. Host webhook giờ là **IP nội bộ** → thêm dải đó vào **`webhook_allowlist_cidr`**,
+   nếu không `assertEgressAllowed` chặn (coi là SSRF).
+
+> ⚠️ **LUẬT VÀNG mạng edge (sai là hỏng project KHÁC — xem `edge-va-luong-hoat-dong.md`
+> §5):**
+> - App chỉ để container **`<ten>-web` lên mạng `edge`** với **alias RIÊNG** `<ten>-web`.
+> - **`api`/backend KHÔNG lên `edge`** (tên chung `api` đụng nhau giữa project → web
+>   project này resolve ra nhầm api project khác → 404). api gọi PMH ID qua
+>   `extra_hosts: ["de-admin.pmh.com.vn:host-gateway"]`.
+> - **BCL/redirect URI phải khớp cách app mount route:** app prefix `/api` (như QLTS) →
+>   `…/api/backchannel-logout`; app mount root + nginx strip `/api` (như QLHS) →
+>   `…/api/auth/backchannel-logout`. **Test:** `curl -X POST <uri>` → 404 = sai, 400/200 = đúng.
 
 ---
 
 **Chốt 1 dòng:** project ngoài chỉ cần *client_id/secret + Discovery URL*; EDGE chỉ
-đụng khi họ nằm **chung nhà** dưới `*.pmh.com.vn`.
+đụng khi họ nằm **chung nhà** dưới `*.pmh.com.vn` — và khi đó nhớ **LUẬT VÀNG mạng edge**.

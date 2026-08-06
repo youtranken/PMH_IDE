@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -11,12 +12,14 @@ import { AuditService } from "../../common/audit.service";
 import { SessionRevocationService } from "../../common/session-revocation.service";
 import { UserEventsService } from "../../common/user-events.service";
 import { PG_POOL } from "../../database/database.module";
+import { DepartmentsService } from "../departments/departments.service";
 import { TempPasswordService } from "./temp-password.service";
 
 export interface CreateUserInput {
   email: string;
   employeeCode: string;
   fullName: string;
+  department: string; // phòng ban (nhãn tổ chức, KHÁC nhóm quyền)
   // Tùy chọn: đặt MK thủ công ngay khi tạo (hữu ích khi chưa cấu hình SMTP).
   // Bỏ trống → user chưa có MK, phải reset/quên-MK để lấy MK tạm.
   password?: string;
@@ -26,12 +29,14 @@ export interface UpdateUserInput {
   email?: string;
   employeeCode?: string;
   fullName?: string;
+  department?: string;
 }
 export interface UserRow {
   id: string;
   email: string;
   employee_code: string;
   full_name: string;
+  department: string;
   status: string;
   deleted_at: Date | null;
   expires_at: Date | null;
@@ -42,7 +47,7 @@ export interface UserRow {
 }
 
 const USER_COLS =
-  "id, email, employee_code, full_name, status, deleted_at, expires_at, created_at";
+  "id, email, employee_code, full_name, department, status, deleted_at, expires_at, created_at";
 
 /**
  * Vòng đời user (E4-S1/S2, FR-12/17). Unique email + mã NV tính CẢ bản
@@ -57,9 +62,14 @@ export class UsersService {
     private readonly revocation: SessionRevocationService,
     private readonly tempPassword: TempPasswordService,
     private readonly events: UserEventsService,
+    private readonly departments: DepartmentsService,
   ) {}
 
-  async list(admin: AdminContext): Promise<UserRow[]> {
+  async list(
+    admin: AdminContext,
+    search?: string,
+    department?: string,
+  ): Promise<UserRow[]> {
     // Tài khoản break-glass ẩn HOÀN TOÀN khỏi UI quản trị (bảo vệ lối vào khẩn
     // cấp — SSA không thấy/không đụng được; quản lý qua script offline).
     // project_admin chỉ thấy user TRONG phạm vi project mình (AD-1, cùng luật
@@ -77,6 +87,19 @@ export class UsersService {
         JOIN clients cx ON cx.id = cgx.client_id
         WHERE ugx.user_id = u.id AND cx.project_id = ANY($1::uuid[])
               AND NOT cx.disabled)`);
+    }
+    // Tìm server-side (email/mã NV/họ tên) → user NGOÀI 500 mới nhất vẫn tra được
+    // (chống "user thứ 501 vô hình"). ILIKE parameterized, không injection.
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`);
+      const p = `$${params.length}`;
+      where.push(`(u.email ILIKE ${p} OR u.employee_code ILIKE ${p} OR u.full_name ILIKE ${p})`);
+    }
+    // Lọc theo phòng ban (khớp CHÍNH XÁC tên, không phân biệt hoa/thường) → drawer
+    // thành viên phòng ban dùng server, khớp đúng số đếm "Số user".
+    if (department && department.trim()) {
+      params.push(department.trim());
+      where.push(`lower(u.department) = lower($${params.length})`);
     }
     const { rows } = await this.pool.query<UserRow>(
       `SELECT ${USER_COLS.split(", ").map((c) => "u." + c).join(", ")},
@@ -196,6 +219,15 @@ export class UsersService {
     const email = input.email.trim();
     const code = input.employeeCode.trim();
 
+    // Phòng ban bắt buộc + phải nằm trong danh mục. Lưu TÊN CHUẨN của danh mục
+    // (không phải casing người nhập) để không trôi khỏi tên chính tắc.
+    const departmentRaw = input.department.trim();
+    if (!departmentRaw) throw new BadRequestException("Vui lòng chọn phòng ban.");
+    const department = await this.departments.canonical(departmentRaw);
+    if (!department) {
+      throw new BadRequestException("Phòng ban không hợp lệ (chưa có trong danh mục).");
+    }
+
     // Validate MK thủ công TRƯỚC khi tạo user (tránh tạo user rồi mới báo lỗi MK).
     if (input.password) await this.tempPassword.assertPolicy(input.password);
 
@@ -215,29 +247,30 @@ export class UsersService {
     );
     if (dup.length > 0) {
       const d = dup[0];
-      const field = d.email_match ? "email" : "employee_code";
+      const field = d.email_match ? "email" : "employee_code"; // mã máy cho FE
+      const label = d.email_match ? "Email" : "Mã nhân viên"; // nhãn hiển thị
       if (d.deleted_at) {
         throw new ConflictException({
           error: "exists_deleted",
           field,
           userId: d.id,
-          message: `${field} thuộc một user đã xóa — hãy khôi phục (reactivate) thay vì tạo mới`,
+          message: `${label} thuộc một người dùng đã xóa — hãy khôi phục thay vì tạo mới.`,
         });
       }
       throw new ConflictException({
         error: "exists",
         field,
-        message: `${field} đã được dùng`,
+        message: `${label} đã được dùng.`,
       });
     }
 
     let user: UserRow;
     try {
       const { rows } = await this.pool.query<UserRow>(
-        `INSERT INTO users (email, employee_code, full_name)
-         VALUES ($1, $2, $3)
+        `INSERT INTO users (email, employee_code, full_name, department)
+         VALUES ($1, $2, $3, $4)
          RETURNING ${USER_COLS}`,
-        [email, code, input.fullName.trim()],
+        [email, code, input.fullName.trim(), department],
       );
       user = rows[0];
     } catch (e) {
@@ -297,6 +330,17 @@ export class UsersService {
         throw new ForbiddenException("đổi email/mã nhân viên cần quyền SSA");
       }
     }
+    // Đổi phòng ban: giá trị mới cũng phải nằm trong danh mục; lưu tên chuẩn.
+    let departmentCanonical: string | undefined;
+    if (input.department !== undefined) {
+      const dep = input.department.trim();
+      if (!dep) throw new BadRequestException("Vui lòng chọn phòng ban.");
+      const c = await this.departments.canonical(dep);
+      if (!c) {
+        throw new BadRequestException("Phòng ban không hợp lệ (chưa có trong danh mục).");
+      }
+      departmentCanonical = c;
+    }
     const sets: string[] = [];
     const vals: unknown[] = [];
     let i = 1;
@@ -311,6 +355,10 @@ export class UsersService {
     if (input.fullName !== undefined) {
       sets.push(`full_name = $${++i}`);
       vals.push(input.fullName.trim());
+    }
+    if (departmentCanonical !== undefined) {
+      sets.push(`department = $${++i}`);
+      vals.push(departmentCanonical);
     }
     if (sets.length === 0) return this.get(id);
 
@@ -369,6 +417,58 @@ export class UsersService {
       detail: { revoked_sessions: revoked },
     });
     return { revoked };
+  }
+
+  /**
+   * XÓA VĨNH VIỄN (SSA) — gỡ hẳn bản ghi khỏi DB, KHÔNG khôi phục được. Chỉ cho
+   * phép khi tài khoản đã KHÓA hoặc đã soft-delete (chốt an toàn: buộc "hạ" user
+   * trước, tránh xóa nhầm người đang hoạt động). FK ON DELETE CASCADE dọn
+   * user_groups/sessions/roles/mfa…; audit_logs.actor_user_id là SET NULL nên
+   * lịch sử do người này GÂY RA vẫn còn (chỉ mất liên kết tên).
+   */
+  async hardDelete(
+    id: string,
+    actorUserId: string,
+    ip: string | null,
+  ): Promise<{ ok: true }> {
+    if (id === actorUserId) {
+      throw new ForbiddenException(
+        "không thể tự xóa vĩnh viễn tài khoản của chính mình",
+      );
+    }
+    await this.assertNotBreakglass(id);
+    await this.assertNotLastOperableSsa(id);
+    const { rows } = await this.pool.query<{
+      status: string;
+      deleted_at: Date | null;
+      email: string;
+      employee_code: string;
+    }>(
+      `SELECT status, deleted_at, email, employee_code
+       FROM users WHERE id = $1 AND is_breakglass = false`,
+      [id],
+    );
+    if (rows.length === 0) throw new NotFoundException("user không tồn tại");
+    const u = rows[0];
+    if (!u.deleted_at && u.status !== "locked") {
+      throw new ConflictException(
+        "chỉ xóa vĩnh viễn được khi tài khoản đã KHÓA hoặc đã XÓA — hãy khóa/xóa user trước",
+      );
+    }
+    // Ghi audit TRƯỚC khi bản ghi biến mất (giữ dấu vết ai/khi/xóa gì).
+    await this.audit.record({
+      actorUserId,
+      action: "user.hard_deleted",
+      targetType: "user",
+      targetId: id,
+      ip,
+      detail: { email: u.email, employee_code: u.employee_code },
+    });
+    await this.pool.query(
+      `DELETE FROM users WHERE id = $1 AND is_breakglass = false`,
+      [id],
+    );
+    return { ok: true };
   }
 
   /** Khôi phục user đã xóa (SSA) — giữ định danh cũ, đặt lại active. */

@@ -7,6 +7,7 @@ import {
 } from "@pmh/shared";
 import { Pool } from "pg";
 import { Agent } from "undici";
+import { isProdPosture } from "../config/env.validation";
 import { SettingsService } from "../config/settings.service";
 import { isClientLoginAllowed } from "../modules/auth-oidc/login.service";
 import { assertEgressAllowed } from "../modules/notifications/egress.util";
@@ -78,9 +79,10 @@ async function loadUserClaims(
     email: string;
     employee_code: string;
     full_name: string;
+    department: string;
     groups: string[];
   }>(
-    `SELECT u.id, u.email, u.employee_code, u.full_name,
+    `SELECT u.id, u.email, u.employee_code, u.full_name, u.department,
             COALESCE(array_agg(g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS groups
      FROM users u
      LEFT JOIN user_groups ug ON ug.user_id = u.id
@@ -96,6 +98,7 @@ async function loadUserClaims(
     email: u.email,
     employee_code: u.employee_code,
     full_name: u.full_name,
+    department: u.department,
     groups: u.groups,
     ver: JWT_CLAIMS_VERSION,
   };
@@ -131,10 +134,12 @@ export async function createOidcProvider(
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean);
-  const isProd = config.get("NODE_ENV") === "production";
   // Cookie Secure bám scheme THẬT của issuer (https ⇒ có TLS), không bám NODE_ENV
   // — chuyển VM/quên set NODE_ENV không được phép âm thầm tắt Secure (vbsec P1-2).
   const issuerIsHttps = new URL(issuer).protocol === "https:";
+  // "Tư thế prod" cho quyết định bảo mật (fail-fast redirect, loại demo client):
+  // https non-loopback HOẶC NODE_ENV=production. Loopback https = dev → không siết.
+  const prodPosture = isProdPosture(config.get("NODE_ENV"), issuer);
 
   // Tham số phiên từ Settings (AD-15). Preload cache 1 lần rồi đọc ĐỒNG BỘ
   // trong từng closure ttl → SSA đổi runtime (E6-S5 gọi settings.set) có hiệu
@@ -152,15 +157,20 @@ export async function createOidcProvider(
   // Portal (SPA) redirect + post-logout: sau end_session, provider quay portal về
   // origin gốc "/" → boot() thấy hết phiên → hiện form login. Suy origin từ chính
   // redirect_uris để không lệch host giữa dev/prod.
-  const portalRedirects = config.get("PORTAL_REDIRECT_URI")
-    ? config.get<string>("PORTAL_REDIRECT_URI")!.split(",").map((s) => s.trim())
-    : [
-        // EDGE nginx phục vụ portal ở cổng công khai 8443 — redirect_uri PHẢI khớp
-        // location.origin của SPA (gồm cả :8443) nếu không authorize trả
-        // invalid_redirect_uri. Prod đặt PORTAL_REDIRECT_URI để không phụ thuộc default này.
-        "https://admin-de.pmh.com.vn:8443/auth/callback",
-        "https://localhost/auth/callback",
-      ];
+  // FAIL-FAST thay vì fallback âm thầm: thiếu PORTAL_REDIRECT_URI trên prod (issuer
+  // https) từng làm /authorize trả 400 TOÀN hệ thống mà server vẫn "healthy", không
+  // log lỗi boot — cực khó chẩn. Prod phải khai tường minh; chỉ dev/http mới có
+  // default localhost. redirect_uri PHẢI khớp location.origin của SPA.
+  const portalRedirectEnv = config.get<string>("PORTAL_REDIRECT_URI");
+  if (!portalRedirectEnv && prodPosture) {
+    throw new Error(
+      "[config] Thiếu PORTAL_REDIRECT_URI — issuer https (prod) bắt buộc khai redirect_uri của portal " +
+        "(vd https://<host>/auth/callback; nhiều địa chỉ cách nhau bằng dấu phẩy). Không dùng default dev để tránh authorize 400 âm thầm.",
+    );
+  }
+  const portalRedirects = portalRedirectEnv
+    ? portalRedirectEnv.split(",").map((s) => s.trim())
+    : ["https://localhost/auth/callback"]; // chỉ dev/http (issuer không https)
   const portalPostLogout = Array.from(
     new Set(portalRedirects.map((u) => new URL(u).origin + "/")),
   );
@@ -513,9 +523,11 @@ h3{font-weight:600;margin:0 0 8px}a{color:#1d7a4d;font-weight:600;text-decoratio
     // Client tĩnh. Portal quản trị PHẢI có ở MỌI môi trường: nó là SPA công khai
     // (PKCE, không secret) nên KHÔNG thể đến từ DB — pg-adapter ép mọi DB client
     // thành client_secret_basic, và clients.service cấm tạo client_id này
-    // (RESERVED_CLIENT_IDS). Nếu để prod rỗng thì bootstrap xong SSA cũng không
-    // có client nào để đăng nhập qua. demo-app thì chỉ dev.
-    clients: isProd ? [portalClient] : [demoClient, portalClient],
+    // (RESERVED_CLIENT_IDS). demo-app (secret cứng công khai) CHỈ nạp ở dev (không
+    // phải tư thế prod) — gate theo isProdPosture (nhất quán với keys/secret), KHÔNG
+    // theo NODE_ENV: đặt sai NODE_ENV=development trên prod từng có thể âm thầm nạp
+    // demo client vào prod.
+    clients: prodPosture ? [portalClient] : [demoClient, portalClient],
   });
 
   // Sau Nginx TLS termination — tin X-Forwarded-* đã được sanitize (AD-4)

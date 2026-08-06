@@ -24,6 +24,10 @@ services:
               (until [ -f dist/main.js ]; do sleep 1; done; exec node --watch dist/main.js))"
     environment:
       TSC_WATCHFILE: DynamicPriorityPolling
+      # SMTP dev = Mailpit (chỉ ở đây, KHÔNG default trong code app). Prod đặt
+      # SMTP_HOST/PORT thật qua .env. Mailer chưa cấu hình host sẽ báo lỗi rõ.
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
     volumes:
       - ../apps/sso-server/src:/repo/apps/sso-server/src
       - ../apps/sso-server/migrations:/repo/apps/sso-server/migrations

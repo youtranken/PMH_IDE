@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { DepartmentsModule } from "../departments/departments.module";
 import { CsvExportService } from "./csv-export.service";
 import { CsvImportService } from "./csv-import.service";
 import { ExpiryService } from "./expiry.service";
@@ -15,7 +16,7 @@ import { UsersService } from "./users.service";
  * đến từ module @Global.
  */
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, DepartmentsModule],
   controllers: [UsersController],
   providers: [
     UsersService,

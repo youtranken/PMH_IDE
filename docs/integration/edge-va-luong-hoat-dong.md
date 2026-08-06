@@ -202,11 +202,80 @@ sequenceDiagram
 
 ---
 
+## 5. Mô hình mạng Docker — mỗi project một mạng riêng, CHỈ web lên edge
+
+> 🧭 **Đọc mục này TRƯỚC khi đưa project mới vào cụm.** Sai ở đây làm **hỏng cả
+> project khác** (đã xảy ra thật — xem "Sự cố alias `api`" bên dưới).
+
+**Mỗi stack docker-compose tự tạo MỘT mạng bridge riêng** (subnet `/16` khác nhau).
+Một container **gắn được nhiều mạng cùng lúc**. Bức tranh thực tế:
+
+| Mạng | Subnet | Ai ở đây |
+|---|---|---|
+| `edge` (external, **dùng chung**) | `172.20.0.0/16` | edge-nginx + **các *-web** + sso-server + portal-fe. **Nơi định tuyến 8443.** |
+| `pmh-id_default` / `pmh-id_pmhid-internal` | `172.19` / `172.23` | PMH ID (sso, portal-fe / postgres, mailpit — DB kín) |
+| `qlts_default` | `172.18` | QLTS riêng: qlts-api, qlts-web, postgres, redis |
+| `project_qlhs_default` | `172.22` | QLHS riêng: api, web, postgres |
+| `<project>_default` | `172.2x` | Mỗi project mới thêm một dải |
+
+**Vì sao thấy nhiều subnet (vd 172.18 lẫn 172.20):** `qlts-web` nằm trên **CẢ**
+`edge`(172.20) **lẫn** `qlts_default`(172.18); còn `qlts-api` **chỉ** ở `qlts_default`
+(172.18). Ẩn dụ: `edge` = **hành lang chung** để nginx :8443 đi vào; mỗi app có
+**phòng riêng** (mạng `<project>_default`) để web↔api↔db nói chuyện nội bộ. Đây là
+bình thường, **không phải lỗi**.
+
+```mermaid
+flowchart TB
+    edge["edge-nginx :8443<br/>mạng edge 172.20 (dùng chung)"]
+    edge -->|Host de-qlts| qw["qlts-web<br/>(edge + qlts_default)"]
+    edge -->|Host de-qlhs| hw["qlhs-web<br/>(edge + project_qlhs_default)"]
+    qw --> qa["qlts-api<br/>(CHỈ qlts_default 172.18)"]
+    hw --> ha["qlhs-api<br/>(CHỈ project_qlhs_default 172.22)"]
+    qa -.->|OIDC back-channel<br/>de-admin:8443 qua host-gateway| edge
+    ha -.->|OIDC back-channel<br/>de-admin:8443 qua host-gateway| edge
+```
+
+### ⚠️ LUẬT VÀNG (bắt buộc cho mọi project trên cụm)
+
+1. **CHỈ container `*-web`/frontend lên mạng `edge`**, và phải có **network alias RIÊNG**
+   (`qlts-web`, `qlhs-web`, `vpp-web`…). Edge route tới alias riêng này.
+2. **Backend `api` KHÔNG BAO GIỜ lên `edge`.** Docker gán alias mặc định = tên service
+   (`api`). Nhiều project cùng tên `api` trên `edge` → **đụng tên**.
+3. **api gọi PMH ID (`de-admin:8443`, token/jwks/BCL) qua host-gateway**, không cần lên
+   edge: thêm `extra_hosts: ["de-admin.pmh.com.vn:host-gateway"]` (host publish edge:8443).
+4. **Không hardcode IP** container (IP đổi khi recreate). Nginx phải dùng `resolver
+   127.0.0.11` + biến (`set $up http://...; proxy_pass $up;`) để re-resolve.
+
+> **🔥 Sự cố alias `api` (đã xảy ra 2026-08-04):** khi cho `qlhs-api` join `edge`, nó
+> mang alias `api` trên edge. `qlts-web` (ở cả edge + qlts_default) proxy `/api →
+> http://api:3000`, resolve `api` ra **NHẦM qlhs-api** (172.20.x) thay vì qlts-api
+> (172.18.x) → **mọi /api của QLTS = 404**, QLTS "lỗi đăng nhập". IdP hoàn toàn vô
+> can. Chẩn nhanh: `docker exec <project>-web getent hosts api` — ra IP subnet edge
+> (172.20.x) là dính. Sửa: gỡ api khỏi edge (Luật 2), gọi de-admin qua host-gateway
+> (Luật 3). *(Recreate api có thể làm kẹt kết nối edge↔web → `docker restart <project>-web`.)*
+
+### Đường dẫn BCL/callback tùy quy ước route của app
+
+`backchannel_logout_uri` (và `redirect_uris`) **phải khớp cách app mount route** — hai
+app có thể khác nhau mà **cùng đúng**:
+
+| App | Mount route | Web nginx `/api` | URL công khai của BCL |
+|---|---|---|---|
+| **QLTS** | global prefix `/api` (health ở `/api/health`) | **giữ** path (`$request_uri`) | `…:8443/api/backchannel-logout` |
+| **QLHS** | mount ở **root** (health `/health`, auth `/auth/*`) | **strip** `/api/` (proxy_pass có dấu `/`) | `…:8443/api/**auth**/backchannel-logout` |
+
+→ Không có "chuẩn" cứng cho path — nó **phản ánh nội bộ từng app**. Khi đăng ký ở PMH
+ID, hãy **test thật**: `curl -X POST <uri>` → **404 = sai route**, **400/200 = đúng
+route**. Chức năng thì **giống hệt nhau** (nhận `logout_token` → verify → hủy phiên local).
+
+---
+
 ## Tóm tắt 1 dòng mỗi khối
 
 | Khối | Vai trò |
 |---|---|
 | **pmh-edge** | Cổng 443 duy nhất, chấm dứt TLS, route theo Host+path, backend chạy HTTP nội bộ |
+| **Mạng Docker** | `edge`(172.20) dùng chung — CHỈ web lên, alias riêng; mỗi project một `_default` riêng cho api/db; api gọi IdP qua host-gateway (KHÔNG lên edge) |
 | **sso-server** | IdP OIDC: authorize/token, quản user/nhóm/client, MFA, audit, webhook worker |
 | **portal-fe** | SPA quản trị, đăng nhập PKCE, gọi `/api/*` bằng Bearer token |
 | **Postgres** | Nguồn sự thật: user, phiên/token (oidc_payloads), hàng đợi webhook/email, settings |

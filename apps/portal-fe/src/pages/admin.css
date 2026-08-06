@@ -13,7 +13,7 @@
   --a-rail-2: #0a3a34;      /* đáy rail (gradient) */
   --a-ink: #16211f;         /* chữ chính */
   --a-ink-2: #5f716c;       /* chữ phụ */
-  --a-ink-3: #9aa8a2;       /* chữ mờ / placeholder */
+  --a-ink-3: #7f8d87;       /* chữ mờ / placeholder — đủ tương phản (WCAG) */
   --a-border: #e5eae7;      /* viền thẻ/bảng */
   --a-border-2: #eef1f0;    /* viền nhạt (chia hàng) */
   --a-primary: #0e4d45;     /* nhấn chính (nút, link) */
@@ -156,8 +156,10 @@
   border-radius: var(--radius-pill, 999px);
   line-height: 18px;
 }
-.pmh-env--prod { color: #0e7a5f; background: #e6f4ee; }
-.pmh-env--warn { color: #9a6400; background: #fbf0d9; }
+/* Môi trường = tín hiệu an toàn: PROD (nơi thao tác không hoàn tác) phải NỔI BẬT
+   cảnh báo, không phải màu êm; dev/local để trung tính. */
+.pmh-env--prod { color: #b0570f; background: #fbe7d5; border: 1px solid #f0c99a; }
+.pmh-env--warn { color: #5a6b7a; background: #eef1f4; }
 
 /* ---- Toolbar (bộ lọc/tìm) gắn TRÊN bảng, trong thẻ ---------------------- */
 .pmh-admin__toolbar {
@@ -169,6 +171,27 @@
   border-bottom: 1px solid var(--a-border);
 }
 .pmh-admin__toolbar-spacer { flex: 1 1 auto; min-width: 8px; }
+
+/* ---- Khối "thêm thành viên" trong drawer (nhóm + phòng ban) --------------- */
+.pmh-add-block {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: var(--a-canvas, #f3f5f3);
+  border: 1px solid var(--a-border);
+  border-radius: 12px;
+}
+.pmh-add-block__label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; color: var(--a-ink-2); margin-bottom: 8px;
+}
+.pmh-add-block__label .anticon { color: var(--a-primary); }
+.pmh-add-block__helper { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+
+/* Drawer width cố định (440/520) tràn màn hình điện thoại → co về full-width. */
+@media (max-width: 560px) {
+  .ant-drawer-right > .ant-drawer-content-wrapper,
+  .ant-drawer-left > .ant-drawer-content-wrapper { width: 100vw !important; max-width: 100vw; }
+}
 
 /* ---- Canvas + khung trang --------------------------------------------- */
 .pmh-admin__content.ant-layout-content {

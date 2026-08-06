@@ -43,7 +43,11 @@ export interface Profile {
 /** Trang chủ theo vai. SSA + break-glass (cả hai đều có isSsa) VÀO THẲNG bảng
  *  quản trị khi đăng nhập; member/project_admin về trang chủ coverflow. */
 function homeFor(p: Profile): string {
-  return p.isSsa ? "/admin/users" : "/";
+  if (p.isSsa) return "/admin/users";
+  // project_admin (có vai nhưng không SSA) vào THẲNG console dự án của mình,
+  // không rơi vào launcher rồi phải tự tìm "Bảng quản trị" trong menu avatar.
+  if (p.roles.length > 0) return "/admin/workspace";
+  return "/";
 }
 
 /** Các route hợp lệ theo quyền của user (dùng chung cho redirect + chọn trang). */
@@ -89,6 +93,10 @@ export default function App() {
         components: {
           Layout: { headerBg: "#ffffff", headerHeight: 62, siderBg: "#ffffff" },
           Menu: { itemSelectedBg: "#e8f0ed", itemSelectedColor: "#0E4D45", itemHeight: 44, itemBorderRadius: 8 },
+          // Bộ lọc/dropdown + Segmented dùng chung tông xanh brand cho mục đang
+          // chọn (bỏ nền tối/xám mặc định lệch tone với rail xanh).
+          Select: { optionSelectedBg: "#e8f0ed", optionSelectedColor: "#0E4D45" },
+          Segmented: { itemSelectedBg: "#e8f0ed", itemSelectedColor: "#0E4D45", trackBg: "#eef1ee" },
           Button: { primaryShadow: "none" },
           Card: { boxShadowTertiary: "0 1px 2px rgba(16,33,31,0.04), 0 8px 24px rgba(16,33,31,0.05)" },
         },
@@ -140,7 +148,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/account": "PMH ID — Tài khoản",
   "/docs": "PMH ID — Tài liệu dự án",
   "/admin/users": "PMH ID — Người dùng",
-  "/admin/groups": "PMH ID — Nhóm",
+  "/admin/groups": "PMH ID — Nhóm / Phòng ban",
   "/admin/workspace": "PMH ID — Dự án & Ứng dụng",
   "/audit": "PMH ID — Nhật ký",
   "/settings": "PMH ID — Cấu hình",
@@ -425,7 +433,7 @@ function AdminConsole({
 }) {
   const sections = [
     { key: "/admin/users", icon: <TeamOutlined />, label: "Người dùng" },
-    { key: "/admin/groups", icon: <ApartmentOutlined />, label: "Nhóm" },
+    { key: "/admin/groups", icon: <ApartmentOutlined />, label: "Nhóm / Phòng ban" },
     { key: "/admin/workspace", icon: <ProjectOutlined />, label: "Dự án & Ứng dụng" },
     { key: "/audit", icon: <AuditOutlined />, label: "Nhật ký" },
     ...(profile.isSsa ? [{ key: "/settings", icon: <SettingOutlined />, label: "Cấu hình" }] : []),
@@ -495,7 +503,7 @@ function AdminConsole({
         <Header className="pmh-admin__header">
           {mobile ? (
             <>
-              <MenuOutlined style={{ fontSize: 18, cursor: "pointer" }} onClick={() => setDrawer(true)} />
+              <Button type="text" aria-label="Mở menu điều hướng" icon={<MenuOutlined style={{ fontSize: 18 }} />} onClick={() => setDrawer(true)} />
               {/* Trên mobile rail bị ẩn → header là nơi DUY NHẤT chỉ vị trí. */}
               <span className="pmh-admin__header-title">{title}</span>
             </>

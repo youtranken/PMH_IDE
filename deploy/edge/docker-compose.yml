@@ -30,6 +30,12 @@ services:
         # id.pmh.com.vn / qlts.pmh.com.vn về chính nginx này — đi trong máy,
         # không ra internet, issuer giữ URL công khai.
         aliases:
+          # de-* = tên mới (BCL/webhook nội bộ resolve về edge). Giữ tên CŨ để
+          # cấu hình cũ chưa migrate không vỡ khi resolve nội bộ (gỡ khi mọi
+          # client đã chuyển hẳn sang de-*:8443).
+          - de-admin.pmh.com.vn
+          - de-qlts.pmh.com.vn
+          - de-qlhs.pmh.com.vn
           - admin-de.pmh.com.vn
           - qlts.pmh.com.vn
 

@@ -1,7 +1,7 @@
 import { App as AntApp, Button, Card, Empty, Input, Select, Space, Table, Tag, Tooltip } from "antd";
 import { useEffect, useState } from "react";
 import { api } from "../auth";
-import { PageHeader } from "../ui";
+import { ListEmpty, PageHeader } from "../ui";
 
 interface AuditRow {
   id: number;
@@ -120,6 +120,7 @@ export default function Audit({ isSsa }: { isSsa: boolean }) {
   const [loading, setLoading] = useState(false);
   const [archives, setArchives] = useState<string[]>([]);
   const [month, setMonth] = useState<string | undefined>();
+  const [error, setError] = useState<string | null>(null);
 
   const load = async (act?: string, m?: string) => {
     setLoading(true);
@@ -128,8 +129,9 @@ export default function Audit({ isSsa }: { isSsa: boolean }) {
         ? await api<AuditRow[]>(`/api/admin/audit/archives/${m}`)
         : await api<AuditRow[]>(`/api/admin/audit?limit=200${act ? `&action=${encodeURIComponent(act)}` : ""}`);
       setRows(data);
+      setError(null);
     } catch (e) {
-      message.error((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -179,7 +181,7 @@ export default function Audit({ isSsa }: { isSsa: boolean }) {
           pagination={{ pageSize: 20 }}
           scroll={{ x: 720 }}
           onRow={(_, i) => ({ style: { "--pmh-i": Math.min(i ?? 0, 14) } as import("react").CSSProperties })}
-          locale={{ emptyText: <Empty description="Chưa có nhật ký phù hợp" /> }}
+          locale={{ emptyText: error ? <ListEmpty error={error} onRetry={() => load(action, month)} description="" /> : <Empty description="Chưa có nhật ký phù hợp" /> }}
         />
       </Card>
     </div>

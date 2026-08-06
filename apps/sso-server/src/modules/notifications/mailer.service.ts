@@ -44,8 +44,24 @@ export class MailerService {
   }
 
   private async resolve(): Promise<Transporter> {
-    const host = (await this.settings.get("smtp_host", "mailpit")) ?? "mailpit";
-    const port = await this.settings.getInt("smtp_port", 1025);
+    // Ưu tiên settings (SSA chỉnh runtime), FALLBACK .env. KHÔNG có default 'mailpit'
+    // (mailpit chỉ là công cụ dev, cấu hình qua env dev — không nhét vào code). Chưa
+    // cấu hình host → NÉM lỗi rõ để job email vào retry + admin thấy, thay vì trỏ
+    // host không tồn tại và fail âm thầm (reset/quên/temp-password im lặng không gửi).
+    const host =
+      (await this.settings.get("smtp_host", "")) ||
+      this.config.get<string>("SMTP_HOST") ||
+      "";
+    if (!host) {
+      throw new Error(
+        "SMTP chưa cấu hình — đặt SMTP_HOST/SMTP_PORT trong .env hoặc cấu hình SMTP trong UI Cấu hình. Email (reset/quên/temp-password) chưa gửi được.",
+      );
+    }
+    const portStr =
+      (await this.settings.get("smtp_port", "")) ||
+      this.config.get<string>("SMTP_PORT") ||
+      "587";
+    const port = Number.parseInt(portStr, 10) || 587;
     const user =
       (await this.settings.get("smtp_user", "")) ||
       this.config.get<string>("SMTP_USER") ||

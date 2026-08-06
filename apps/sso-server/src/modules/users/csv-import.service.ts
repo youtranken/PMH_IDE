@@ -11,7 +11,7 @@ import { parseCsv, splitGroups } from "./csv.util";
 import { TempPasswordService } from "./temp-password.service";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const REQUIRED_COLS = ["employee_code", "email", "full_name"];
+const REQUIRED_COLS = ["employee_code", "email", "full_name", "department"];
 /** Trần số dòng một lần nhập — chống một CSV khổng lồ băm argon2 chặn event loop. */
 const MAX_ROWS = 5000;
 
@@ -19,6 +19,7 @@ interface RowData {
   employee_code: string;
   email: string;
   full_name: string;
+  department: string; // tùy chọn; nếu có phải trùng danh mục Phòng ban
   groups: string[];
 }
 type RowStatus = "ok" | "error" | "created" | "skipped" | "failed";
@@ -109,6 +110,7 @@ export class CsvImportService {
       employee_code: header.indexOf("employee_code"),
       email: header.indexOf("email"),
       full_name: header.indexOf("full_name"),
+      department: header.indexOf("department"),
       groups: header.indexOf("groups"),
     };
     const missing = REQUIRED_COLS.filter(
@@ -116,20 +118,23 @@ export class CsvImportService {
     );
     if (missing.length > 0) {
       throw new BadRequestException(
-        `CSV thiếu cột bắt buộc: ${missing.join(", ")} (mẫu: employee_code,email,full_name,groups)`,
+        `CSV thiếu cột bắt buộc: ${missing.join(", ")} (mẫu: employee_code,email,full_name,department,groups)`,
       );
     }
 
-    // Nạp một lần: định danh đã có trong DB (kể cả deleted) + group đang tồn tại
-    const [users, groups] = await Promise.all([
+    // Nạp một lần: định danh đã có trong DB (kể cả deleted) + group + phòng ban
+    const [users, groups, depts] = await Promise.all([
       this.pool.query<{ email: string; employee_code: string }>(
         `SELECT lower(email) AS email, employee_code FROM users`,
       ),
       this.pool.query<{ name: string }>(`SELECT lower(name) AS name FROM groups`),
+      this.pool.query<{ name: string }>(`SELECT name FROM departments`),
     ]);
     const dbEmails = new Set(users.rows.map((u) => u.email));
     const dbCodes = new Set(users.rows.map((u) => u.employee_code));
     const dbGroups = new Set(groups.rows.map((g) => g.name));
+    // map tên-thường → tên chuẩn (chuẩn hóa casing khi ghi).
+    const deptCanon = new Map(depts.rows.map((d) => [d.name.toLowerCase(), d.name]));
 
     // project_admin chỉ được gán vào group THUỘC phạm vi project mình (như
     // assertCanManage) — chặn cấy user vào group của project khác qua import.
@@ -156,6 +161,8 @@ export class CsvImportService {
         employee_code: (cells[idx.employee_code] ?? "").trim(),
         email: (cells[idx.email] ?? "").trim(),
         full_name: (cells[idx.full_name] ?? "").trim(),
+        department:
+          idx.department === -1 ? "" : (cells[idx.department] ?? "").trim(),
         groups:
           idx.groups === -1 ? [] : splitGroups(cells[idx.groups] ?? ""),
       };
@@ -165,6 +172,15 @@ export class CsvImportService {
       if (!data.employee_code) errors.push("thiếu employee_code");
       if (!data.full_name) errors.push("thiếu full_name");
       if (!EMAIL_RE.test(data.email)) errors.push("email không hợp lệ");
+      // Phòng ban BẮT BUỘC + phải nằm trong danh mục (đồng nhất với tạo user ở UI);
+      // chuẩn hóa về tên chính tắc của danh mục.
+      if (!data.department) {
+        errors.push("thiếu department");
+      } else {
+        const canon = deptCanon.get(data.department.toLowerCase());
+        if (!canon) errors.push(`phòng ban chưa có trong danh mục: ${data.department}`);
+        else data.department = canon;
+      }
 
       const emailLc = data.email.toLowerCase();
       if (emailLc && seenEmails.has(emailLc))
@@ -207,9 +223,9 @@ export class CsvImportService {
     try {
       await client.query("BEGIN");
       const { rows } = await client.query<{ id: string }>(
-        `INSERT INTO users (email, employee_code, full_name)
-         VALUES ($1, $2, $3) RETURNING id`,
-        [r.data.email, r.data.employee_code, r.data.full_name],
+        `INSERT INTO users (email, employee_code, full_name, department)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        [r.data.email, r.data.employee_code, r.data.full_name, r.data.department],
       );
       userId = rows[0].id;
       for (const g of r.data.groups) {

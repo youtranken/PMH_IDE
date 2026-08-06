@@ -5,7 +5,9 @@
  */
 
 // ---- Phiên bản hợp đồng claims (FR-02) ----
-export const JWT_CLAIMS_VERSION = 1;
+// v2: thêm claim `department` (nhãn phòng ban) — project ngoài đọc để hiển
+// thị/phân quyền theo phòng ban.
+export const JWT_CLAIMS_VERSION = 2;
 
 // ---- Trần cache JWKS phía client (AD-8): client KHÔNG được cache khóa quá 10' ----
 export const MAX_JWKS_CACHE_SECONDS = 600;
@@ -21,6 +23,7 @@ export const PMH_CLAIM_KEYS = [
   "email",
   "employee_code",
   "full_name",
+  "department",
   "groups",
   "ver",
 ] as const;
@@ -39,6 +42,8 @@ export interface PmhIdTokenClaims {
   /** mã nhân viên (định danh nội bộ) */
   employee_code: string;
   full_name: string;
+  /** phòng ban (nhãn tổ chức) — KHÁC groups; app ngoài đọc để hiển thị/phân quyền */
+  department: string;
   /** tên các group user thuộc — nguồn quyền phía app tự diễn giải */
   groups: string[];
   /** phiên bản hợp đồng claims (FR-02) */

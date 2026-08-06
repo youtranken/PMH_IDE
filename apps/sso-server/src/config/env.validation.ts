@@ -30,10 +30,9 @@ export class EnvVars {
   @IsNotEmpty()
   KEK_BASE64!: string;
 
-  // SMTP_HOST/SMTP_PORT KHÔNG khai ở đây: host/port đọc từ bảng settings (SSA
-  // chỉnh runtime qua FE — MailerService.resolve), không phải .env. Trước đây
-  // bắt buộc ở .env nhưng KHÔNG code nào đọc → biến chết gây hiểu nhầm "host
-  // nhập ở .env". Creds (SMTP_USER/PASSWORD) tùy chọn; SMTP_FROM bắt buộc.
+  // SMTP_HOST/PORT/USER/PASSWORD tùy chọn (KHÔNG bắt buộc ở đây): ưu tiên bảng
+  // settings (SSA chỉnh runtime qua FE), FALLBACK về .env nếu setting rỗng
+  // (MailerService.resolve). SMTP_FROM bắt buộc để email có địa chỉ gửi hợp lệ.
   @IsString()
   @IsNotEmpty()
   SMTP_FROM!: string;
@@ -51,6 +50,26 @@ const SAMPLE_SECRETS: Record<string, string> = {
   // không mã hóa bằng passphrase mẫu (rò .env = mở mọi bản backup).
   BACKUP_PASSPHRASE: "dev_backup_passphrase_change_me",
 };
+
+/**
+ * "Tư thế production" cho các quyết định bảo mật — dùng CHUNG để không nơi nào
+ * còn gate riêng bằng NODE_ENV (biến ops copy, dễ sai). true nếu NODE_ENV là
+ * production HOẶC issuer chạy https (hạ tầng thật có TLS = đang phục vụ prod).
+ */
+export function isProdPosture(nodeEnv: unknown, oidcIssuer: string): boolean {
+  if (nodeEnv === "production") return true;
+  if (!oidcIssuer.startsWith("https://")) return false;
+  // https = prod TRỪ khi issuer là loopback: dev có thể chạy https://localhost để
+  // test cookie Secure mà KHÔNG bị coi là prod (nếu không, `.env.example` dev sẽ bị
+  // các chốt fail-fast từ chối khởi động). Cookie Secure dùng issuerIsHttps trực
+  // tiếp nên vẫn bật đúng ở dev https.
+  try {
+    const h = new URL(oidcIssuer).hostname;
+    return h !== "localhost" && h !== "127.0.0.1" && h !== "::1";
+  } catch {
+    return true; // https nhưng URL không parse được → coi như prod (an toàn)
+  }
+}
 
 export function validateEnv(config: Record<string, unknown>): EnvVars {
   const validated = plainToInstance(EnvVars, config, {
@@ -72,7 +91,10 @@ export function validateEnv(config: Record<string, unknown>): EnvVars {
 
   // FAIL-FAST ở prod nếu còn dùng secret mẫu (guard footgun copy .env.example).
   // Kiểm trên raw config để bắt cả biến không khai trong EnvVars (BACKUP_PASSPHRASE).
-  if (validated.NODE_ENV === "production") {
+  // "Tư thế prod" = NODE_ENV production HOẶC issuer https — KHÔNG tin mỗi NODE_ENV
+  // (biến do ops copy, đặt sai `development` vẫn lọt @IsIn rồi âm thầm bỏ chốt này);
+  // issuer https là tín hiệu hạ tầng thật (cùng cách suy như cookie Secure).
+  if (isProdPosture(validated.NODE_ENV, String(config.OIDC_ISSUER ?? ""))) {
     const offenders = Object.entries(SAMPLE_SECRETS)
       .filter(([key, sample]) => config[key] === sample)
       .map(([key]) => key);
