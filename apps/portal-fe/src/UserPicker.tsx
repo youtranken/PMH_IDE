@@ -51,7 +51,9 @@ export function UserPicker({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { run(""); }, []);
 
-  const exclude = new Set(excludeIds ?? []);
+  // Loại người đã có sẵn (excludeIds) VÀ người vừa chọn (value) khỏi dropdown —
+  // antd cache label khi chọn (search-server) nên tag vẫn giữ tên dù rời options.
+  const exclude = new Set([...(excludeIds ?? []), ...(value ?? [])]);
   const options = opts
     .filter((u) => !exclude.has(u.id))
     .map((u) => ({

@@ -221,10 +221,11 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
   const { message, modal } = AntApp.useApp();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
-  const [adding, setAdding] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [deptCatalog, setDeptCatalog] = useState<string[]>([]);
-  const [deptPicked, setDeptPicked] = useState<{ name: string; n: number } | null>(null);
+  const [deptSel, setDeptSel] = useState<string | undefined>(undefined);
+  const [showIndiv, setShowIndiv] = useState(false);
+  const [adding, setAdding] = useState<string[]>([]);
 
   const load = () => {
     if (!group) return;
@@ -238,7 +239,7 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
       .finally(() => setLoading(false));
   };
   useEffect(load, [group]);
-  useEffect(() => { setAdding([]); setDeptPicked(null); }, [group]);
+  useEffect(() => { setAdding([]); setDeptSel(undefined); setShowIndiv(false); }, [group]);
   useEffect(() => {
     if (group && deptCatalog.length === 0)
       api<{ name: string }[]>("/api/admin/departments")
@@ -246,24 +247,58 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
         .catch(() => {});
   }, [group]);
 
-  // Thêm NHIỀU thành viên một lần — mỗi người một lời gọi (API thêm từng user).
-  const addMany = async () => {
-    setBusy(true);
+  const memberIds = members.map((m) => m.user_id);
+
+  // Thêm nhiều userId vào nhóm — mỗi người một lời gọi. Trả về danh sách lỗi.
+  const addUsers = async (ids: string[]): Promise<string[]> => {
     const failed: string[] = [];
-    for (const userId of adding) {
+    for (const userId of ids) {
       try {
         await api(`/api/admin/groups/${group!.id}/members`, { method: "POST", body: { userId } });
       } catch {
         failed.push(userId);
       }
     }
+    return failed;
+  };
+
+  // CHÍNH — Thêm CẢ phòng ban: hỏi SERVER người của phòng (chính xác, không giới
+  // hạn tập đã tải), thêm hết những ai CHƯA ở trong nhóm. Ảnh chụp tại thời điểm
+  // bấm: người vào phòng SAU này sẽ không tự vào nhóm.
+  const addDept = async () => {
+    if (!deptSel) return;
+    setBusy(true);
+    try {
+      const us = await api<{ id: string }[]>(`/api/admin/users?department=${encodeURIComponent(deptSel)}`);
+      const inGroup = new Set(memberIds);
+      const ids = us.map((u) => u.id).filter((id) => !inGroup.has(id));
+      if (!ids.length) {
+        message.info(`Phòng "${deptSel}" không có ai mới để thêm.`);
+        return;
+      }
+      const failed = await addUsers(ids);
+      if (failed.length) message.warning(`Đã thêm ${ids.length - failed.length}/${ids.length} — lỗi ${failed.length} người.`);
+      else message.success(`Đã thêm ${ids.length} thành viên phòng "${deptSel}" vào nhóm`);
+      setDeptSel(undefined);
+      load();
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // PHỤ — Thêm từng người lẻ (thực tập sinh / ngoại lệ chưa thuộc phòng nào).
+  const addIndiv = async () => {
+    setBusy(true);
+    const failed = await addUsers(adding);
     setBusy(false);
-    if (failed.length) message.warning(`Chưa thêm được: ${failed.join(", ")}`);
+    if (failed.length) message.warning(`Chưa thêm được ${failed.length} người.`);
     else message.success(`Đã thêm ${adding.length} thành viên`);
     setAdding([]);
-    setDeptPicked(null);
     load();
   };
+
   const remove = (userId: string) => {
     const m = members.find((x) => x.user_id === userId);
     modal.confirm({
@@ -285,70 +320,59 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
     }
   };
 
-  const memberIds = members.map((m) => m.user_id);
   const deptOptions = deptCatalog
     .slice()
     .sort((a, b) => a.localeCompare(b, "vi"))
     .map((d) => ({ value: d, label: d }));
 
-  // Điền nhanh theo phòng ban: hỏi SERVER danh sách người của phòng (chính xác,
-  // không giới hạn tập đã tải) rồi đưa những ai CHƯA là thành viên vào ô chọn.
-  const quickFillDept = async (d: string) => {
-    try {
-      const us = await api<{ id: string }[]>(`/api/admin/users?department=${encodeURIComponent(d)}`);
-      const inGroup = new Set(memberIds);
-      const ids = us.map((u) => u.id).filter((id) => !inGroup.has(id));
-      setAdding((prev) => [...new Set([...prev, ...ids])]);
-      setDeptPicked({ name: d, n: ids.length });
-    } catch (e) {
-      message.error((e as Error).message);
-    }
-  };
-
   return (
     <Drawer open={!!group} onClose={onClose} width={440} title={group ? `Thành viên · ${group.name}` : ""}>
       <div className="pmh-add-block">
-        <div className="pmh-add-block__label"><TeamOutlined /> Thêm thành viên vào nhóm</div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <UserPicker
-            mode="multiple"
-            placeholder="Gõ tên/email/mã NV để thêm…"
-            style={{ flex: 1 }}
-            value={adding}
-            onChange={setAdding}
-            excludeIds={memberIds}
-          />
-          <Button type="primary" loading={busy} disabled={!adding.length} onClick={addMany}>
-            Thêm{adding.length ? ` (${adding.length})` : ""}
-          </Button>
-        </div>
-
-        {deptOptions.length > 0 && (
-          <div className="pmh-add-block__helper">
-            <BankOutlined style={{ color: "var(--a-ink-3)" }} />
-            <Select
-              showSearch
-              size="small"
-              placeholder="Điền nhanh theo phòng ban…"
-              style={{ flex: 1 }}
-              value={undefined}
-              optionFilterProp="label"
-              options={deptOptions}
-              onChange={(d?: string) => { if (d) quickFillDept(d); }}
-            />
+        <div className="pmh-add-block__label"><BankOutlined /> Thêm cả phòng ban vào nhóm</div>
+        {deptOptions.length > 0 ? (
+          <>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Select
+                showSearch
+                placeholder="Chọn phòng ban…"
+                style={{ flex: 1 }}
+                value={deptSel}
+                optionFilterProp="label"
+                options={deptOptions}
+                onChange={setDeptSel}
+              />
+              <Button type="primary" loading={busy} disabled={!deptSel} onClick={addDept}>Thêm vào</Button>
+            </div>
+          </>
+        ) : (
+          <div style={{ color: BRAND.muted, fontSize: 12 }}>
+            Chưa có phòng ban nào — tạo ở tab “Phòng ban”, hoặc thêm từng người bên dưới.
           </div>
         )}
-        {deptPicked && (
-          <Alert
-            type={deptPicked.n ? "info" : "warning"}
-            showIcon
-            style={{ marginTop: 8 }}
-            message={
-              deptPicked.n
-                ? `Đã đưa ${deptPicked.n} thành viên hiện có của "${deptPicked.name}" vào ô chọn phía trên — kiểm rồi bấm "Thêm". Chỉ thêm người ĐANG thuộc phòng; người vào phòng sau này sẽ KHÔNG tự vào nhóm.`
-                : `Phòng "${deptPicked.name}" chưa có ai (hoặc tất cả đã ở trong nhóm) để thêm.`
-            }
-          />
+
+        <Button
+          type="link"
+          size="small"
+          icon={<TeamOutlined />}
+          style={{ paddingLeft: 0, marginTop: 4 }}
+          onClick={() => setShowIndiv((s) => !s)}
+        >
+          {showIndiv ? "Ẩn thêm lẻ" : "Thêm thành viên lẻ (thực tập sinh, ngoại lệ…)"}
+        </Button>
+        {showIndiv && (
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <UserPicker
+              mode="multiple"
+              placeholder="Gõ tên/email/mã NV để thêm…"
+              style={{ flex: 1 }}
+              value={adding}
+              onChange={setAdding}
+              excludeIds={memberIds}
+            />
+            <Button loading={busy} disabled={!adding.length} onClick={addIndiv}>
+              Thêm{adding.length ? ` (${adding.length})` : ""}
+            </Button>
+          </div>
         )}
       </div>
 
