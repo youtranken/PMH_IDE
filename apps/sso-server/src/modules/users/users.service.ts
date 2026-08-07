@@ -464,6 +464,12 @@ export class UsersService {
       ip,
       detail: { email: u.email, employee_code: u.employee_code },
     });
+    // Bắn user.deleted TRƯỚC khi DELETE: lúc này user_groups còn → tìm được client
+    // đích; webhook_deliveries không FK tới users nên delivery sống sót sau khi xóa.
+    // Phủ ca "khóa → xóa vĩnh viễn" (QLTS mới nhận user.locked, chưa user.deleted)
+    // và làm lưới an toàn nếu webhook lúc soft-delete từng rớt. QLTS idempotent theo
+    // event_id + setStatus('deleted') idempotent → nhận lại không hại.
+    await this.emitEvent(id, "user.deleted");
     await this.pool.query(
       `DELETE FROM users WHERE id = $1 AND is_breakglass = false`,
       [id],
