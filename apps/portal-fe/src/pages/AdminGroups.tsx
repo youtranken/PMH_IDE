@@ -41,11 +41,10 @@ export default function AdminGroupsPage({ isSsa }: { isSsa: boolean }) {
       <Alert
         type="info"
         showIcon
-        style={{ marginBottom: 20 }}
+        style={{ marginBottom: 20, background: "var(--a-canvas)", border: "1px solid var(--a-border)" }}
         message={
           <span>
-            <b>Nhóm</b> = cấp quyền vào ứng dụng (gỡ khỏi nhóm ⇒ mất quyền + thu hồi phiên).{" "}
-            <b>Phòng ban</b> = nhãn tổ chức, KHÔNG liên quan quyền. Mỗi người thuộc <b>1</b> phòng ban nhưng có thể ở <b>nhiều</b> nhóm.
+            <b>Nhóm</b> = cấp quyền vào ứng dụng (gỡ khỏi nhóm ⇒ mất quyền + thu hồi phiên).
           </span>
         }
       />
