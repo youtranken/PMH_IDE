@@ -269,9 +269,10 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
     if (!deptSel) return;
     setBusy(true);
     try {
-      const us = await api<{ id: string }[]>(`/api/admin/users?department=${encodeURIComponent(deptSel)}`);
+      const us = await api<{ id: string; deleted_at: string | null }[]>(`/api/admin/users?department=${encodeURIComponent(deptSel)}`);
       const inGroup = new Set(memberIds);
-      const ids = us.map((u) => u.id).filter((id) => !inGroup.has(id));
+      // Bỏ user đã xóa (soft/hard-in-progress) — thêm user đã xóa vào nhóm sẽ lỗi ở BE.
+      const ids = us.filter((u) => !u.deleted_at).map((u) => u.id).filter((id) => !inGroup.has(id));
       if (!ids.length) {
         message.info(`Phòng "${deptSel}" không có ai mới để thêm.`);
         return;

@@ -31,7 +31,8 @@ export class DepartmentsService {
     const { rows } = await this.pool.query<DepartmentRow>(
       `SELECT d.id, d.name, d.created_at,
               (SELECT count(*)::int FROM users u
-               WHERE lower(u.department) = lower(d.name)) AS user_count
+               WHERE lower(u.department) = lower(d.name)
+                     AND u.deleted_at IS NULL) AS user_count
        FROM departments d ORDER BY d.name`,
     );
     return rows;
@@ -79,9 +80,11 @@ export class DepartmentsService {
     if (rows.length === 0) throw new NotFoundException("phòng ban không tồn tại");
     const name = rows[0].name;
     // Chặn xóa phòng ban đang gắn cho user (theo tên) — tránh để user treo nhãn
-    // không còn trong danh mục. Admin phải chuyển user sang phòng ban khác trước.
+    // không còn trong danh mục. Chỉ tính user CÒN SỐNG (deleted_at IS NULL) để
+    // khớp "Số user" hiển thị: user đã xóa vĩnh viễn/mềm không giữ phòng ban treo.
     const { rows: used } = await this.pool.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM users WHERE lower(department) = lower($1)`,
+      `SELECT count(*)::int AS n FROM users
+       WHERE lower(department) = lower($1) AND deleted_at IS NULL`,
       [name],
     );
     if (used[0].n > 0) {
