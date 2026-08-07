@@ -285,10 +285,7 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader
-        title="Cấu hình hệ thống"
-        sub="Tham số vận hành áp dụng ngay (không cần khởi động lại). Mật khẩu SMTP lưu mã hóa, chỉ nhập được — không hiển thị lại."
-      />
+      <PageHeader title="Cấu hình hệ thống" />
 
       {loading && (
         <div className="pmh-set-grid">

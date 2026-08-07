@@ -23,6 +23,7 @@ echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
 #   webhook_url trên client (hiện 1 LẦN) rồi dán vào PMH_WEBHOOK_SECRET của app.
 #   Bỏ trống nếu KHÔNG dùng offboarding webhook.
 echo "MAIL_ENC_KEY=$(openssl rand -hex 32)          # mã hoá password SMTP lưu qua UI — KHÔNG đổi sau khi đã lưu"
+echo "BACKUP_PASSPHRASE=$(openssl rand -hex 32)     # mã hoá backup QLTS (AES-256) — cất offline, mất = mất restore"
 echo
 echo "----- QLHS_DE/.env  (GỐC repo — bản siết bảo mật DB) -----"
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)     # chìa superuser DB (thay 'qlhs')"

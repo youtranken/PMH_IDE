@@ -611,7 +611,7 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
                   allowClear
                   placeholder="Chọn một hoặc nhiều nhóm — gán quyền vào app ngay khi tạo"
                   optionFilterProp="label"
-                  options={groups.map((g) => ({
+                  options={groups.filter((g) => !pickedGroups.includes(g.id)).map((g) => ({
                     value: g.id,
                     label: g.name,
                   }))}
@@ -630,17 +630,13 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
               </Form.Item>
               {(() => {
                 const apps = [...new Set(pickedGroups.flatMap((g) => accessMap[g] ?? []))];
-                if (!pickedGroups.length) return null;
+                if (!apps.length) return null;
                 return (
                   <Alert
-                    type={apps.length ? "success" : "info"}
+                    type="success"
                     showIcon
                     style={{ marginBottom: 16, marginTop: -4 }}
-                    message={
-                      apps.length
-                        ? `Với nhóm đã chọn, user vào được: ${apps.join(", ")}`
-                        : "Nhóm đã chọn chưa gắn với ứng dụng nào (chưa mở quyền vào app)."
-                    }
+                    message={`Với nhóm đã chọn, user vào được: ${apps.join(", ")}`}
                   />
                 );
               })()}
