@@ -611,10 +611,10 @@ export default function AdminUsers({ isSsa }: { isSsa: boolean }) {
                   allowClear
                   placeholder="Chọn một hoặc nhiều nhóm — gán quyền vào app ngay khi tạo"
                   optionFilterProp="label"
-                  options={groups.filter((g) => !pickedGroups.includes(g.id)).map((g) => ({
-                    value: g.id,
-                    label: g.name,
-                  }))}
+                  // KHÔNG lọc nhóm đã chọn khỏi options: đây là Select options TĨNH
+                  // (không async), lọc mất option → antd không tra được label → tag
+                  // hiện UUID. Để nguyên: nhóm đã chọn có dấu ✓, tag giữ đúng tên.
+                  options={groups.map((g) => ({ value: g.id, label: g.name }))}
                   optionRender={(o) => {
                     const apps = accessMap[o.value as string] ?? [];
                     return (
