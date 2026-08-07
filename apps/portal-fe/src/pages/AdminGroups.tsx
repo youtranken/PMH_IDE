@@ -1,4 +1,4 @@
-import { ApartmentOutlined, BankOutlined, DeleteOutlined, PlusOutlined, TeamOutlined } from "@ant-design/icons";
+import { ApartmentOutlined, BankOutlined, DeleteOutlined, EditOutlined, PlusOutlined, TeamOutlined } from "@ant-design/icons";
 import {
   Alert,
   App as AntApp,
@@ -389,6 +389,7 @@ function DepartmentsPanel({ isSsa }: { isSsa: boolean }) {
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [membersOf, setMembersOf] = useState<DepartmentRow | null>(null);
+  const [editing, setEditing] = useState<DepartmentRow | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -399,13 +400,26 @@ function DepartmentsPanel({ isSsa }: { isSsa: boolean }) {
   };
   useEffect(load, []);
 
-  const openCreate = () => { form.resetFields(); setFormOpen(true); };
+  const openCreate = () => { setEditing(null); setFormOpen(true); };
+  const openEdit = (d: DepartmentRow) => { setEditing(d); setFormOpen(true); };
+  // Modal destroyOnHidden → Form remount mỗi lần mở; set giá trị SAU khi mở (effect)
+  // thay vì gọi ngay trong openEdit (lúc đó Form chưa mount → value không dính).
+  useEffect(() => {
+    if (!formOpen) return;
+    if (editing) form.setFieldsValue({ name: editing.name });
+    else form.resetFields();
+  }, [formOpen, editing, form]);
   const submit = async () => {
     const v = await form.validateFields();
     setSaving(true);
     try {
-      await api("/api/admin/departments", { method: "POST", body: { name: v.name } });
-      message.success("Đã tạo phòng ban");
+      if (editing) {
+        await api(`/api/admin/departments/${editing.id}`, { method: "PATCH", body: { name: v.name } });
+        message.success("Đã đổi tên phòng ban");
+      } else {
+        await api("/api/admin/departments", { method: "POST", body: { name: v.name } });
+        message.success("Đã tạo phòng ban");
+      }
       setFormOpen(false);
       load();
     } catch (e) {
@@ -481,6 +495,9 @@ function DepartmentsPanel({ isSsa }: { isSsa: boolean }) {
                 <Space>
                   <Button size="small" onClick={() => setMembersOf(d)}>Thành viên</Button>
                   {isSsa && (
+                    <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(d)}>Sửa</Button>
+                  )}
+                  {isSsa && (
                     <Button
                       size="small"
                       type="text"
@@ -504,13 +521,21 @@ function DepartmentsPanel({ isSsa }: { isSsa: boolean }) {
 
       <Modal
         open={formOpen}
-        title="Tạo phòng ban"
+        title={editing ? "Đổi tên phòng ban" : "Tạo phòng ban"}
         onCancel={() => setFormOpen(false)}
         onOk={submit}
-        okText="Tạo"
+        okText={editing ? "Lưu" : "Tạo"}
         confirmLoading={saving}
         destroyOnHidden
       >
+        {editing && editing.user_count != null && editing.user_count > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={`Đổi tên sẽ cập nhật cho ${editing.user_count} người dùng đang thuộc phòng ban này.`}
+          />
+        )}
         <Form form={form} layout="vertical" style={{ marginTop: 12 }}>
           <Form.Item name="name" label="Tên phòng ban" rules={[{ required: true, whitespace: true, message: "Nhập tên phòng ban" }]}>
             <Input placeholder="Kế toán" />

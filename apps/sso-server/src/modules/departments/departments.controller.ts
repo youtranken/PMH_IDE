@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -41,6 +42,17 @@ export class DepartmentsController {
     @Req() req: Request,
   ) {
     return this.departments.create(dto.name, admin.userId, req.ip ?? null);
+  }
+
+  @Patch(":id")
+  @Roles("ssa")
+  rename(
+    @Param("id") id: string,
+    @Body() dto: CreateDepartmentDto,
+    @CurrentAdmin() admin: AdminContext,
+    @Req() req: Request,
+  ) {
+    return this.departments.rename(id, dto.name, admin.userId, req.ip ?? null);
   }
 
   @Delete(":id")

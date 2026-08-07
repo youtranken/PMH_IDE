@@ -102,6 +102,63 @@ export class DepartmentsService {
   }
 
   /**
+   * Đổi TÊN phòng ban + CASCADE cập nhật users.department (lưu tên text, KHÔNG FK)
+   * trong CÙNG transaction — tránh user treo tên cũ. Đổi hoa/thường cũng được.
+   */
+  async rename(
+    id: string,
+    name: string,
+    actorUserId: string,
+    ip: string | null,
+  ): Promise<DepartmentRow> {
+    const trimmed = name.trim();
+    if (!trimmed) throw new ConflictException("tên phòng ban trống");
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows: cur } = await client.query<{ name: string }>(
+        `SELECT name FROM departments WHERE id = $1 FOR UPDATE`,
+        [id],
+      );
+      if (cur.length === 0) throw new NotFoundException("phòng ban không tồn tại");
+      const oldName = cur[0].name;
+      // Trùng tên (khác id) — tôn trọng UNIQUE lower(name)
+      const { rows: dup } = await client.query<{ id: string }>(
+        `SELECT id FROM departments WHERE lower(name) = lower($1) AND id <> $2`,
+        [trimmed, id],
+      );
+      if (dup.length > 0) throw new ConflictException("tên phòng ban đã tồn tại");
+      const { rows: updated } = await client.query<DepartmentRow>(
+        `UPDATE departments SET name = $2 WHERE id = $1
+         RETURNING id, name, created_at`,
+        [id, trimmed],
+      );
+      const upd = await client.query(
+        `UPDATE users SET department = $2 WHERE lower(department) = lower($1)`,
+        [oldName, trimmed],
+      );
+      await client.query("COMMIT");
+      await this.audit.record({
+        actorUserId,
+        action: "department.renamed",
+        targetType: "department",
+        targetId: id,
+        ip,
+        detail: { from: oldName, to: trimmed, users_updated: upd.rowCount ?? 0 },
+      });
+      return updated[0];
+    } catch (e) {
+      await client.query("ROLLBACK");
+      if ((e as { code?: string }).code === "23505") {
+        throw new ConflictException("tên phòng ban đã tồn tại");
+      }
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * Trả TÊN CHUẨN trong danh mục (đúng hoa/thường đã lưu) nếu khớp không phân
    * biệt hoa/thường; null nếu không có. Dùng để CHUẨN HÓA casing khi ghi
    * users.department → tránh "Kế toán" vs "kế toán" trôi khỏi tên danh mục.
