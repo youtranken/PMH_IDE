@@ -159,14 +159,17 @@ export class GroupsService {
   async listMembers(
     groupId: string,
     admin: AdminContext,
-  ): Promise<{ user_id: string; email: string; full_name: string }[]> {
+  ): Promise<
+    { user_id: string; email: string; full_name: string; department: string }[]
+  > {
     await this.assertCanManage(admin, groupId);
     const { rows } = await this.pool.query<{
       user_id: string;
       email: string;
       full_name: string;
+      department: string;
     }>(
-      `SELECT u.id AS user_id, u.email, u.full_name
+      `SELECT u.id AS user_id, u.email, u.full_name, u.department
        FROM user_groups ug JOIN users u ON u.id = ug.user_id
        WHERE ug.group_id = $1 AND u.deleted_at IS NULL
        ORDER BY u.full_name`,

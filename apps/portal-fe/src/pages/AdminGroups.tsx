@@ -63,6 +63,7 @@ interface Member {
   user_id: string;
   email: string;
   full_name: string;
+  department: string;
 }
 interface UserRow {
   id: string;
@@ -326,6 +327,15 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
     .sort((a, b) => a.localeCompare(b, "vi"))
     .map((d) => ({ value: d, label: d }));
 
+  // Tổng hợp phòng ban của thành viên hiện có → nhìn là biết nhóm gồm phòng nào.
+  const deptSummary = Object.entries(
+    members.reduce<Record<string, number>>((acc, m) => {
+      const d = m.department?.trim();
+      if (d) acc[d] = (acc[d] ?? 0) + 1;
+      return acc;
+    }, {}),
+  ).sort((a, b) => a[0].localeCompare(b[0], "vi"));
+
   return (
     <Drawer open={!!group} onClose={onClose} width={440} title={group ? `Thành viên · ${group.name}` : ""}>
       <div className="pmh-add-block">
@@ -377,6 +387,15 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
         )}
       </div>
 
+      {deptSummary.length > 0 && (
+        <div style={{ margin: "4px 0 12px", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          <span style={{ color: BRAND.muted, fontSize: 12 }}>Phòng ban trong nhóm:</span>
+          {deptSummary.map(([d, n]) => (
+            <Tag key={d} icon={<BankOutlined />} color="green">{d} · {n}</Tag>
+          ))}
+        </div>
+      )}
+
       <List
         loading={loading}
         locale={{ emptyText: <Empty description="Chưa có thành viên" /> }}
@@ -388,7 +407,7 @@ function MembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: ()
             <List.Item.Meta
               avatar={<Avatar style={{ background: "var(--a-chip)", color: BRAND.green, fontWeight: 700 }}>{initials(m.full_name)}</Avatar>}
               title={m.full_name}
-              description={m.email}
+              description={m.department ? `${m.email} · ${m.department}` : m.email}
             />
           </List.Item>
         )}
