@@ -67,9 +67,11 @@ export default function Docs({ isAdmin = false }: { isAdmin?: boolean }) {
     api<{ documents: DocItem[] }>(url)
       .then((d) => {
         setDocs(d.documents);
-        // Không có docs "người dùng" (chỉ toàn admin) → mở thẳng tab quản trị.
-        const hasUser = d.documents.some((x) => (x.audience ?? "user") === "user");
-        setAud(hasUser ? "user" : "admin");
+        // Admin dự án (server trả kèm admin-*) → mở thẳng tab "Quản trị"; member
+        // (không có admin docs) → tab "Người dùng". Tránh admin mở ra thấy tab
+        // Thành viên trước.
+        const hasAdmin = d.documents.some((x) => x.audience === "admin");
+        setAud(hasAdmin ? "admin" : "user");
       })
       .catch(() => {
         setDocs([]);
