@@ -1,14 +1,13 @@
 # DCC1
 
-DCC1 là **trung tâm điều phối**: bốc hồ sơ từ Pool, sinh mã, trình VP/BOP, và là **đầu mối duy nhất** bấm Trả lại/Mở lại. DCC1 thấy **cả 3 luồng**. Chạy tại `de-qlhs.pmh.com.vn`; tên trạng thái giữ **tiếng Anh** gốc.
-
-**Không đính kèm file** — bản cứng giao tay; mọi cú giao–nhận cần bên nhận **xác nhận đã cầm giấy** mới đi tiếp.
+DCC1 là **trung tâm điều phối**: nh?n hồ sơ từ Pool, sinh mã, trình VP/BOP, và là **đầu mối duy nhất** bấm Trả lại/Mở lại. DCC1 thấy c? ** 3 luồng x? l�**. 
+Bản cứng giao tay; mọi vi?c giao–nhận cần bên nhận **xác nhận đã cầm giấy** mới đi tiếp.
 
 ## Đăng nhập & giao diện
 
-- Nhập **email công ty** → PMH ID (SSO). Vai DCC do Admin cấp. Phiên thoát sau **15 phút** nghỉ.
+- Nhập **email công ty** → **de-admin.pmh.com.vn:8443**. Vai DCC do Admin cấp. Phiên thoát sau **15 phút** nghỉ.
 - Thanh trên: 🔔 chuông (thời gian thực) · ngôn ngữ/giao diện · **Chuyển vai** (nếu có nhiều vai) · Thoát.
-- **Nhắc sáng:** công tắc tự bật/tắt email nhắc việc 7h30 (chỉ gửi khi có hồ sơ cần chú ý).
+
 
 ## 3 luồng
 
@@ -16,7 +15,7 @@ DCC1 là **trung tâm điều phối**: bốc hồ sơ từ Pool, sinh mã, trì
 - **B — Contract / VO / Annex / Budget:** DCC2 ↔ Kế toán → DCC1 trình BOP → DCC2 hoàn tất bản cứng.
 - **C — Payment:** DCC3 gửi Kế toán = đóng ngay.
 
-**Andy / ACC / BOP** ở ngoài hệ thống — DCC nhập kết quả duyệt hộ.
+**Andy / ACC / BOP** ở ngoài hệ thống.
 
 ## Màn hình làm việc
 
@@ -27,25 +26,11 @@ DCC1 là **trung tâm điều phối**: bốc hồ sơ từ Pool, sinh mã, trì
 
 ## Việc chính của DCC1
 
-- **Bốc từ Pool:** ở ga **Submitted (Pool)** bấm **"Nhận"** → hệ thống **sinh mã tự động** và đẩy sang **Submitted to VP Andy** trong một cú. Loại hồ sơ sai thì trả lại luôn (trước khi sinh mã).
-- **Trình VP/BOP:** nhập kết quả Andy/BOP hộ (*"Sếp duyệt → hoàn tất"*, *"… → trình BOP"*, *"BOP duyệt → …"*).
+- **Nh?n từ Pool:** ở ga **Submitted (Pool)** bấm **"Nhận"** → hệ thống **sinh mã tự động** và đẩy sang **Submitted to VP Andy** . Loại hồ sơ sai thì trả lại luôn (trước khi sinh mã).
+- **Trình VP/BOP:** nhập kết quả Andy/BOP (*"Sếp duyệt → hoàn tất"*, *"… → trình BOP"*, *"BOP duyệt → …"*).
 - **Nhận về từ ACC:** khi Kế toán trả bản cứng, bấm **"Nhận về từ ACC"**.
-- **Trả lại Applicant (Return):** **bắt buộc nêu lý do**. DCC2/DCC3 **không tự trả lại** — họ đẩy ngược về DCC1, DCC1 mới bấm Trả lại.
+- **Trả lại Applicant (Return):** **bắt buộc nêu lý do**. 
 - **Mở lại (Reopen):** mở lại hồ sơ đã **Completed** (hoặc **Sent to Accounting** với Payment) → về Applicant đi vòng mới; giữ mã + lịch sử, không giới hạn thời gian.
-- **Đổi ưu tiên:** DCC1 đổi được mức ưu tiên ở **bất kỳ trạng thái nào** (ghi log).
-
-## Làn đối chiếu (reconcile)
-
-Khi DCC2/DCC3 báo thiếu giấy, hồ sơ hiện ở cột **"Chờ đối chiếu"** với gợi ý *"DCC2/DCC3 báo thiếu giấy — cần đối chiếu & bàn giao lại"*. DCC1 chọn **"Đã bổ sung, bàn giao lại →"** hoặc **"Trả lại Applicant (Return)"**.
-
-## Xử lý hàng loạt (bulk)
-
-Ở cột **Submitted to VP Andy**, chọn nhiều thẻ (checkbox) rồi áp một quyết định của VP cho nhiều hồ sơ cùng lúc (xác nhận *"Áp dụng cho N hồ sơ"*). Mỗi hồ sơ có kết quả độc lập.
-
-## Khoá mềm & giành quyền
-
-- **Khoá mềm:** khi bạn mở/xử lý hồ sơ, hệ thống giữ chỗ ~5 phút. Người khác đang giữ → thẻ hiện *"{tên} đang xử lý"* và ẩn nút.
-- **Giành quyền (Seize):** bấm **"Giành quyền"** khi khoá người kia đã hết hạn. Thành công → *"Đã giành quyền xử lý hồ sơ."*
 
 ## Tạm dừng SLA — "Chờ bổ sung"
 
@@ -58,13 +43,13 @@ Khi chờ giấy/đối tác bên ngoài: Menu ⋯ → **"Chờ bổ sung (dừn
 | Bước | Ai làm | → Trạng thái |
 |---|---|---|
 | 1 | Applicant nộp | **Submitted** (Pool) |
-| 2 | DCC1 bốc + sinh mã | **Submitted to VP Andy** |
+| 2 | DCC1 nh?n + t? d?ng sinh m� | **Submitted to VP Andy** |
 | 3a | Andy duyệt (không cần BOP) | **Completed** ✓ (email Applicant) |
 | 3b | Andy duyệt (cần BOP) → DCC1 trình BOP | **Submitted to BOP** |
 | 4 | BOP duyệt | **Completed** ✓ |
 
-**B — Contract:** DCC1 bốc → Andy duyệt → chuyển DCC2 → DCC2 nhận + gửi ACC → DCC1 nhận về từ ACC → trình BOP → BOP duyệt → chuyển DCC2 (Hardcopy) → DCC2 nhập scan → **Completed**.
+**B — Contract:** DCC1 nh?n → Andy duyệt → chuyển DCC2 → DCC2 nhận + gửi ACC → DCC1 nhận về từ ACC → trình BOP → BOP duyệt → chuyển DCC2 (Hardcopy) → DCC2 nhập scan → **Completed**.
 
-**C — Payment:** DCC1 bốc → Andy duyệt → chuyển DCC3 → DCC3 nhận + gửi ACC → **Sent to Accounting** (đóng ngay).
+**C — Payment:** DCC1 nh?n → Andy duyệt → chuyển DCC3 → DCC3 nhận + gửi ACC → **Sent to Accounting** (đóng ngay).
 
 **Trả lại (2 pha):** DCC1 Trả lại (lý do) → Returned → Applicant xác nhận nhận lại → Return-fixing → sửa & nộp lại → Submitted.

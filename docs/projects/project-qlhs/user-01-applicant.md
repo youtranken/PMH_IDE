@@ -1,14 +1,12 @@
 # Applicant (Nộp hồ sơ)
 
-Applicant **nộp và theo dõi hồ sơ** của mình. Bạn chỉ thấy hồ sơ của bạn. Chạy tại `de-qlhs.pmh.com.vn`. Tên trạng thái giữ **tiếng Anh** gốc (tiếng Việt trong ngoặc để đọc).
-
-**Không đính kèm file** trong hệ thống — bản cứng bạn giao tay như quy trình giấy; QLHS chỉ mang thông tin.
+Applicant **nộp và theo dõi hồ sơ** của mình. Bạn chỉ thấy hồ sơ của bạn. Chạy tại `de-qlhs.pmh.com.vn`.
 
 ## Đăng nhập
 
-- Nhập **email công ty** (vd `ban@pmh.com.vn`) → chuyển sang PMH ID (SSO), nhập mật khẩu trên trang PMH ID.
+- Nhập **email công ty** (vd `email@pmh.com.vn`) → chuyển sang PMH ID (SSO), nhập mật khẩu trên trang **de-admin.pmh.com.vn:8443**.
 - Mở QLHS từ cổng PMH ("Mở dự án") thì **tự đăng nhập**.
-- Mọi người mặc định là **Applicant**. Phiên tự thoát sau **15 phút** nghỉ.
+- **Applicant** dang nh?p phiên tự thoát sau **15 phút** nghỉ.
 
 ## Giao diện chung
 
@@ -47,15 +45,14 @@ Trang **"Theo dõi hồ sơ"** hiển thị mọi hồ sơ của bạn.
 
 Bấm **Code** hoặc **Xem chi tiết**:
 
-- **Đầu trang:** mã (hoặc *"Chưa cấp mã"*), nhà thầu, luồng, trạng thái; badge **"Quá hạn N ngày"**, tag **"Đang chờ bổ sung"** nếu đang dừng SLA.
-- **Tuyến xử lý:** bản đồ ga có mốc **"Đang ở đây"** + gợi ý đang chờ ai (vd *"Chờ VP Andy duyệt"*).
-- **Nhật ký bàn giao:** toàn bộ lịch sử ai làm gì, khi nào, lý do — không sửa được.
+- **Đầu trang:** mã (hoặc *"Chưa cấp mã"*), nhà thầu, trạng thái; badge **"Quá hạn N ngày"**, tag **"Đang chờ bổ sung"** nếu đang dừng SLA.
+- **Nhật ký bàn giao:** toàn bộ lịch sử ai làm gì, khi nào, lý do l� g�.
 
 ## Khi hồ sơ bị trả lại (Returned)
 
 Xử lý **2 bước** (đối xứng giao nhận bản cứng ngoài đời):
 
-- **B1. Nhận lại bản cứng:** mở hồ sơ (hoặc **"Sửa & nộp lại"**), đọc **lý do bị trả**, bấm **"Xác nhận đã nhận lại bản cứng"** → chuyển **Return-fixing** *(Đang sửa)*.
+- **B1. Nhận lại bản cứng:** mở hồ sơ (hoặc **"Sửa & nộp lại"**), đọc **lý do bị trả**, bấm **"Xác nhận đã nhận lại bản cứng"** →.
 - **B2. Sửa & nộp lại:** chỉnh 9 trường → **"Nộp lại"** → quay về **Submitted**, đi lại từ đầu tuyến (giữ mã cũ).
 
 Không sửa thì hồ sơ nằm mãi ở tab **Bị trả lại** — hệ thống không tự đóng.
@@ -64,10 +61,6 @@ Không sửa thì hồ sơ nằm mãi ở tab **Bị trả lại** — hệ th�
 
 Khi hồ sơ **vẫn ở Pool** (`Submitted`, chưa ai bốc):
 
-- **Sửa hồ sơ:** còn sửa được 9 trường. Nếu DCC1 vừa bốc, báo *"Hồ sơ đã được tiếp nhận — không sửa được nữa."*
+- **Sửa hồ sơ:** Sửa được 9 trường d? li?u. Nếu DCC1 vừa nh?n�c, báo *"Hồ sơ đã được tiếp nhận — không sửa được nữa."*
 - **Thu hồi:** rút khỏi hàng chờ (cần xác nhận) → **Cancelled** *(Đã hủy)*.
 - **Nhân bản** (mọi lúc): tạo hồ sơ mới đổ sẵn dữ liệu cũ, tiện khi nộp nhiều hồ sơ giống nhau (ưu tiên reset về Thường).
-
-## Trợ lý QLHS
-
-Trợ lý **chỉ đọc** (không sửa gì, không dùng AI ngôn ngữ lớn). Hỏi tiếng Việt, vd *"hồ sơ của tôi đang mở"*, *"chi tiết G-2026-0001"*, *"thông báo chưa đọc"*. Kết quả **giới hạn theo quyền** — Applicant chỉ tra được hồ sơ của mình.

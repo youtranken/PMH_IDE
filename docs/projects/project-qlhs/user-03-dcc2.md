@@ -1,14 +1,13 @@
 # DCC2
 
-DCC2 xử lý **luồng Hợp đồng (Contract)** — chỉ thấy tuyến này. Chạy tại `de-qlhs.pmh.com.vn`; tên trạng thái giữ **tiếng Anh** gốc.
+DCC2 xử lý **luồng Hợp đồng (Contract)** — chỉ thấy tuyến này. Chạy tại `de-qlhs.pmh.com.vn:8443`.
 
-**Không đính kèm file** — bản cứng giao tay; giao–nhận cần bên nhận **xác nhận đã cầm giấy** mới đi tiếp. DCC2 chỉ nhập **đường dẫn file scan** làm bằng chứng, không upload.
+Bản cứng giao tay; giao–nhận cần bên nhận **xác nhận đã cầm giấy** mới đi tiếp. DCC2 chỉ nhập **đường dẫn file scan** làm bằng chứng.
 
 ## Đăng nhập & giao diện
 
 - Nhập **email công ty** → PMH ID (SSO). Vai DCC do Admin cấp. Phiên thoát sau **15 phút** nghỉ.
 - Thanh trên: 🔔 chuông (thời gian thực) · ngôn ngữ/giao diện · **Chuyển vai** (nếu có nhiều vai) · Thoát.
-- **Nhắc sáng:** công tắc email nhắc việc 7h30 (chỉ gửi khi có hồ sơ cần chú ý).
 
 ## Màn hình làm việc
 
@@ -28,12 +27,10 @@ DCC2 xử lý **luồng Hợp đồng (Contract)** — chỉ thấy tuyến này
 
 DCC2 **không tự trả lại Applicant**. Khi giấy thiếu/sai, chỉ dùng **"Thiếu giấy, trả về DCC1"** để đẩy ngược; DCC1 đối chiếu rồi mới quyết Trả lại hoặc bàn giao lại. Mở lại hồ sơ đã đóng: DCC2 chỉ **"Đề nghị mở lại"**, DCC1 mới bấm Reopen.
 
-## Khoá mềm, giành quyền, tạm dừng SLA
+## Tạm dừng SLA
 
-- **Khoá mềm:** mở/xử lý hồ sơ giữ chỗ ~5 phút; người khác đang giữ → *"{tên} đang xử lý"*, ẩn nút.
-- **Giành quyền (Seize):** bấm **"Giành quyền"** khi khoá người kia đã hết hạn.
 - **Chờ bổ sung (dừng SLA):** Menu ⋯ (bắt buộc lý do) khi chờ bên ngoài; có giấy → **"Đã có giấy — chạy lại SLA"**. Chỉ người đang giữ dừng/chạy lại được; phần đã quá hạn trước khi dừng vẫn giữ đỏ.
 
 ## Vị trí DCC2 trong luồng Contract
 
-DCC1 bốc → Andy duyệt → chuyển DCC2 → **DCC2 nhận + gửi ACC** → DCC1 nhận về từ ACC → trình BOP → BOP duyệt → chuyển DCC2 (Hardcopy) → **DCC2 nhập scan → Completed** (email Applicant).
+DCC1 nh?n → Andy duyệt → chuyển DCC2 → **DCC2 nhận + gửi ACC** → DCC1 nhận về từ ACC → trình BOP → BOP duyệt → chuyển DCC2 (Hardcopy) → **DCC2 nhập scan → Completed** (email Applicant).

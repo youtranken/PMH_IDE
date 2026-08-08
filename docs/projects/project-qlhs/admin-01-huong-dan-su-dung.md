@@ -1,8 +1,8 @@
 # QLHS — Hướng dẫn Quản trị
 
-Vai **Admin** cấu hình hệ thống: gán vai, chỉnh danh mục, đặt ngưỡng SLA, xem phân tích/nhật ký, cấu hình email. Chạy on-prem tại `de-qlhs.pmh.com.vn`. Tên trạng thái hồ sơ giữ **tiếng Anh** gốc (tiếng Việt trong ngoặc chỉ để đọc).
+Vai **Admin** cấu hình hệ thống: gán vai, chỉnh danh mục, đặt ngưỡng SLA, xem phân tích/nhật ký, cấu hình email. Chạy on-prem tại `de-qlhs.pmh.com.vn`.
 
-**Admin KHÔNG xử lý hồ sơ** — không có nút hành động nào trên hồ sơ. Muốn vừa quản trị vừa xử lý hồ sơ phải được gán thêm vai DCC và **Chuyển vai**.
+**Admin KHÔNG xử lý hồ sơ** — không có nút hành động nào trên hồ sơ.
 
 ## Năm vai
 
@@ -10,7 +10,7 @@ Vai **Admin** cấu hình hệ thống: gán vai, chỉnh danh mục, đặt ng�
 |---|---|
 | **Admin** | Toàn quyền quản trị |
 | **Applicant** | Nộp & theo dõi hồ sơ (mặc định mọi người) |
-| **DCC1** | Bốc hồ sơ từ Pool, điều phối cả 3 tuyến; đầu mối Return/Reopen |
+| **DCC1** | Nh?n hồ sơ từ Pool, điều phối cả 3 tuyến; đầu mối Return/Reopen |
 | **DCC2** | Luồng Hợp đồng (Contract) |
 | **DCC3** | Luồng Thanh toán (Payment) |
 
@@ -20,10 +20,8 @@ Vai **Admin** cấu hình hệ thống: gán vai, chỉnh danh mục, đặt ng�
 
 Một ô *"Email hoặc tài khoản"*:
 
-- **Email** (vd `ban@pmh.com.vn`) → PMH ID (SSO), nhập mật khẩu trên trang PMH ID.
-- **Tên tài khoản quản trị nội bộ** (vd `admin.ssa`) → hiện ô mật khẩu, đăng nhập admin nội bộ (dự phòng khi SSO sự cố; giới hạn 5 lần thử/phút).
-
-Email trong danh sách quản trị cấu hình sẵn tự được cấp Admin lần đăng nhập đầu. Vai đọc lại **ở mỗi thao tác** (gán/gỡ vai có hiệu lực ngay request kế tiếp). Phiên tự thoát sau **15 phút** nghỉ.
+- **Email** (vd `email@pmh.com.vn`) → PMH ID (SSO), nhập mật khẩu trên trang PMH ID.
+- Phiên tự thoát sau **15 phút** nghỉ.
 
 ## Trang quản trị — 8 mục
 
@@ -38,11 +36,10 @@ Email trong danh sách quản trị cấu hình sẵn tự được cấp Admin 
 | **Nhật ký hệ thống** | Lịch sử mọi cú chuyển hồ sơ (bất biến) |
 | **Cấu hình** | Tên VP hiển thị + Email SMTP |
 
-Mỗi mục có địa chỉ `/admin/...` riêng (bookmark/F5/back được).
 
 ## Người dùng & Vai
 
-Danh sách ghép từ **Danh bạ PMH ID (SSO)** + vai đã gán → gán vai được **trước cả khi người đó lần đầu đăng nhập**. Mất kết nối PMH ID thì tự lùi về danh sách người đã đăng nhập QLHS (kèm cảnh báo).
+Danh sách ghép từ **Danh bạ PMH ID (SSO)** + vai đã gán → gán vai được **trước cả khi người đó lần đầu đăng nhập**.
 
 Nhãn tài khoản: **"đã có tài khoản"** (đã đăng nhập QLHS) / **"chưa đăng nhập"**.
 
@@ -51,8 +48,6 @@ Nhãn tài khoản: **"đã có tài khoản"** (đã đăng nhập QLHS) / **"c
 - **Gỡ vai** đưa người về Applicant, có **Hoàn tác**.
 - **Không tự gỡ Admin của chính mình** — nhờ Admin khác.
 - Bổ nhiệm Admin có hộp cảnh báo *"Admin có toàn quyền — chỉ bổ nhiệm người thực sự cần."*
-
-Danh sách hiển thị **mọi** người trong PMH ID, **không tự lọc** người đã khóa/xóa (việc chặn đăng nhập do PMH ID lo). Muốn dọn ở QLHS thì gỡ vai về Applicant.
 
 ## Danh mục
 
@@ -94,20 +89,6 @@ Mọi số liệu **tính trực tiếp từ nhật ký sự kiện** lúc mở 
 ## Cấu hình
 
 **Tên VP hiển thị:** trường **Tên VP** (≤ 40 ký tự, mặc định `Andy`). Đổi là đổi *"VP …"* ở mọi nơi hiển thị, **áp dụng ngay**. Không ảnh hưởng dữ liệu hồ sơ hay nhật ký.
-
-**Email SMTP** (cho email thông báo hoàn tất/trả lại/nhắc việc):
-
-| Trường | Ý nghĩa |
-|---|---|
-| **Host** | vd `smtp.pmh.com.vn`. Để trống = dùng cấu hình `.env` |
-| **Cổng** | mặc định 587 |
-| **TLS/SSL** | bật/tắt |
-| **Tên đăng nhập / From** | tài khoản SMTP / địa chỉ gửi |
-| **Mật khẩu** | luôn để trống khi mở; **để trống khi lưu = giữ cũ** |
-
-- Mật khẩu **mã hóa AES-256-GCM** bằng khóa `CONFIG_ENC_KEY` trong `.env` (chỉ ở máy chủ). Thiếu khóa → cảnh báo đỏ, không cho lưu mật khẩu.
-- **KHÔNG đổi `CONFIG_ENC_KEY`** sau khi đã lưu mật khẩu — sẽ không giải mã được mật khẩu cũ.
-- **Gửi thử:** nhập email nhận → **Gửi thử** kiểm tra theo giá trị đang nhập (chưa cần lưu); báo đúng lỗi thật để sửa.
 
 ## Chuyển vai / ngôn ngữ / thoát
 

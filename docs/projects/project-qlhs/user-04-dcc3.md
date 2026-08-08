@@ -1,14 +1,11 @@
 # DCC3
 
-DCC3 xử lý **luồng Thanh toán (Payment)** — tuyến ngắn nhất, chỉ thấy tuyến này. Chạy tại `de-qlhs.pmh.com.vn`; tên trạng thái giữ **tiếng Anh** gốc.
-
-**Không đính kèm file** — bản cứng giao tay; giao–nhận cần bên nhận **xác nhận đã cầm giấy** mới đi tiếp.
+DCC3 xử lý **luồng Thanh toán (Payment). Chạy tại `de-qlhs.pmh.com.vn`.
 
 ## Đăng nhập & giao diện
 
 - Nhập **email công ty** → PMH ID (SSO). Vai DCC do Admin cấp. Phiên thoát sau **15 phút** nghỉ.
 - Thanh trên: 🔔 chuông (thời gian thực) · ngôn ngữ/giao diện · **Chuyển vai** (nếu có nhiều vai) · Thoát.
-- **Nhắc sáng:** công tắc email nhắc việc 7h30 (chỉ gửi khi có hồ sơ cần chú ý).
 
 ## Màn hình làm việc
 
@@ -28,12 +25,10 @@ DCC3 xử lý **luồng Thanh toán (Payment)** — tuyến ngắn nhất, chỉ
 
 DCC3 **không tự trả lại Applicant**. Giấy thiếu/sai chỉ dùng **"Thiếu giấy, trả về DCC1"** để đẩy ngược; DCC1 mới quyết Trả lại/bàn giao lại. Mở lại hồ sơ đã đóng: DCC3 chỉ **"Đề nghị mở lại"**, DCC1 mới bấm Reopen. *(Thao tác tương tự DCC2, khác ở chỗ tuyến Payment đóng ngay tại bước gửi ACC, không có bước hoàn tất bản cứng.)*
 
-## Khoá mềm, giành quyền, tạm dừng SLA
+## Tạm dừng SLA
 
-- **Khoá mềm:** mở/xử lý hồ sơ giữ chỗ ~5 phút; người khác đang giữ → *"{tên} đang xử lý"*, ẩn nút.
-- **Giành quyền (Seize):** bấm **"Giành quyền"** khi khoá người kia đã hết hạn.
 - **Chờ bổ sung (dừng SLA):** Menu ⋯ (bắt buộc lý do) khi chờ bên ngoài; có giấy → **"Đã có giấy — chạy lại SLA"**. Chỉ người đang giữ dừng/chạy lại được; phần đã quá hạn trước khi dừng vẫn giữ đỏ.
 
 ## Vị trí DCC3 trong luồng Payment
 
-Applicant nộp → DCC1 bốc + sinh mã → Andy duyệt → chuyển DCC3 → **DCC3 nhận bản cứng** → **DCC3 nhập Document No → gửi ACC** → **Sent to Accounting** (đóng ngay, không qua BOP, không email).
+Applicant nộp → DCC1 nh?n + sinh mã → Andy duyệt → chuyển DCC3 → **DCC3 nhận bản cứng** → **DCC3 nhập Document No → gửi ACC** → **Sent to Accounting** (đóng ngay, không qua BOP, không email).

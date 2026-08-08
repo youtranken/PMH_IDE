@@ -7,10 +7,8 @@ Dùng để quản lý tài sản/phần mềm và duyệt việc mượn-trả 
 | Vai | Làm gì |
 |---|---|
 | **Admin** | Vận hành hằng ngày: duyệt mượn, quản lý tài sản/phần mềm, cấu hình, nhật ký, cấp quyền mượn |
-| **SA (Super Admin)** | Toàn quyền Admin **+ bổ nhiệm/miễn nhiệm Admin**. Là tài khoản break-glass, chỉ dùng khi SSO sự cố |
 
 - **Admin** đăng nhập bằng **email công ty** qua PMH ID (SSO).
-- **SA** đăng nhập bằng **tên đăng nhập + mật khẩu** local; tự thoát sau 2 giờ nghỉ.
 - Máy chủ luôn kiểm quyền độc lập (403 nếu thiếu quyền). Nếu dữ liệu vừa bị người khác đổi sẽ báo *"Trạng thái đã thay đổi — tải lại rồi thử lại"*.
 
 ## Xử lý mượn (`/approvals`)

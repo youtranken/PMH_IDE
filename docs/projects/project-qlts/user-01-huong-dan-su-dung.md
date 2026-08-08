@@ -5,16 +5,14 @@ Dùng để **tự đặt mượn máy/thiết bị** trong kho dùng chung, the
 ## Đăng nhập
 
 - Nhập **email công ty** → **Đăng nhập** → chuyển sang PMH ID (SSO).
-- Mở từ cổng PMH (đã đăng nhập sẵn) thì vào thẳng, không cần nhập lại.
-- Báo *"Tài khoản không có quyền truy cập QLTS"* → chưa thuộc nhóm được phép, liên hệ Admin.
 
 ## Màn hình chính — Lịch mượn máy (`/`)
 
 Hiển thị lịch máy bận trong 2 tuần + máy trống để đặt nhanh.
 
-- **Lưới 14 ngày**: mỗi hàng là một máy; rê chuột xem phần mềm đã cài. Ô bận tô màu theo **Đang mượn / Chờ duyệt** (không hiện tên người mượn).
+- **L?ch 14 ngày**: mỗi hàng là một máy; rê chuột xem phần mềm đã cài. Ô bận tô màu theo **Đang mượn / Chờ duyệt** (không hiện tên người mượn).
 - **Chọn ngày** nhảy tới tuần chứa ngày đó; nút **Hôm nay** về tuần hiện tại. Lọc theo máy / trạng thái.
-- **Rail "Máy trống — đặt nhanh"** (bên phải): mỗi thẻ có nút **Đặt**.
+- **"Máy trống — đặt nhanh"** (bên phải): mỗi thẻ có nút **Đặt**.
 - **Bảng "Máy đang mượn / chờ giao"** (dưới): lọc **Của tôi** để xem lượt của bạn (gắn nhãn **Bạn**), có nút **Xin gia hạn**.
 
 ## Đặt máy
@@ -87,15 +85,3 @@ Lưu ý: "Thiết bị đang giữ" là tài sản **cấp phát sở hữu**, k
 ## Trợ lý QLTS
 
 Biểu tượng nổi ở góc phải. Nút nhanh: **Tìm máy trống** (chọn ngày → đặt ngay), **Máy tôi đang mượn**. Hỏi tự nhiên được, vd *"máy nào trống ngày mai"*.
-
-## Trạng thái lượt mượn
-
-| Trạng thái | Ý nghĩa |
-|---|---|
-| **Chờ duyệt** | Lượt > 2 ngày / định kỳ đang chờ Admin |
-| **Chờ giao** | Đã giữ máy, chờ tới nhận |
-| **Đang mượn** | Đã nhận máy, đang dùng |
-| **Tới hạn hôm nay / Quá hạn** | Hạn trả hôm nay / đã qua hạn |
-| **Đang chờ gia hạn** | Đã gửi yêu cầu gia hạn |
-| **Đã đóng** | Đã trả xong |
-| **Từ chối / Đã hủy** | Admin từ chối hoặc lượt bị hủy |
