@@ -25,6 +25,7 @@ interface DocItem {
   slug: string;
   title: string;
   content: string;
+  audience: "admin" | "user";
 }
 
 /**
@@ -59,7 +60,21 @@ export class DocsController {
     if (rowCount === 0) {
       throw new ForbiddenException("bạn không có quyền xem tài liệu dự án này");
     }
-    return { documents: readProjectDocs(clientId) };
+    // Admin của DỰ ÁN = SSA (toàn hệ) HOẶC project_admin của project sở hữu client
+    // này. Chỉ họ mới thấy tài liệu admin-*.md; member thường chỉ thấy user-*/không tiền tố.
+    const { rowCount: adm } = await this.pool.query(
+      `SELECT 1 WHERE
+         EXISTS (SELECT 1 FROM admin_roles r WHERE r.user_id = $1 AND r.role = 'ssa')
+         OR EXISTS (SELECT 1 FROM admin_projects ap
+                    JOIN clients c ON c.project_id = ap.project_id
+                    WHERE ap.user_id = $1 AND c.client_id = $2)`,
+      [userId, clientId],
+    );
+    const isProjectAdmin = (adm ?? 0) > 0;
+    const documents = readProjectDocs(clientId).filter(
+      (d) => isProjectAdmin || d.audience === "user",
+    );
+    return { documents };
   }
 }
 
@@ -75,6 +90,9 @@ export function readProjectDocs(clientId: string): DocItem[] {
       const content = readFileSync(join(dir, f), "utf8");
       const h1 = content.match(/^#\s+(.+)$/m);
       const fallback = f.replace(/\.md$/i, "");
-      return { slug: fallback, title: (h1?.[1] ?? fallback).trim(), content };
+      // Tiền tố tên file phân đối tượng: admin-*.md = chỉ quản trị; còn lại
+      // (user-*.md hoặc không tiền tố) = mọi thành viên dự án.
+      const audience: DocItem["audience"] = /^admin-/i.test(f) ? "admin" : "user";
+      return { slug: fallback, title: (h1?.[1] ?? fallback).trim(), content, audience };
     });
 }

@@ -13,6 +13,7 @@ interface DocItem {
   slug: string;
   title: string;
   content: string;
+  audience?: "admin" | "user";
 }
 
 /**
@@ -30,6 +31,7 @@ export default function Docs({ isAdmin = false }: { isAdmin?: boolean }) {
   const [docs, setDocs] = useState<DocItem[] | null>(null); // tài liệu của dự án đang chọn
   const [docsErr, setDocsErr] = useState(false);
   const [openSlug, setOpenSlug] = useState<string | null>(null);
+  const [aud, setAud] = useState<"admin" | "user">("user"); // đối tượng đang xem (nếu dự án có docs quản trị)
 
   useEffect(() => {
     // Admin luôn có mục "PMH ID — Quản trị" đứng đầu (tài liệu bàn giao hệ thống).
@@ -57,6 +59,7 @@ export default function Docs({ isAdmin = false }: { isAdmin?: boolean }) {
     setDocs(null);
     setDocsErr(false);
     setOpenSlug(null);
+    setAud("user");
     const url =
       active === PMHID_DOCS
         ? "/api/admin/docs"
@@ -64,7 +67,9 @@ export default function Docs({ isAdmin = false }: { isAdmin?: boolean }) {
     api<{ documents: DocItem[] }>(url)
       .then((d) => {
         setDocs(d.documents);
-        setOpenSlug(d.documents[0]?.slug ?? null);
+        // Không có docs "người dùng" (chỉ toàn admin) → mở thẳng tab quản trị.
+        const hasUser = d.documents.some((x) => (x.audience ?? "user") === "user");
+        setAud(hasUser ? "user" : "admin");
       })
       .catch(() => {
         setDocs([]);
@@ -72,8 +77,21 @@ export default function Docs({ isAdmin = false }: { isAdmin?: boolean }) {
       });
   }, [active]);
 
+  // Docs hiển thị theo đối tượng đang chọn (admin/user). File không có audience
+  // (docs cũ / mục quản trị PMH ID) coi như "user" → luôn hiện.
+  const visibleDocs = (docs ?? []).filter((d) => (d.audience ?? "user") === aud);
+  const hasAdminDocs = (docs ?? []).some((d) => d.audience === "admin");
+  // Giữ openSlug hợp lệ khi đổi đối tượng hoặc khi docs vừa tải.
+  useEffect(() => {
+    if (!docs) return;
+    if (!visibleDocs.some((d) => d.slug === openSlug)) {
+      setOpenSlug(visibleDocs[0]?.slug ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs, aud]);
+
   const activeProject = projects?.find((p) => p.client_id === active) ?? null;
-  const openDoc = docs?.find((d) => d.slug === openSlug) ?? null;
+  const openDoc = visibleDocs.find((d) => d.slug === openSlug) ?? null;
   const rendered = openDoc ? renderMarkdown(openDoc.content) : null;
 
   return (
@@ -137,9 +155,31 @@ export default function Docs({ isAdmin = false }: { isAdmin?: boolean }) {
             />
           ) : (
             <>
-              {docs.length > 1 && (
+              {hasAdminDocs && (
+                <div className="pmh-docs__aud" role="tablist" aria-label="Đối tượng tài liệu">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={aud === "user"}
+                    className={`pmh-docs__aud-btn${aud === "user" ? " is-active" : ""}`}
+                    onClick={() => setAud("user")}
+                  >
+                    Cho người dùng
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={aud === "admin"}
+                    className={`pmh-docs__aud-btn${aud === "admin" ? " is-active" : ""}`}
+                    onClick={() => setAud("admin")}
+                  >
+                    Cho quản trị
+                  </button>
+                </div>
+              )}
+              {visibleDocs.length > 1 && (
                 <div className="pmh-docs__tabs" role="tablist">
-                  {docs.map((d) => (
+                  {visibleDocs.map((d) => (
                     <button
                       key={d.slug}
                       type="button"
@@ -216,6 +256,10 @@ const DOCS_CSS = `
 .pmh-docs__proj-env{display:block;font-size:11px;color:${BRAND.muted};margin-top:3px;}
 /* doc card */
 .pmh-docs__doc{background:#fff;border:1px solid var(--pmh-card-border);border-radius:var(--pmh-card-radius);box-shadow:var(--pmh-card-shadow);padding:8px 32px 28px;min-width:0;}
+.pmh-docs__aud{display:inline-flex;gap:2px;margin:14px 0 2px;padding:3px;background:#eef1ef;border-radius:999px;}
+.pmh-docs__aud-btn{border:none;background:none;font:inherit;font-size:13px;font-weight:600;color:${BRAND.muted};padding:6px 16px;border-radius:999px;cursor:pointer;}
+.pmh-docs__aud-btn:hover{color:${BRAND.green};}
+.pmh-docs__aud-btn.is-active{background:#fff;color:${BRAND.ink};box-shadow:0 1px 2px rgba(0,0,0,.08);}
 .pmh-docs__tabs{display:flex;gap:6px;flex-wrap:wrap;padding:14px 0 6px;border-bottom:1px solid var(--pmh-card-border);margin-bottom:6px;}
 .pmh-docs__tab{border:1px solid var(--pmh-card-border);background:#fff;color:${BRAND.muted};font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer;}
 .pmh-docs__tab:hover{color:${BRAND.green};border-color:#cdd8d3;}
