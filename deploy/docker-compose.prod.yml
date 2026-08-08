@@ -19,6 +19,13 @@ services:
   sso-server:
     mem_limit: 3g
     mem_reservation: 512m
+    # Docs đọc LIVE từ repo (mount), KHÔNG dựa bản nướng trong image → sửa .md
+    # chỉ cần `git pull` trên prod là hiện ngay, KHỎI rebuild/update-idp. Read-only:
+    # app (kể cả khi bị RCE) không ghi đè được tài liệu.
+    environment:
+      DOCS_CONTENT_DIR: /docs-content
+    volumes:
+      - ../docs/projects:/docs-content:ro
 
   # FE: phục vụ bản build TĨNH qua Nginx (không phải Vite dev server).
   portal-fe:
